@@ -14,23 +14,23 @@ todo list:
 import utils.utilities as ut
 import utils.snPlotting as sp
 import utils.MCMC as mc
-
-import numpy as np
-import matplotlib.pyplot as plt
-from pylab import rcParams
-rcParams['figure.figsize'] = 16,6
-rcParams["font.size"] = 20
-
-from celerite.modeling import Model
+import time as timeModule
+import pandas as pd
 from scipy.optimize import minimize
-import celerite
-from celerite import terms
-
+import numpy as np
+#import matplotlib.pyplot as plt
 import os
 import emcee
-import time as timeModule
 import datetime 
-import pandas as pd
+from pylab import rcParams
+rcParams['figure.figsize'] = 16, 6
+rcParams["font.size"] = 20
+
+#from celerite.modeling import Model
+#import celerite
+#from celerite import terms
+
+
 
 
 
@@ -48,12 +48,14 @@ class etsMAIN(object):
         self.CBV_folder = CBV_folder
         self.quaternion_folder_raw = quaternion_folder_raw
         self.quaternion_folder_txt = quaternion_folder_txt
-        
+        return
+    
     def make_quatsTxt(self):
         """Only run me if you don't have the quat.txt files yet 
         should skip generation if they already exist in the txt folder"""
         ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
-        
+        return
+    
     def load_data_lygos_single(self, fileToLoad, override=False):
         """Given a SPECIFIC filepath, load in data + information
         and when i say SPECIFIC i mean like, 
@@ -63,9 +65,9 @@ class etsMAIN(object):
         #look up sector of discovery in big file
         self.sector = self.info[self.info["Name"].str.contains(pieces[1][2:])]["Sector"].iloc[0]
         #load in
-        if self.sector < 10:
+        if (self.sector < 10):
             self.sector = "0" + str(self.sector)
-        if pieces[2].startswith(str(self.sector)) or override==True:
+        if (pieces[2].startswith(str(self.sector)) or override == True):
             self.targetlabel = pieces[1]
             self.sector = pieces[2][0:2]
             self.camera=pieces[2][2]
