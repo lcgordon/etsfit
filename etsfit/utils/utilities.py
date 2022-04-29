@@ -70,14 +70,14 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
     it brighter"""
     fractionalBright = ((flux.max()-1) * fraction) + 1
     
-    pilk = 0 #if you hit 10 in a row brighter than cutoff, you can stop there
+    pilk = 0 # if you hit 10 in a row brighter than cutoff, you can stop there
     for n in range(len(flux)):
         if flux[n] >= fractionalBright:
             pilk+=1
             if pilk == 10:
                 cutoffindex = n-10
                 break
-        else: #if you haven't hit 10 in a row above fractional position, try again
+        else: # if you haven't hit 10 in a row above fractional position, try again
             pilk=0
     if QCBVALL is not None:
         Qall, CBV1, CBV2, CBV3 = QCBVALL
@@ -109,11 +109,11 @@ def bin_8_hours(time, flux, error, bg, QCBVALL=None):
     m = n_points
         
     while m <= len(time):
-        #get the midpoint of this data as the point to plot at
+        # get the midpoint of this data as the point to plot at
         bin_t = time[n + 8] 
-        binned_time.append(bin_t) #put into new array
-        binned_flux.append(np.nanmean(flux[n:m])) #put into new array
-        #error propagates as sqrt(sum of squares of error)
+        binned_time.append(bin_t) # put into new array
+        binned_flux.append(np.nanmean(flux[n:m])) # put into new array
+        # error propagates as sqrt(sum of squares of error)
         binned_error.append((np.sqrt(np.sum(error[n:m]**2)) / n_points ))
         binned_bg.append(np.nanmean(bg[n:m]))
         if QCBVALL is not None:
@@ -189,8 +189,8 @@ def quaternion_binning(quaternion_t, quat_data, tmin):
         idx = (np.abs(array - value)).argmin()
         return idx
     
-    #print("quat t[0]", quaternion_t[0])
-    #print("main axis 0", maintimeaxis[0])
+    # print("quat t[0]", quaternion_t[0])
+    # print("main axis 0", maintimeaxis[0])
     
     binning_start = find_nearest_values_index(quaternion_t, tmin)
     n = binning_start
@@ -211,7 +211,7 @@ def quaternion_binning(quaternion_t, quat_data, tmin):
     mean_Q = np.mean(binned_Q)
     outlier_indexes = []
             
-    for n in range(len(binned_Q)): #remove any 5 stdev outliers
+    for n in range(len(binned_Q)): # remove any 5 stdev outliers
         if (binned_Q[n] >= mean_Q + 5*standard_dev or 
             binned_Q[n] <= mean_Q - 5*standard_dev):
             outlier_indexes.append(n)
@@ -243,17 +243,17 @@ def metafile_load_smooth_quaternions(sector, tmin,
         outlier_indexes = np.ones(0)
         return tQ, Q1, Q2, Q3, outlier_indexes         
         
-    #if first time, generate raw + save for sector
+    # if first time, generate raw + save for sector
     from scipy.signal import medfilt
     
     filepath = quaternion_folder + "quats-sector" + sector + ".txt"
-    c = np.genfromtxt(filepath) #this takes a million years to load - need to save better
+    c = np.genfromtxt(filepath) # this takes a million years to load - need to save better
     tQ = c[0]
     Q1 = c[1]
     Q2 = c[2]
     Q3 = c[3]   
 
-    tQ += 2457000  #these come pre-trimmed down?     
+    tQ += 2457000  # these come pre-trimmed down?     
 
     q = [Q1, Q2, Q3]
 
@@ -271,7 +271,7 @@ def metafile_load_smooth_quaternions(sector, tmin,
     
     outlier_indexes = np.unique(np.concatenate((Q1_outliers, Q2_outliers, Q3_outliers)))
     
-    #save into quickload!
+    # save into quickload!
     big_quat_array = np.asarray((tQ_, Q1, Q2, Q3))
     np.savetxt(shortcut_file, big_quat_array)
     return tQ_, Q1, Q2, Q3, outlier_indexes  
@@ -295,7 +295,7 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
                                                                 quaternion_folder)
     Qall = Q1 + Q2 + Q3
     print("quaternion load complete - loading cbvs")
-    #load CBVs
+    # load CBVs
     cbv_file = (CBV_folder + 
                 "s00{sector}/cbv_components_s00{sector}_000{camera}_000{ccd}.txt".format(sector = sector,
                                                                                           camera = camera,
@@ -305,7 +305,7 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
     CBV1 = cbvs[:,0]
     CBV2 = cbvs[:,1]
     CBV3 = cbvs[:,2]
-    #correct length differences:
+    # correct length differences:
     lengths = np.array((len(x), len(tQ), len(CBV1)))
     length_corr = lengths.min()
     x = x[:length_corr]
@@ -321,7 +321,7 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
 def PCA_lygosBG(time, intsy, bg, savefolder, targetlabel):
 
 
-#PCA of bg vs intensity
+# PCA of bg vs intensity
     import numpy as np
     import matplotlib.pyplot as plt
     from sklearn.decomposition import PCA

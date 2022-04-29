@@ -16,7 +16,7 @@ import utils.snPlotting as sp
 import utils.MCMC as mc
 import time as timeModule
 import pandas as pd
-from scipy.optimize import minimize
+# from scipy.optimize import minimize
 import numpy as np
 #import matplotlib.pyplot as plt
 import os
@@ -26,9 +26,9 @@ from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
 rcParams["font.size"] = 20
 
-#from celerite.modeling import Model
-#import celerite
-#from celerite import terms
+# from celerite.modeling import Model
+# import celerite
+# from celerite import terms
 
 
 
@@ -62,9 +62,9 @@ class etsMAIN(object):
         "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
         """
         pieces = fileToLoad.split("_")
-        #look up sector of discovery in big file
+        # look up sector of discovery in big file
         self.sector = self.info[self.info["Name"].str.contains(pieces[1][2:])]["Sector"].iloc[0]
-        #load in
+        # load in
         if (self.sector < 10):
             self.sector = "0" + str(self.sector)
         if (pieces[2].startswith(str(self.sector)) or override == True):
@@ -126,9 +126,9 @@ class etsMAIN(object):
         n1 is burnin steps n2 is production upper limit
         """
         
-        #####################
-        #handle CBVs if necessary:
-        #####################
+        # ####################
+        # handle CBVs if necessary:
+        # ####################
         if fitType in (2,4,5): 
             (self.time, self.intensity, self.error,
              self.quatTime, self.quatsIntensity, self.CBV1, self.CBV2,
@@ -141,16 +141,16 @@ class etsMAIN(object):
         else:
             self.quatsandcbvs = None #has to initiate as None or it'll freak
             
-        #########################
-        #check for 8hr bin BEFORE trimming to percentages
-        #########################
+        # ########################
+        # check for 8hr bin BEFORE trimming to percentages
+        # ########################
         if binYesNo: #if need to bin
             (self.time, self.intensity, 
              self.error, self.lygosBG,
              self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
                                                  self.lygosBG, QCBVALL=self.quatsandcbvs) 
                                                  
-        #if doing percent of max fitting
+        # if doing percent of max fitting
         if fraction is not None:
             (self.time, self.intensity, self.error, self.lygosBG, 
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
@@ -158,11 +158,11 @@ class etsMAIN(object):
                                                    fraction, self.quatsandcbvs)
                                
                                                 
-        ##load parameters by fit type                                           
+        # load parameters by fit type                                           
         self.__setup_fittype_params(fitType, binYesNo, fraction)
         self.__gen_output_folder() 
                                                         
-        #run it
+        # run it
         best, bic = self.__mcmc_outer_structure(fitType, n1, n2)
         if saveBIC:
             self.bic_all.append(bic)
@@ -194,7 +194,7 @@ class etsMAIN(object):
         0 = custom inputs
         any other number = will exit with an error
         """
-        if fitType == 1: #single without
+        if fitType == 1: # single without
             self.args = (self.time, self.intensity, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
@@ -202,7 +202,7 @@ class etsMAIN(object):
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
             
             
-        elif fitType == 2: #single with
+        elif fitType == 2: # single with
             self.args = (self.time, self.intensity, self.error, 
                          self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
                          self.disctime)
@@ -210,13 +210,13 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
-        elif fitType == 3: #double without
+        elif fitType == 3: # double without
             self.args = (self.time, self.intensity, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
             self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 1.8, 1.8, 1))
-        elif fitType ==4: #double with
+        elif fitType ==4: # double with
             self.args = (self.time, self.intensity, self.error,
                          self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
                          self.disctime)
@@ -226,7 +226,7 @@ class etsMAIN(object):
                       "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
-        elif fitType == 5: #just CBVs
+        elif fitType == 5: # just CBVs
             self.args = (self.time, self.intensity, self.error, 
                          self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
                          self.disctime)
@@ -234,14 +234,14 @@ class etsMAIN(object):
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((1, 0,0,0,0))
-        elif fitType == 6: #detrending lygos BG
+        elif fitType == 6: # detrending lygos BG
             self.args = (self.time, self.intensity, self.error, self.lygosBG, 
                          self.disctime)
             self.logProbFunc = mc.log_probability_singlePower_LBG
             self.filesavetag = "-singlepower-lygosBG"
             self.labels = ["t0", "A", "beta",  "b", "LBG"]
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
-        elif fitType == 0: #diy your stuff
+        elif fitType == 0: # diy your stuff
             self.args = args
             self.logProbFunc = logProbFunc
             self.filesavetag = filesavetag
@@ -251,7 +251,7 @@ class etsMAIN(object):
             print("THAT IS NOT AN ALLOWED FIT TYPE, EXITING")
             raise ValueError("not an allowed fit type")
             
-        if binYesNo: #it has to go in this order - need to load, then set args, then set this
+        if binYesNo: # it has to go in this order - need to load, then set args, then set this
             self.filesavetag = self.filesavetag + "-8HourBin"
     
         if fraction is not None:
@@ -260,13 +260,13 @@ class etsMAIN(object):
             
             
     def __gen_output_folder(self):
-        #### set up output folder + files
-        #check for an output folder's existence, if not, put it in. 
+        """set up output folder & files """
+        # check for an output folder's existence, if not, put it in. 
         newfolderpath = (self.folderSAVE + self.targetlabel + 
                          str(self.sector) + str(self.camera) + str(self.ccd))
         if not os.path.exists(newfolderpath):
             os.mkdir(newfolderpath)
-        #make subfolder for this run
+        # make subfolder for this run
         subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
         if not os.path.exists(subfolderpath):
             os.mkdir(subfolderpath)
@@ -284,72 +284,72 @@ class etsMAIN(object):
         print("***")
         print("Beginning MCMC run")
          
-        timeModule.sleep(3) #this keeps things running orderly
+        timeModule.sleep(3) # this keeps things running orderly
 
-        #### MCMC setup
+        # ### MCMC setup
         np.random.seed(42)
         
         nwalkers = 100
-        ndim = len(self.labels) #labels are provided when you run it
-        p0 = np.zeros((nwalkers, ndim)) #init positions
-        for n in range(len(p0)): #add a little spice - YYY gaussian??
+        ndim = len(self.labels) # labels are provided when you run it
+        p0 = np.zeros((nwalkers, ndim)) # init positions
+        for n in range(len(p0)): # add a little spice - YYY gaussian??
             p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
         
-        #### Initial run
+        # ### Initial run
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
-                                        self.logProbFunc,args=self.args) #setup
-        sampler.run_mcmc(p0, n1, progress=True) #run it
+                                        self.logProbFunc,args=self.args) # setup
+        sampler.run_mcmc(p0, n1, progress=True) # run it
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
                               sampler, self.labels, ndim, appendix = "-burnin")
         
         discardy = int(n1/2)
         flat_samples = sampler.get_chain(discard=discardy, flat=True, thin=15)
-        #get intermediate best
+        # get intermediate best
         best_mcmc_inter = np.zeros((1,ndim))
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
             best_mcmc_inter[0][i] = mcmc[1]
             
-        #### Main run
+        # ### Main run
         np.random.seed(50)
         p0 = np.zeros((nwalkers, ndim))
-        for i in range(nwalkers): #reinitialize the walkers around prev. best
+        for i in range(nwalkers): # reinitialize the walkers around prev. best
             p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, ndim)
            
         sampler.reset()
         
-        #### CORRELATION FUNCTION 
-        index = 0 #number of checks
-        autocorr = np.empty(n2) #total possible checks
+        # ### CORRELATION FUNCTION 
+        index = 0 # number of checks
+        autocorr = np.empty(n2) # total possible checks
         old_tau = np.inf
-        autoStep = 1000 #how often to check
-        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) #save all autocorr times
+        autoStep = 1000 # how often to check
+        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
         
-        #sample up to n2 steps
+        # sample up to n2 steps
         for sample in sampler.sample(p0, iterations=n2, progress=True):
             # Only check convergence every 100 steps
             if sampler.iteration % autoStep:
                 continue
             # Compute the autocorrelation time so far
-            tau = sampler.get_autocorr_time(tol=0) #tol=0 always get estimate
+            tau = sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
             if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
                 print("autocorr is nan or inf")
                 print(tau)
-            #this pops out with len(tau) = ndims - need all to converge to be conv
-            autocorr[index] = np.mean(tau) #save mean autocorr time
-            autocorr_all[index] = tau #save all autocorr times for plotting
-            index += 1 #how many times have you saved it
+            # this pops out with len(tau) = ndims - need all to converge to be conv
+            autocorr[index] = np.mean(tau) # save mean autocorr time
+            autocorr_all[index] = tau # save all autocorr times for plotting
+            index += 1 # how many times have you saved it
         
             # Check convergence
-            #this first condition is absolutely where it's failing
+            # this first condition is absolutely where it's failing
             converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01) #normally 0.01
+            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01) # normally 0.01
             if converged:
                 print("Converged, ending chain")
                 break
             old_tau = tau
         
-        ##plot autocorr things
+        # #plot autocorr things
         sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
                               autocorr, converged, 
                               autoStep, self.filesavetag)
@@ -368,7 +368,7 @@ class etsMAIN(object):
             thin = 15
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
         
-        #this will be separate - plotting p(parameter)
+        # this will be separate - plotting p(parameter)
         sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
                                  self.targetlabel, self.filesavetag)
         
@@ -377,7 +377,7 @@ class etsMAIN(object):
         
         print(len(flat_samples), "samples post second run")
     
-        #### BEST FIT PARAMS
+        # ### BEST FIT PARAMS
         best_mcmc = np.zeros((1,ndim))
         upper_error = np.zeros((1,ndim))
         lower_error = np.zeros((1,ndim))
@@ -390,11 +390,11 @@ class etsMAIN(object):
             lower_error[0][i] = q[0]
      
         logprob, blob = sampler.compute_log_prob(best_mcmc)
-        #print(logprob)
-        #### BIC
+        # print(logprob)
+        # ### BIC
         BIC = ndim * np.log(len(self.time)) - 2 * np.log(logprob)
         print("BAYESIAN INF CRIT: ", BIC)
-        if np.isnan(np.float64(BIC[0])): #if it's a nan
+        if np.isnan(np.float64(BIC[0])): # if it's a nan
             BIC = 50000
         else:
             BIC = BIC[0]
@@ -421,7 +421,7 @@ class etsMAIN(object):
 
         
                     
-#%%
+# %%
 folderLOAD = "D:/18thIaAll/"
 folderSAVE = "D:/packagetesting/"
 testSN = "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
@@ -434,8 +434,8 @@ etstest = etsMAIN(folderSAVE, bigInfoFile, CBV_folder,
                  quaternion_folder_raw, quaternion_folder_txt)
 
 
-#folderToLoadFrom = "D:/specialBabies/"
-#etstest.run_multiple_MCMC_from_folder(folderToLoadFrom, 1, False)
+# folderToLoadFrom = "D:/specialBabies/"
+# etstest.run_multiple_MCMC_from_folder(folderToLoadFrom, 1, False)
 
 etstest.load_data_lygos_single(testSN)
 
