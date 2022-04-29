@@ -144,6 +144,10 @@ def quat_txtfile_production(file, fileoutput):
         - fileoutput = str, filename of output txt file
     """
     from astropy.io import fits
+    if os.path.exists(fileoutput):
+        print("quat.txt file already exists!")
+        return
+    
     f = fits.open(file, memmap=False)
     
     t = f[1].data['TIME']
