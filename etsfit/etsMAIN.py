@@ -116,6 +116,23 @@ class etsMAIN(object):
         self.time-=tmin
         self.disctime-=tmin
         return
+    
+    def custom_mask_it(self, cutIndices):
+        """remove certain indices from your light curve.
+        cutIndices should be an array of size len(time), 0 = re,ove, 1=keep
+        this should NOT be used if using CBVs - that's not set up yet!!
+        """
+        if hasattr(self, time):
+            a = np.nonzero(cutIndices) # which ones you are keeping
+            print(a)
+            self.time = self.time[a]
+            self.intensity = self.intensity[a]
+            self.error = self.error[a]
+            if self.lygosbg is not None:
+                self.lygosbg = self.lygosbg[a]
+        else:
+            print("No time loaded in yet!! Run again once light curve is loaded")
+        return
         
     def run_MCMC(self, fitType, binYesNo, fraction = None, n1=1000, n2=10000,
                  saveBIC=False):
@@ -424,11 +441,13 @@ class etsMAIN(object):
 # %%
 folderLOAD = "D:/18thIaAll/"
 folderSAVE = "D:/packagetesting/"
-testSN = "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
 CBV_folder = "C:/Users/conta/.eleanor/metadata/"
 quaternion_folder_raw = "D:/quaternions-raw/"
 quaternion_folder_txt = "D:/quaternions-txt/"
 bigInfoFile = "D:/18thmag_Ia.csv"
+#testSN = "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
+testSN = "D:/specialBabies/SN2018hzh/lygos/data/rflxtarg_SN2018hzh_0431_30mn_n005_d4.0_of11.csv"
+
 
 etstest = etsMAIN(folderSAVE, bigInfoFile, CBV_folder,
                  quaternion_folder_raw, quaternion_folder_txt)
@@ -439,5 +458,5 @@ etstest = etsMAIN(folderSAVE, bigInfoFile, CBV_folder,
 
 etstest.load_data_lygos_single(testSN)
 
-etstest.run_MCMC(1,False)
+etstest.run_MCMC(2,False)
 
