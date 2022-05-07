@@ -16,7 +16,6 @@ different powerlaws to fit:
 import numpy as np
 import pandas as pd 
 import matplotlib.pyplot as plt
-# from mpl_toolkits.axes_grid1.inset_locator import (inset_axes, InsetPosition, mark_inset)
 import emcee
 import datetime 
 import time as timeModule
@@ -24,13 +23,41 @@ from pylab import rcParams
 rcParams['figure.figsize'] = 16,6
 
 
-# from celerite.modeling import Model
-# from scipy.optimize import minimize
-# import celerite
-# from celerite import terms
+def check_priors(priors, theta):
+    """ Function to automate the priors - allows for override by user 
+    priors should be in the format [lower1, upper1, lower2, upper2....]
+    ie, for fitType=1, priors = [x[0], x[-1], 0.5, 6.0, 0.0, 5.0, -5, 5]
+    
+    important!!! MUST be in order that they are in theta!!
+    
+    test code: 
+        priors = [0, 10, 0.5, 6.0, 0.0, 5.0, -5, 5]
+        theta = (1, 12, 4, 4)
+        
+        print(check_priors(priors, theta))
+        
+    it WILL check them in order - if you only put priors on the first 4 it will check those
+    if you don't need a prior on one value then use +/- inf for those if you have priors 
+    to check after that one in theta!!'
+            
+    """
+    
+    if len(priors) % 2 != 0:
+        #if the priors do not have the right number of terms (ie, odd number)
+        raise Exception("size of prior range array is odd - fix this!")
+    
+    for p in range(int(len(priors)/2)):
+        #array indexes as 2p, 2p+1
+        #if the parameter is NOT in the range, return lp = -np.inf
+        #else return lp = 0
+        if not (priors[2*p] < theta[p] < priors[(2*p)+1]):
+            return -np.inf
+        
+    return 0.0 #everything checked out
+        
+    
 
-
-def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime):
+def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         """ calculates log probabilty for model w/ single power law and no cbv fitting
         labels = ["t0", "A", "beta",  "b"]
         init_values = np.array((disctime-3, 0.1, 1.8, 1))
@@ -38,13 +65,10 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime):
         
         t0, A, beta, b = theta
         # handle log priors
-        
-        if (x[0] < t0 < x[-1] and 0.5 < beta < 6.0 
-            and 0.0 < A < 5.0 and -5 < b < 5):
-            lp = 0.0
-        else:
-            lp = -np.inf
-        
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], x[-1], 0.0, 5.0, 0.5, 6.0, -5, 5]
+        lp = check_priors(priors, theta)
+    
         # if not allowed values
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
             return -np.inf, lp
@@ -56,7 +80,8 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime):
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
         
 def log_probability_singlepower_withCBV(theta, x, y, yerr, 
-                                        Qall, CBV1, CBV2, CBV3, disctime):
+                                        Qall, CBV1, CBV2, CBV3, disctime, 
+                                        priors=None):
         """ calculates log probabilty for single power law with cbv fitting
         labels = ["t0", "A", "beta", "B","cQ", "c1", "c2", "c3"]
         init_values = np.array((disctime-3, 0.1, 1.8, 0, 0,0,0,0))
@@ -65,11 +90,10 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
         
         t0, A, beta, B, cQ, c1, c2, c3 = theta
         # handle log priors
-        if (x[0] < t0 < x[-1] and 0.5 < beta < 6.0 
-            and 0.0 < A < 5.0):
-            lp = 0.0
-        else:
-            lp = -np.inf
+        
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], x[-1], 0.0, 5.0, 0.5, 6.0] #t0, A, beta
+        lp = check_priors(priors, theta)
         
         # if not allowed values
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
@@ -84,7 +108,7 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
         
 
-def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime):
+def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         """ calculates log probabilty
         labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
         init_values = np.array((disctime-6, disctime, 0.1, 0.1, 1.8, 1.8, 1))"""
@@ -95,15 +119,11 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime):
         
         
         t1, t2, a1,a2, beta1, beta2, b = theta
-        # handle log priors
-        if (x[0] < t1 < disctime
-            and t1 < t2 < x[-1]
-            and 0.5 < beta1 < 6.0 and 0.5 < beta2 < 6.0
-            and 0.0 < a1 < 3.0 and 0.0 < a2 < 3.0 
-            and -5 < b < 5):
-            lp = 0.0
-        else:
-            lp = -np.inf
+        #handle priors:
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], disctime, t1,x[-1], 0, 3, 0, 3, 0.5, 6, 0.5, 6, -5, 5] 
+            #t0, t1, a1, a2, beta1, beta2,b
+        lp = check_priors(priors, theta)
         
         # if not allowed values
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
@@ -117,7 +137,8 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime):
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
         
 def log_probability_doublepower_withCBV(theta, x, y, yerr, 
-                                        Qall, CBV1, CBV2, CBV3, disctime):
+                                        Qall, CBV1, CBV2, CBV3, disctime,
+                                        priors=None):
         """ calculates log probabilty
         labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",\
                   "cQ", "c1", "c2", "c3"]
@@ -130,16 +151,11 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
         
         t1, t2, a1,a2, beta1, beta2, cQ, c1, c2, c3 = theta
         # handle log priors
-        if (x[0] < t0 < x[-1]
-            and (t1) < t2 < x[-1]
-            and 0.5 < beta1 < 6.0 and 0.5 < beta2 < 6.0
-            and 0.0 < a1 < 3.0 and 0.0 < a2 < 3.0 
-            and -1.0 < cQ < 1.0 
-            and -1.0 < c1 < 1.0 and -1.0 < c2 < 1.0 
-            and -1.0 < c3 < 1.0):
-            lp = 0.0
-        else:
-            lp = -np.inf
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], disctime, t1,x[-1], 0, 3, 0, 3, 0.5, 6, 0.5, 6,
+                      -1,1,-1,1,-1,1,-1,1]
+            
+        lp = check_priors(priors, theta)
         
         # if not allowed values
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
@@ -152,7 +168,8 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
             yerr2 = yerr**2.0
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
 
-def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3, disctime):
+def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3, disctime, 
+                            priors=None):
         """ calculates log probabilty for single power law with cbv fitting
         labels = ["b", "cQ", "c1", "c2", "c3"]
         init_values = np.array((1, 0,0,0,0))
@@ -161,11 +178,10 @@ def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3, disctime)
         
         b, cQ, c1, c2, c3 = theta
         # handle log priors
-        if (-200.0 < cQ < 200.0 and -200.0 < c1 < 200.0 and -200.0 < c2 < 200.0 
-            and -200.0 < c3 < 200.0 and -200.0 < b < 200.0):
-            lp = 0.0
-        else:
-            lp = -np.inf
+        if priors is None: #if you didn't feed it something else
+            priors = [-200,200,-200,200,-200,200,-200,200,-200,200]
+            
+        lp = check_priors(priors, theta)
         
         # if not allowed values
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
@@ -177,7 +193,7 @@ def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3, disctime)
             yerr2 = yerr**2.0
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
         
-def log_probability_singlePower_LBG(theta, x, y, yerr, lygosBG, disctime):
+def log_probability_singlePower_LBG(theta, x, y, yerr, lygosBG, disctime, priors=None):
         """ calculates log probabilty for single power law with LYGOS BACKGROUND
         labels = ["t0", "A", "beta",  "b", "LBG"]
         init_values = np.array((disctime-3, 0.1, 1.8, 1, 1))
@@ -186,13 +202,10 @@ def log_probability_singlePower_LBG(theta, x, y, yerr, lygosBG, disctime):
         
         t0, A, beta, b, LBG = theta
         # handle log priors
-        
-        if (x[0] < t0 < x[-1] and 0.5 < beta < 6.0 
-            and 0.0 < A < 5.0 and -5 < b < 5 and -5 < LBG < 5):
-            lp = 0.0
-        else:
-            lp = -np.inf
-        
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], x[-1], 0, 5, 0.5, 6, -5, 5, -5, 5]
+        lp = check_priors(priors, theta)
+
         # if not allowed values
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
             return -np.inf, -np.inf
@@ -205,8 +218,9 @@ def log_probability_singlePower_LBG(theta, x, y, yerr, lygosBG, disctime):
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
         
 
-def log_probability_GP(theta, x, y, yerr, disctime, gp):
+def log_probability_GP(theta, x, y, yerr, disctime, gp, priors=None):
         """GP log probability calculator"""
+        
         t0, A, beta, b = theta[:4]
         GPparams = theta[4:]
         #first handle the issues with the gp stuff
@@ -214,11 +228,12 @@ def log_probability_GP(theta, x, y, yerr, disctime, gp):
         #get lp of GP
         lp = gp.log_prior() #gp log prior
         #add lp of actual
-        if (x[0] < t0 < disctime and 0.5 < beta < 6.0 
-            and 0.001 < A < 2.0 and -5 < b < 5):
-            lp += 0.0
-        else:
-            lp += -np.inf
+        
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], disctime, 0.001, 2, 0.5, 6, -5, 5]
+            
+        lp += check_priors(priors, theta[:4]) #ADD to gp prior function
+        
         #if lp is no good   
         if not np.isfinite(lp):
             return -np.inf, -np.inf #ll, lp

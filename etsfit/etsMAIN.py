@@ -5,11 +5,11 @@ Created on Fri Apr 22 12:14:13 2022
 @author: lcgordon
 
 todo list:
-    - load in priors and ability to set own priors!
-    - put GP code fitting in
-    - test all of the diff fits like this
-    - what if you need to make the quat .txt files
-    - enforce lygosbg = None not allowing that one to work
+    - load in priors and ability to set own priors! [done 05072022]
+    - put GP code fitting in [done 05072022]
+    - test all of the diff fits like this [done (?)]
+    - what if you need to make the quat .txt files [done]
+    - enforce lygosbg = None not allowing that one to work [done]
 """
 import utils.utilities as ut
 import utils.snPlotting as sp
@@ -137,7 +137,7 @@ class etsMAIN(object):
         else: 
             if hasattr(self, 'time'):
                 a = np.nonzero(cutIndices) # which ones you are keeping
-                print(a)
+                #print(a)
                 self.time = self.time[a]
                 self.intensity = self.intensity[a]
                 self.error = self.error[a]
@@ -149,13 +149,36 @@ class etsMAIN(object):
                 print("No data loaded in yet!! Run again once light curve is loaded")
             return
         
-    def run_MCMC(self, fitType, binYesNo, fraction = None, n1=1000, n2=10000,
-                 saveBIC=False):
+    def __gen_output_folder(self):
+        """set up output folder & files """
+        # check for an output folder's existence, if not, put it in. 
+        newfolderpath = (self.folderSAVE + self.targetlabel + 
+                         str(self.sector) + str(self.camera) + str(self.ccd))
+        if not os.path.exists(newfolderpath):
+            os.mkdir(newfolderpath)
+        # make subfolder for this run
+        print(self.filesavetag)
+        subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
+        if not os.path.exists(subfolderpath):
+            os.mkdir(subfolderpath)
+        self.folderSAVE = subfolderpath + "/"
+        self.parameterSaveFile = self.folderSAVE + "output_params.txt"
+        return
+    
+    def run_MCMC(self, fitType, binYesNo = False, fraction = None, n1=1000, n2=10000,
+                 saveBIC=False, args=None, logProbFunc = None, plotFit = None,
+                 filesavetag=None,
+                 labels=None, init_values=None):
         """Run one MCMC instance
-        fitType is an integer 1-6
+        fitType is an integer 1-6 or 0 if you want to do custom arguments
         binYesNo is true/false do you want it binned to 8 hours
         fraction = None if not trimming, 0.6 for 60% or whatever otherwise
         n1 is burnin steps n2 is production upper limit
+        
+        IF YOU ARE DOING CUSTOM PRIORS:
+            - run under fitType=0
+            - last item in args must be your priors array -- all probability functions
+            come with a positional argument priors=None that this should override
         """
         
         # ####################
@@ -178,24 +201,25 @@ class etsMAIN(object):
         # ########################
         if binYesNo: #if need to bin
             (self.time, self.intensity, 
-             self.error, self.lygosBG,
+             self.error, self.lygosbg,
              self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosBG, QCBVALL=self.quatsandcbvs) 
+                                                 self.lygosbg, QCBVALL=self.quatsandcbvs) 
                                                  
         # if doing percent of max fitting
         if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosBG, 
+            (self.time, self.intensity, self.error, self.lygosbg, 
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosBG, 
+                                                   self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
                                
                                                 
         # load parameters by fit type                                           
-        self.__setup_fittype_params(fitType, binYesNo, fraction)
+        self.__setup_fittype_params(fitType, binYesNo, fraction, args,
+                               logProbFunc, plotFit, filesavetag, labels, init_values)
         self.__gen_output_folder() 
                                                         
         # run it
-        best, bic = self.__mcmc_outer_structure(fitType, n1, n2)
+        best, bic = self.__mcmc_outer_structure(n1, n2)
         if saveBIC:
             self.bic_all.append(bic)
             self.params_all.append(best)
@@ -205,7 +229,8 @@ class etsMAIN(object):
     def run_multiple_MCMC_from_folder(self, folderToLoadFrom, fitType, binYesNo, 
                                       fraction = None, n1=1000, n2=40000, 
                                       saveBIC=False):
-        """Load all in the rflxtarg's within the folder"""
+        """Load all in the rflxtarg's within the folder
+        DONT USE"""
         
         
         for root, dirs, files in os.walk(folderToLoadFrom):
@@ -215,7 +240,7 @@ class etsMAIN(object):
                     self.run_MCMC(fitType,binYesNo, fraction,n1,n2,saveBIC)
                     
     def __setup_fittype_params(self, fitType, binYesNo, fraction, args=None, 
-                               logProbFunc = None,
+                               logProbFunc = None, plotFit = None,
                                filesavetag=None, labels=None, init_values=None):
         """
         1 = single without
@@ -226,6 +251,13 @@ class etsMAIN(object):
         6 = single lygos bg
         0 = custom inputs
         any other number = will exit with an error
+        
+        IF YOU ARE DOING CUSTOM PRIORS:
+            - run under fitType=0
+            - last item in args must be your priors array -- all probability functions
+            come with a positional argument priors=None that this should override
+            
+            
         """
         if fitType == 1: # single without
             self.args = (self.time, self.intensity, self.error, self.disctime)
@@ -233,7 +265,7 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower"
             self.labels = ["t0", "A", "beta",  "b"]
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
-            
+            self.plotFit = fitType
             
         elif fitType == 2: # single with
             self.args = (self.time, self.intensity, self.error, 
@@ -243,12 +275,14 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
+            self.plotFit = fitType
         elif fitType == 3: # double without
             self.args = (self.time, self.intensity, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
             self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 1.8, 1.8, 1))
+            self.plotFit = fitType
         elif fitType ==4: # double with
             self.args = (self.time, self.intensity, self.error,
                          self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
@@ -259,6 +293,7 @@ class etsMAIN(object):
                       "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
+            self.plotFit = fitType
         elif fitType == 5: # just CBVs
             self.args = (self.time, self.intensity, self.error, 
                          self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
@@ -267,24 +302,28 @@ class etsMAIN(object):
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((1, 0,0,0,0))
+            self.plotFit = fitType
         elif fitType == 6: # detrending lygos BG
             if lygosbg == None:
                 print("NO LYGOS BG LOADED IN - CANNOT RUN THIS FIT")
                 raise AttributeError("Missing lygosbg!!")
                 return
             else:
-                self.args = (self.time, self.intensity, self.error, self.lygosBG, 
+                self.args = (self.time, self.intensity, self.error, self.lygosbg, 
                              self.disctime)
                 self.logProbFunc = mc.log_probability_singlePower_LBG
                 self.filesavetag = "-singlepower-lygosBG"
                 self.labels = ["t0", "A", "beta",  "b", "LBG"]
                 self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
+                self.plotFit = fitType
         elif fitType == 0: # diy your stuff
-            self.args = args
+            self.args = args # LAST ONE MUST BE PRIORS IF USING CUSTOMS
             self.logProbFunc = logProbFunc
             self.filesavetag = filesavetag
             self.labels = labels
             self.init_values = init_values 
+            print(self.args)
+            self.plotFit = plotFit
         else:
             print("THAT IS NOT AN ALLOWED FIT TYPE, EXITING")
             raise ValueError("not an allowed fit type")
@@ -297,24 +336,10 @@ class etsMAIN(object):
         return
             
             
-    def __gen_output_folder(self):
-        """set up output folder & files """
-        # check for an output folder's existence, if not, put it in. 
-        newfolderpath = (self.folderSAVE + self.targetlabel + 
-                         str(self.sector) + str(self.camera) + str(self.ccd))
-        if not os.path.exists(newfolderpath):
-            os.mkdir(newfolderpath)
-        # make subfolder for this run
-        subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
-        if not os.path.exists(subfolderpath):
-            os.mkdir(subfolderpath)
-        self.folderSAVE = subfolderpath + "/"
-        self.parameterSaveFile = self.folderSAVE + "output_params.txt"
-        return
+
                     
-    def __mcmc_outer_structure(self, fitType, n1, n2):
+    def __mcmc_outer_structure(self, n1, n2):
         """Fitting things that are NOT GP based
-        fitType needed for plotting things
         """
         
         print("***")
@@ -389,7 +414,7 @@ class etsMAIN(object):
             old_tau = tau
         
         # #plot autocorr things
-        if fitType != 10:
+        if self.plotFit != 10:
             sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
                                   autocorr, converged, 
                                   autoStep, self.filesavetag)
@@ -417,7 +442,13 @@ class etsMAIN(object):
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
         
         # this will be separate - plotting p(parameter)
-        if fitType != 10:
+        if self.plotFit != 10:
+            sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
+                                     self.targetlabel, self.filesavetag)
+            
+            sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
+                                  sampler, self.labels, ndim, appendix = "-production")
+        else:
             sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
                                      self.targetlabel, self.filesavetag)
             
@@ -448,10 +479,10 @@ class etsMAIN(object):
         else:
             BIC = BIC[0]
             
-        if fitType != 10:
+        if self.plotFit != 10:
             sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.targetlabel, 
                          self.disctime, best_mcmc[0], 
-                         flat_samples, self.labels, fitType, self.filesavetag, 
+                         flat_samples, self.labels, self.plotFit, self.filesavetag, 
                          self.tmin, self.lygosbg,
                          self.quatsandcbvs)
         else:
@@ -497,15 +528,15 @@ class etsMAIN(object):
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
             (self.time, self.intensity, 
-             self.error, self.lygosBG,
+             self.error, self.lygosbg,
              self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosBG, QCBVALL=None) 
+                                                 self.lygosbg, QCBVALL=None) 
                                                  
         # if doing percent of max fitting
         if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosBG, 
+            (self.time, self.intensity, self.error, self.lygosbg, 
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosBG, 
+                                                   self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
         #make folders to save into
         self.__gen_output_folder()   
@@ -557,7 +588,8 @@ class etsMAIN(object):
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
         
         fitType = 10
-        self.__mcmc_outer_structure(fitType, n1, n2)
+        self.plotFit = 10
+        self.__mcmc_outer_structure(n1, n2)
 
         
                     
@@ -586,15 +618,27 @@ etstest.custom_mask_it(hzh2018mask)
 etstest.test_plot()
 
 
-#%%
+# run GP
+#etstest.run_GP_fit(False, fraction=None, n1=1000, n2=10000, filesavetag=None,
+ #                  customSigmaRho = None)
 
-etstest.run_GP_fit(False, fraction=None, n1=1000, n2=10000, filesavetag=None,
-                   customSigmaRho = None)
-
-
-#BROKEN THING: FILE LABEL THINGS
+# run all in folder
 # folderToLoadFrom = "D:/specialBabies/"
 # etstest.run_multiple_MCMC_from_folder(folderToLoadFrom, 1, False)
-#
-#etstest.run_MCMC(2,False)
 
+# run single one
+etstest.run_MCMC(1, fraction=0.4, n1=5000, n2=35000)
+
+# =============================================================================
+# priors = [0, 20, 0.5, 1, 0.0, 5.0, -5, 5]
+# args = (etstest.time, etstest.intensity, etstest.error, etstest.disctime, priors)
+# logProbFunc = mc.log_probability_singlepower_noCBV
+# filesavetag = "-singlepower-custom-arg-test"
+# labels = ["t0", "A", "beta",  "b"]
+# init_values = np.array((etstest.disctime-3, 0.1, 1.8, 1))
+# 
+# etstest.run_MCMC(fitType=0, binYesNo = False, fraction = None, n1=10000, n2=40000,
+#                  saveBIC=False, args=args,logProbFunc = logProbFunc, plotFit = 1,
+#                  filesavetag=filesavetag, labels=labels, init_values=init_values)
+# 
+# =============================================================================
