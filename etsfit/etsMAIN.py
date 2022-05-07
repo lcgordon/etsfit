@@ -14,11 +14,13 @@ todo list:
 import utils.utilities as ut
 import utils.snPlotting as sp
 import utils.MCMC as mc
+#import utils.runGP as gpmc
+
 import time as timeModule
 import pandas as pd
 # from scipy.optimize import minimize
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import os
 import emcee
 import datetime 
@@ -26,18 +28,21 @@ from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
 rcParams["font.size"] = 20
 
-# from celerite.modeling import Model
-# import celerite
-# from celerite import terms
-
-
-
-
-
+from celerite.modeling import Model
+import celerite
+from celerite import terms
 
 
 class etsMAIN(object):
-    """Make one of these for ONE light curve you're going to fit """
+    """Make one of these for the light curve you're going to fit!
+    init parameters:
+        folderSAVE = where everything will save into subfolders
+        bigInfoFile = big csv file of list of all targets from TNS
+        CBV_folder = where in ur computer ur CBVs are
+        quaternion_folder_raw = where the main fits files are (if not already in txt form)
+        quaternio_folder_txt = where the smaller txt files are for faster loading. 
+        
+        run make_quatsTxt() to get the raw to convert and save into the txt folder"""
     
     def __init__(self, folderSAVE, bigInfoFile, CBV_folder,
                  quaternion_folder_raw, quaternion_folder_txt):
@@ -95,11 +100,12 @@ class etsMAIN(object):
             print("If you want to load in anyways, pass override=True.")
             return
         
-    def load_your_lc_in(self, time, intensity, error , disctime,
+    def load_custom_lc(self, time, intensity, error , disctime,
                         sector, camera, ccd):
         """load in your own light cuve. 
         assumes time & disctime has not be tmin subtracted
-        lygosbg = None in this case (cannot run that one - )
+        lygosbg = None in this case (cannot run that fittype!! - should be protected
+                                     w/in code tho against trying)
         seems to be working fine 
         
         """
@@ -119,20 +125,29 @@ class etsMAIN(object):
     
     def custom_mask_it(self, cutIndices):
         """remove certain indices from your light curve.
-        cutIndices should be an array of size len(time), 0 = re,ove, 1=keep
-        this should NOT be used if using CBVs - that's not set up yet!!
+        cutIndices should be an array of size len(time), 0 = remove, 1=keep
+        
+        *****this should NOT be used if using CBVs - that's not set up yet!!
         """
-        if hasattr(self, time):
-            a = np.nonzero(cutIndices) # which ones you are keeping
-            print(a)
-            self.time = self.time[a]
-            self.intensity = self.intensity[a]
-            self.error = self.error[a]
-            if self.lygosbg is not None:
-                self.lygosbg = self.lygosbg[a]
-        else:
-            print("No time loaded in yet!! Run again once light curve is loaded")
-        return
+        if hasattr(self, 'custommasked'):
+            print("*******")
+            print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
+            print("*******")
+            return
+        else: 
+            if hasattr(self, 'time'):
+                a = np.nonzero(cutIndices) # which ones you are keeping
+                print(a)
+                self.time = self.time[a]
+                self.intensity = self.intensity[a]
+                self.error = self.error[a]
+                if self.lygosbg is not None:
+                    self.lygosbg = self.lygosbg[a]
+                    
+                self.custommasked = True
+            else:
+                print("No data loaded in yet!! Run again once light curve is loaded")
+            return
         
     def run_MCMC(self, fitType, binYesNo, fraction = None, n1=1000, n2=10000,
                  saveBIC=False):
@@ -199,7 +214,8 @@ class etsMAIN(object):
                     self.load_data_lygos_single(os.path.join(root,f))
                     self.run_MCMC(fitType,binYesNo, fraction,n1,n2,saveBIC)
                     
-    def __setup_fittype_params(self, fitType, binYesNo, fraction, args=None, logProbFunc = None,
+    def __setup_fittype_params(self, fitType, binYesNo, fraction, args=None, 
+                               logProbFunc = None,
                                filesavetag=None, labels=None, init_values=None):
         """
         1 = single without
@@ -252,12 +268,17 @@ class etsMAIN(object):
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((1, 0,0,0,0))
         elif fitType == 6: # detrending lygos BG
-            self.args = (self.time, self.intensity, self.error, self.lygosBG, 
-                         self.disctime)
-            self.logProbFunc = mc.log_probability_singlePower_LBG
-            self.filesavetag = "-singlepower-lygosBG"
-            self.labels = ["t0", "A", "beta",  "b", "LBG"]
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
+            if lygosbg == None:
+                print("NO LYGOS BG LOADED IN - CANNOT RUN THIS FIT")
+                raise AttributeError("Missing lygosbg!!")
+                return
+            else:
+                self.args = (self.time, self.intensity, self.error, self.lygosBG, 
+                             self.disctime)
+                self.logProbFunc = mc.log_probability_singlePower_LBG
+                self.filesavetag = "-singlepower-lygosBG"
+                self.labels = ["t0", "A", "beta",  "b", "LBG"]
+                self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
         elif fitType == 0: # diy your stuff
             self.args = args
             self.logProbFunc = logProbFunc
@@ -289,10 +310,11 @@ class etsMAIN(object):
             os.mkdir(subfolderpath)
         self.folderSAVE = subfolderpath + "/"
         self.parameterSaveFile = self.folderSAVE + "output_params.txt"
+        return
                     
     def __mcmc_outer_structure(self, fitType, n1, n2):
         """Fitting things that are NOT GP based
-        fitType may be getting moved into another thingy
+        fitType needed for plotting things
         """
         
         print("***")
@@ -367,13 +389,22 @@ class etsMAIN(object):
             old_tau = tau
         
         # #plot autocorr things
-        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
-                              autocorr, converged, 
-                              autoStep, self.filesavetag)
-        
-        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
-                                    autocorr_all, autoStep, self.labels, 
-                                    self.filesavetag)
+        if fitType != 10:
+            sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
+                                  autocorr, converged, 
+                                  autoStep, self.filesavetag)
+            
+            sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
+                                        autocorr_all, autoStep, self.labels, 
+                                        self.filesavetag)
+        else:
+            sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
+                                  autocorr, converged, 
+                                  autoStep, self.filesavetag)
+            
+            sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
+                                        autocorr_all, autoStep, self.filelabels, 
+                                        self.filesavetag)
         
         #thin and burn out dump
         tau = sampler.get_autocorr_time(tol=0)
@@ -386,11 +417,12 @@ class etsMAIN(object):
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
         
         # this will be separate - plotting p(parameter)
-        sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
-                                 self.targetlabel, self.filesavetag)
-        
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
-                              sampler, self.labels, ndim, appendix = "-production")
+        if fitType != 10:
+            sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
+                                     self.targetlabel, self.filesavetag)
+            
+            sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
+                                  sampler, self.filelabels, ndim, appendix = "-production")
         
         print(len(flat_samples), "samples post second run")
     
@@ -416,12 +448,16 @@ class etsMAIN(object):
         else:
             BIC = BIC[0]
             
-        
-        sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.targetlabel, 
-                     self.disctime, best_mcmc[0], 
-                     flat_samples, self.labels, fitType, self.filesavetag, 
-                     self.tmin, self.lygosbg,
-                     self.quatsandcbvs)
+        if fitType != 10:
+            sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.targetlabel, 
+                         self.disctime, best_mcmc[0], 
+                         flat_samples, self.labels, fitType, self.filesavetag, 
+                         self.tmin, self.lygosbg,
+                         self.quatsandcbvs)
+        else:
+            sp.plot_mcmc_GP(self.folderSAVE, self.time, self.intensity, self.error, 
+                            best_mcmc, self.gp, self.disctime, self.tmin,
+                 self.targetlabel, self.filesavetag, plotComponents=False)
         
         with open(self.parameterSaveFile, 'w') as file:
             file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
@@ -432,9 +468,96 @@ class etsMAIN(object):
                                                                 conv=converged))
         
         return best_mcmc, BIC
+    
+    
+    def test_plot(self):
+        
+        """Quick little thing to spit out the current light curve """
+        plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
+        plt.xlabel("Time (BJD-sector start)")
+        plt.ylabel("Rel. Flux")
+        plt.show()
+        return
+    
+    def run_GP_fit(self, binYesNo, fraction=None, n1=1000, n2=10000, filesavetag=None,
+                   customSigmaRho = None):
+        """Run the GP fitting 
+        
+        customSigmaRho must unpack as: [sigma start, rho start, sigma lower, sigma upper,
+                                        rho lower, rho upper, sigma frozen, rho frozen]
+        the default run of this is [0.01, 1.2, 0.0001, 0.3, 1, 2, 0, 0]
+        
+        """
+        if filesavetag is None:
+            self.filesavetag = "-GP-matern32-fit"
+        else:
+            self.filesavetag = filesavetag
+            
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binYesNo: #if need to bin
+            (self.time, self.intensity, 
+             self.error, self.lygosBG,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosBG, QCBVALL=None) 
+                                                 
+        # if doing percent of max fitting
+        if fraction is not None:
+            (self.time, self.intensity, self.error, self.lygosBG, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosBG, 
+                                                   fraction, self.quatsandcbvs)
+        #make folders to save into
+        self.__gen_output_folder()   
 
 
-
+        #set up kernel
+        #### SET UP NEW MATERN-32 GP
+        if customSigmaRho is None:
+            sigma = 0.01 #amplitude
+            rho = 1.2 #timescale
+            sigma_bounds = (0.0001,0.3)
+            rho_bounds = (1,2)
+            bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
+            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+                                        bounds=bounds_dict)
+            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
+        else:
+            sigma = customSigmaRho[0]
+            rho = customSigmaRho[1]
+            sigma_bounds = (customSigmaRho[2], customSigmaRho[3])
+            rho_bounds = (customSigmaRho[4], customSigmaRho[5])
+            bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
+            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+                                        bounds=bounds_dict)
+            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0))
+            
+            if customSigmaRho[6]: #if frozen (true)
+                kernel.freeze_parameter("log sigma")
+            else:
+                initsigma = np.array((np.log(sigma))) #if not frozen, add to init
+                self.init_values = np.concatenate((self.init_values, initsigma))
+                
+            if customSigmaRho[7]: #if frozen true
+                kernel.freeze_parameter("log rho")
+            else:
+                initrho = np.array((np.log(rho)))
+                self.init_values = np.concatenate((self.init_values, initrho))
+            
+            
+        self.gp = celerite.GP(kernel, mean=1.0)
+        self.gp.compute(self.time, self.error)
+        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
+        
+        
+        #set up arguments etc.
+        self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
+        self.logProbFunc = mc.log_probability_GP
+        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
+        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
+        
+        fitType = 10
+        self.__mcmc_outer_structure(fitType, n1, n2)
 
         
                     
@@ -452,11 +575,26 @@ testSN = "D:/specialBabies/SN2018hzh/lygos/data/rflxtarg_SN2018hzh_0431_30mn_n00
 etstest = etsMAIN(folderSAVE, bigInfoFile, CBV_folder,
                  quaternion_folder_raw, quaternion_folder_txt)
 
+etstest.load_data_lygos_single(testSN)
+etstest.test_plot()
 
+hzh2018mask = np.ones((len(etstest.time)))
+hzh2018mask[340:433] = 0
+hzh2018mask[900:] = 0
+
+etstest.custom_mask_it(hzh2018mask)
+etstest.test_plot()
+
+
+#%%
+
+etstest.run_GP_fit(False, fraction=None, n1=1000, n2=10000, filesavetag=None,
+                   customSigmaRho = None)
+
+
+#BROKEN THING: FILE LABEL THINGS
 # folderToLoadFrom = "D:/specialBabies/"
 # etstest.run_multiple_MCMC_from_folder(folderToLoadFrom, 1, False)
-
-etstest.load_data_lygos_single(testSN)
-
-etstest.run_MCMC(2,False)
+#
+#etstest.run_MCMC(2,False)
 

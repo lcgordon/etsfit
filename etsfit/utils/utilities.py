@@ -317,37 +317,3 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
     CBV2 = CBV2[:length_corr]
     CBV3 = CBV3[:length_corr]
     return x,y,yerr, tQ, Qall, CBV1, CBV2, CBV3
-
-def PCA_lygosBG(time, intsy, bg, savefolder, targetlabel):
-
-
-# PCA of bg vs intensity
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from sklearn.decomposition import PCA
-    
-    rng = np.random.RandomState(0)
-    X = np.zeros((len(time),2))
-    X[:,0] = intsy
-    X[:,1] = bg
-    pca = PCA(n_components=2).fit(X)
-    
-    plt.scatter(X[:, 0], X[:, 1], alpha=0.3, label="samples")
-    for i, (comp, var) in enumerate(zip(pca.components_, pca.explained_variance_)):
-        comp = comp * var  # scale component by its variance explanation power
-        plt.plot(
-            [0, comp[0]],
-            [0, comp[1]],
-            label=f"Component {i}",
-            linewidth=5,
-            color=f"C{i + 2}",
-        )
-    plt.gca().set(
-        aspect="equal",
-        title="2-dimensional dataset with principal components",
-        xlabel="first feature",
-        ylabel="second feature",
-    )
-    plt.legend(fontsize=10)
-    plt.savefig(savefolder + "/" + targetlabel + "_pca_lygos_v_bg.png")
-    plt.show()

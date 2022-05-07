@@ -344,10 +344,7 @@ def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
     rcParams['figure.figsize'] = 30,30
     rcParams['ytick.labelsize'] = 10
     fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-    #samples = sampler.get_chain()
     labels = labels
-    #plt.yticks(fontsize=6)
-    #plt.xticks(fontsize =6)
     for i in range(ndim):
         ax = axes[i]
         ax.plot(samples[:, :, i], "k", alpha=0.3)
@@ -382,124 +379,54 @@ def plot_histogram(data, bins, x_label, filename):
     plt.close()
     rcParams['figure.figsize'] = 16,6
     return 
-def plot_beta_redshift(savepath, info, sn_names, bestparams):
-    for n in range(len(bestparams)):
-        target = sn_names['ID'][n][:-4]
-        #get z where the name matches in info??
-        beta = bestparams['beta'][n]
-        df1 = info[info['ID'].str.contains(target)]
-        df1.reset_index(inplace=True)
-        for i in range(len(df1)): #AHHHHH so there are sometimes multiple thingies w/ the same key
-            if df1["ID"][i] == target:
-                redshift = df1['Z'][i]
-                
-        plt.scatter(redshift, beta)
-        
-    
-    plt.xlabel('redshift')
-    plt.ylabel('beta value')
-    plt.title("Plotting " +  r'$\beta$' + " versus redshift for Ia SNe")   
-    plt.savefig(savepath + "redshift-beta.png") 
-    
-def plot_absmag(t,i, xlabel='',ylabel='', title='',savepath=None):
-    fig, ax =plt.subplots()
-    ax.scatter(t,i)
-    ax.invert_yaxis()
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    if savepath is not None:
-        plt.savefig(savepath)
-        
-def quicklook_plotall(path, all_t, all_i, all_labels, discovery_dictionary):
-    """Plot all in the list and save plots into dedicated folder
-    allows for quick flip thru them all to get rid of gunk. """
-    from pylab import rcParams
-    rcParams['figure.figsize'] = 8,3
-    for n in range(len(all_labels)):
-        key = all_labels[n]
-        if -3 <= discovery_dictionary[key] <= 30:
-            plt.scatter(all_t[n], all_i[n])
-            plt.axvline(discovery_dictionary[key])
-            plt.title(all_labels[n])
-            plt.savefig(path + all_labels[n] + "-.png")
-            plt.close()
-            
-def print_table_formatting(best,upper,lower):
-    for n in range(len(best[0])):
-        print("param ${:.4f}".format(best[0][n]), "^{:.4f}".format(upper[0][n]),
-              "_{:.4f}$".format(lower[0][n]))
-        
-def plot_SN_LCs(path, t,i,e,label,sector,galmag,extinction, z, 
-                discdate, badIndexes):
 
-    import sn_functions as sn
+def plot_mcmc_GP(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin,
+                 targetlabel, filesavetag, plotComponents=False):
+    """Plot the best fit model from the mcmc run w/ GP on """
     
-    nrows = 4
+    t0, A,beta,B = best_mcmc[0][:4]
+    t1 = time - t0
+    sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    gp.set_parameter_vector(best_mcmc[0][4:])
+    bg = gp.predict(intensity, time, return_cov=False)
+
+    model = sl + bg
+    
+    nrows = 2
     ncols = 1
     fig, ax = plt.subplots(nrows, ncols, sharex=True,
-                                  figsize=(8*ncols * 2, 3*nrows * 2))
+                                   figsize=(8*ncols * 2, 3*nrows * 2))
     
-    #row 0: raw lygos light curve
-    if badIndexes is None:
-        cPlot = 'green'
-        ecoll = 'springgreen'
-        binT, binI, binE = sn.bin_8_hours_TIE(t,i,e) #bin to 8 hours
-    else:
-        cPlot = 'yellow'
-        ecoll = 'yellow'
-        cT, cI, cE = sn.clip_TIE(badIndexes, t,i,e) #clip out designated indices
-        ax[0].errorbar(cT, cI, cE, fmt = 'o', label = "Lygos (Clipped)", 
-                       color = 'green',
-                       ecolor = 'springgreen', zorder=2)
-        binT, binI, binE = sn.bin_8_hours_TIE(cT, cI, cE) #bin to 8 hours
+    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
+    if plotComponents:
+        ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
+        ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
         
-    ax[0].errorbar(t,i,yerr=e, fmt = 'o', label = "Lygos (Raw)", color = cPlot,
-                   ecolor=ecoll, zorder=1)
+    ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
     
-    #ax[0].axhline(1, color='orchid', label='Lygos Background')
-    ax[0].set_ylabel("Rel. Flux", fontsize=16)
-    ax[0].set_title(label, fontsize=18)
-    
-    #row 1: binned and cleaned up flux.
-    ax[1].set_title("Binned Flux", fontsize=16)
-    ax[1].errorbar(binT, binI, yerr=binE, fmt = 'o', label = "Binned and Cleaned",
-                   color = 'blue', ecolor = "blue", markersize = 5)
-    ax[1].set_ylabel("Rel. Flux", fontsize=16)
-    
-    #row 2: apparent TESS magnitude
-    (absT, absI, absE, absGalmag,
-     d, apparentM, apparentE) = sn.conv_to_abs_mag(binT, binI, binE , galmag, z,
-                                                       extinction = extinction)
-    
-    
-    ax[2].errorbar(absT, apparentM, yerr=apparentE, fmt = 'o', 
-                   color = 'darkslateblue', ecolor='slateblue', markersize=5)
-    ax[2].set_title("Apparent TESS Magnitude", fontsize=16)
-    ax[2].set_ylabel("Apparent Mag.", fontsize=16)
-    ax[2].invert_yaxis()
-    
-    #row 3: absolute magntiude conversion
-    
-    ax[3].errorbar(absT, absI, yerr = absE, 
-                   fmt = 'o',label="abs mag",  color = 'purple',
-                   ecolor='lavender', markersize=5)
-    #ax[3].axhline(absGalmag, color = 'orchid',label="background mag." )
-    ax[3].invert_yaxis()
-    ax[3].set_title("Absolute Magnitude Converted", fontsize=16)
-    ax[3].set_ylabel("Abs. Magnitude", fontsize=16)
-    
-    for i in range(nrows):
-        ax[i].axvline(discdate, color = 'black', 
-                      label="discovery time")
+    for n in range(nrows):
+        ax[n].axvline(t0, color = 'saddlebrown', linestyle = 'dashed',
+                          label=r"$t_0$")
+        ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
+                      label="Ground Disc.")
+        ax[n].set_ylabel("Rel. Flux", fontsize=12)
         
-        ax[i].legend(loc="upper left", fontsize=12)
-        
-        
-    ax[nrows-1].set_xlabel("BJD-2457000", fontsize=16)
+    #main
+    ax[0].set_title(targetlabel + filesavetag)
+    ax[0].legend(fontsize=10, loc="upper left")
+    ax[nrows-1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
+    
+    #residuals
+    ax[1].set_title("Residual")
+    residuals = intensity - model
+    ax[1].scatter(time,residuals, s=5, color = 'black', label='Residual, All')
+    ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
+    ax[1].legend(fontsize=10)
     
     plt.tight_layout()
-    plt.savefig(path + label + "flux-plot.png")
-    plt.show()
-    #plt.close()
-    return binT, binI, binE, absT, absI, absE
+    plt.savefig(pathSave + targetlabel + filesavetag + "-MCMCmodel-bestFit.png")
+    plt.close()
+    return
+
+            
+        
