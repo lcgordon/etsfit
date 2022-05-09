@@ -10,15 +10,17 @@ todo list:
     - test all of the diff fits like this [done (?)]
     - what if you need to make the quat .txt files [done]
     - enforce lygosbg = None not allowing that one to work [done]
+    - double check GP stuff is working [seems fine as of 05092022]
+    - save a plot of trimmed regions for when doing custom masking. [done 05092022]
+    - set up GP parameter scan function
+    - TEST GP CUSTOM PRIOR/INPUTS 
 """
 import utils.utilities as ut
 import utils.snPlotting as sp
 import utils.MCMC as mc
-#import utils.runGP as gpmc
 
 import time as timeModule
 import pandas as pd
-# from scipy.optimize import minimize
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -93,6 +95,8 @@ class etsMAIN(object):
             self.disctime -= self.tmin
             self.bic_all = []
             self.params_all = []
+            self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
+            self.ylabel = "Rel. Flux"
             
             return
         else: 
@@ -123,7 +127,7 @@ class etsMAIN(object):
         self.disctime-=tmin
         return
     
-    def custom_mask_it(self, cutIndices):
+    def custom_mask_it(self, cutIndices, saveplot = None):
         """remove certain indices from your light curve.
         cutIndices should be an array of size len(time), 0 = remove, 1=keep
         
@@ -136,6 +140,8 @@ class etsMAIN(object):
             return
         else: 
             if hasattr(self, 'time'):
+                plt.scatter(self.time, self.intensity, color='red')
+                
                 a = np.nonzero(cutIndices) # which ones you are keeping
                 #print(a)
                 self.time = self.time[a]
@@ -145,6 +151,12 @@ class etsMAIN(object):
                     self.lygosbg = self.lygosbg[a]
                     
                 self.custommasked = True
+                plt.scatter(self.time, self.intensity, color='blue')
+                plt.xlabel(self.xlabel)
+                plt.ylabel(self.ylabel)
+                plt.show()
+                if saveplot is not None:
+                    plt.savefig(saveplot)
             else:
                 print("No data loaded in yet!! Run again once light curve is loaded")
             return
@@ -563,13 +575,13 @@ class etsMAIN(object):
                                         bounds=bounds_dict)
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0))
             
-            if customSigmaRho[6]: #if frozen (true)
+            if customSigmaRho[6]: #if frozen (1)
                 kernel.freeze_parameter("log sigma")
-            else:
-                initsigma = np.array((np.log(sigma))) #if not frozen, add to init
+            else: # if not frozen (0)
+                initsigma = np.array((np.log(sigma))) # if not frozen, add to init
                 self.init_values = np.concatenate((self.init_values, initsigma))
                 
-            if customSigmaRho[7]: #if frozen true
+            if customSigmaRho[7]: # if frozen true
                 kernel.freeze_parameter("log rho")
             else:
                 initrho = np.array((np.log(rho)))
@@ -581,7 +593,7 @@ class etsMAIN(object):
         print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
         
         
-        #set up arguments etc.
+        # set up arguments etc.
         self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
         self.logProbFunc = mc.log_probability_GP
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
@@ -590,6 +602,23 @@ class etsMAIN(object):
         fitType = 10
         self.plotFit = 10
         self.__mcmc_outer_structure(n1, n2)
+        return
+    
+    def GP_paramscan(self):
+        """Run a parameter scan over a set of values for rho and sigma
+        
+        - run over different regions of rho and sigma
+        - run with one frozen at a certain value
+        
+        
+        params:
+            - rhoparams = [rho start, rho stop, n regions]
+            - sigmaparams = [sigma start, sigma stop, n regions]
+        
+        
+        """
+        print("under construction!")
+        return
 
         
                     
