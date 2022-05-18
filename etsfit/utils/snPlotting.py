@@ -152,6 +152,7 @@ def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
 
 def plot_paramIndividuals(flat_samples, labels, path, targetlabel, filesavetag):
     """ plots param vs p(param) histograms """
+    
     for p in range(len(labels)):
         plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
         plt.xlabel(labels[p])
@@ -160,6 +161,35 @@ def plot_paramIndividuals(flat_samples, labels, path, targetlabel, filesavetag):
         plt.savefig(path + targetlabel + "-" + filesavetag + 
                     "-chainHisto-" + labels[p] + ".png")
         plt.close()
+    return
+
+def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
+    """Plot all the param histograms together """
+    
+    axN = len(labels)
+    if axN % 2 != 0:
+        axN+=1 #make it odd (two columns)
+    nrows = int(axN/2)
+    ncols = 2
+    fig, ax = plt.subplots(nrows, ncols, sharex=False,
+                               figsize=(8*ncols * 2, 3*nrows * 2))
+    p = 0
+    for n in range(2):
+        for m in range(nrows):
+            if p < len(labels):
+                ax[m, n].hist(flat_samples[:, p], 100, color="k", histtype="step")
+                ax[m, n].set_xlabel(labels[p])
+                ax[m, n].set_ylabel("p("+labels[p]+")")
+                #ax[m, n].gca().set_yticks([])
+                p+=1
+    
+    fig.suptitle("Parameter Plots")
+    plt.savefig(path + targetlabel + "-" + filesavetag + 
+                    "-chainHisto-all.png.png")
+    plt.close()
+    return
+    
+    
 
 def plot_log_post(path, targetlabel,filesavetag, sampler):
     '''plot that sweet sweet log posterior'''
@@ -319,6 +349,9 @@ def plot_mcmc(path, time, intensity, targetlabel, disctime, best_mcmc, flat_samp
         if fitType != 5:
             ax[n].axvline(best_mcmc[0], color = 'saddlebrown', linestyle = 'dashed',
                           label=r"$t_0$")
+        if fitType in (3,4):
+            ax[n].axvline(best_mcmc[1], color = 'orange', linestyle = 'dashed',
+                          label=r"$t_1$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
         ax[n].set_ylabel("Rel. Flux", fontsize=12)

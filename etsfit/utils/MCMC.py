@@ -121,7 +121,7 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         t1, t2, a1,a2, beta1, beta2, b = theta
         #handle priors:
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], disctime, t1,x[-1], 0, 3, 0, 3, 0.5, 6, 0.5, 6, -5, 5] 
+            priors = [x[0], disctime, t1,x[-1], 0, 5, 0, 5, 0.5, 6, 0.5, 6, -5, 5] 
             #t0, t1, a1, a2, beta1, beta2,b
         lp = check_priors(priors, theta)
         
@@ -152,7 +152,7 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
         t1, t2, a1,a2, beta1, beta2, cQ, c1, c2, c3 = theta
         # handle log priors
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], disctime, t1,x[-1], 0, 3, 0, 3, 0.5, 6, 0.5, 6,
+            priors = [x[0], disctime, t1,x[-1], 0, 5, 0, 5, 0.5, 6, 0.5, 6,
                       -1,1,-1,1,-1,1,-1,1]
             
         lp = check_priors(priors, theta)
@@ -179,7 +179,7 @@ def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3, disctime,
         b, cQ, c1, c2, c3 = theta
         # handle log priors
         if priors is None: #if you didn't feed it something else
-            priors = [-200,200,-200,200,-200,200,-200,200,-200,200]
+            priors = [-1,1,-1,1,-1,1,-1,1,-1,1]
             
         lp = check_priors(priors, theta)
         

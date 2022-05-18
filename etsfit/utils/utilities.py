@@ -70,23 +70,30 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
     it brighter"""
     fractionalBright = ((flux.max()-1) * fraction) + 1
     
-    pilk = 0 # if you hit 10 in a row brighter than cutoff, you can stop there
+    p = 0 # if you hit 10 in a row brighter than cutoff, you can stop there
     for n in range(len(flux)):
         if flux[n] >= fractionalBright:
-            pilk+=1
-            if pilk == 10:
+            p+=1
+            if p == 10:
                 cutoffindex = n-10
                 break
         else: # if you haven't hit 10 in a row above fractional position, try again
-            pilk=0
+            p=0
+            
     if QCBVALL is not None:
+        print("TRIMMING FRACTIONALLY CBVS")
         Qall, CBV1, CBV2, CBV3 = QCBVALL
-        QCBVALL = [np.asarray(Qall[:cutoffindex]), np.asarray(CBV1[:cutoffindex]), 
-                   np.asarray(CBV2[:cutoffindex]), np.asarray(CBV3[:cutoffindex])]
+        Qall = Qall[:cutoffindex]
+        CBV1 = CBV1[:cutoffindex]
+        CBV2 = CBV2[:cutoffindex]
+        CBV3 = CBV3[:cutoffindex]
+        QCBVALL = [Qall, CBV1, CBV2, CBV3]
+        print('quall', len(Qall))
+        #QCBVALL = [np.asarray(Qall[:cutoffindex]), np.asarray(CBV1[:cutoffindex]), 
+         #          np.asarray(CBV2[:cutoffindex]), np.asarray(CBV3[:cutoffindex])]
 
-    else:
-        return (time[:cutoffindex], flux[:cutoffindex], 
-                error[:cutoffindex], bg[:cutoffindex], QCBVALL)
+    return (time[:cutoffindex], flux[:cutoffindex], 
+            error[:cutoffindex], bg[:cutoffindex], QCBVALL)
 
 def bin_8_hours(time, flux, error, bg, QCBVALL=None):
     """Bin all light curves to 8 hours as in Fausnaugh 2020 

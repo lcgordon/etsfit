@@ -7,7 +7,7 @@ Created on Fri Apr 22 12:14:13 2022
 todo list:
     - load in priors and ability to set own priors! [done 05072022]
     - put GP code fitting in [done 05072022]
-    - test all of the diff fits like this [done (?)]
+    - test all of the diff fits like this [done 05182022]
     - what if you need to make the quat .txt files [done]
     - enforce lygosbg = None not allowing that one to work [done]
     - double check GP stuff is working [seems fine as of 05092022]
@@ -15,9 +15,10 @@ todo list:
     - set up GP parameter scan function
     - TEST GP CUSTOM PRIOR/INPUTS 
 """
-import utils.utilities as ut
-import utils.snPlotting as sp
-import utils.MCMC as mc
+
+import etsfit.utils.utilities as ut
+import etsfit.utils.snPlotting as sp
+import etsfit.utils.MCMC as mc
 
 import time as timeModule
 import pandas as pd
@@ -33,6 +34,9 @@ rcParams["font.size"] = 20
 from celerite.modeling import Model
 import celerite
 from celerite import terms
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 class etsMAIN(object):
@@ -52,9 +56,12 @@ class etsMAIN(object):
         self.info = pd.read_csv(bigInfoFile)
         self.bigInfoFile = bigInfoFile
         self.folderSAVE = folderSAVE
+        self.foldersaveperm = folderSAVE
         self.CBV_folder = CBV_folder
         self.quaternion_folder_raw = quaternion_folder_raw
         self.quaternion_folder_txt = quaternion_folder_txt
+        self.fractiontrimmed = False #not binned
+        self.binned = False #not binned
         return
     
     def make_quatsTxt(self):
@@ -125,40 +132,50 @@ class etsMAIN(object):
         self.tmin = time[0]
         self.time-=tmin
         self.disctime-=tmin
+        self.bic_all = []
+        self.params_all = []
+        self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
+        self.ylabel = "Rel. Flux"
         return
     
-    def custom_mask_it(self, cutIndices, saveplot = None):
+    def __custom_mask_it(self, cutIndices, saveplot = None):
         """remove certain indices from your light curve.
         cutIndices should be an array of size len(time), 0 = remove, 1=keep
         
         *****this should NOT be used if using CBVs - that's not set up yet!!
         """
-        if hasattr(self, 'custommasked'):
+        if hasattr(self, 'cutindexes'): #if already did a trim
             print("*******")
             print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
             print("*******")
             return
-        else: 
-            if hasattr(self, 'time'):
-                plt.scatter(self.time, self.intensity, color='red')
+        elif hasattr(self, 'time'): #if something loaded in and going to trim
+            plt.scatter(self.time, self.intensity, color='red', s=2)
                 
-                a = np.nonzero(cutIndices) # which ones you are keeping
-                #print(a)
-                self.time = self.time[a]
-                self.intensity = self.intensity[a]
-                self.error = self.error[a]
-                if self.lygosbg is not None:
-                    self.lygosbg = self.lygosbg[a]
-                    
-                self.custommasked = True
-                plt.scatter(self.time, self.intensity, color='blue')
-                plt.xlabel(self.xlabel)
-                plt.ylabel(self.ylabel)
-                plt.show()
-                if saveplot is not None:
-                    plt.savefig(saveplot)
-            else:
-                print("No data loaded in yet!! Run again once light curve is loaded")
+            self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
+            self.time = self.time[self.cutindexes]
+            self.intensity = self.intensity[self.cutindexes]
+            self.error = self.error[self.cutindexes]
+            if self.lygosbg is not None:
+                self.lygosbg = self.lygosbg[self.cutindexes]
+                
+            if hasattr(self, 'quatsIntensity'): #if cbvs, trim them
+                self.quatsIntensity = self.quatsIntensity[self.cutindexes]
+                self.CBV1 = self.CBV1[self.cutindexes]
+                self.CBV2 = self.CBV2[self.cutindexes]
+                self.CBV3 = self.CBV3[self.cutindexes]
+                self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
+                
+            #self.custommasked = True
+            plt.scatter(self.time, self.intensity, color='blue', s=2)
+            plt.xlabel(self.xlabel)
+            plt.ylabel(self.ylabel)
+            plt.show()
+            if saveplot is not None:
+                plt.savefig(saveplot)
+            return
+        else:
+            print("No data loaded in yet!! Run again once light curve is loaded")
             return
         
     def __gen_output_folder(self):
@@ -177,7 +194,7 @@ class etsMAIN(object):
         self.parameterSaveFile = self.folderSAVE + "output_params.txt"
         return
     
-    def run_MCMC(self, fitType, binYesNo = False, fraction = None, n1=1000, n2=10000,
+    def run_MCMC(self, fitType, cutIndices, binYesNo = False, fraction = None, n1=1000, n2=10000,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
                  labels=None, init_values=None):
@@ -193,10 +210,14 @@ class etsMAIN(object):
             come with a positional argument priors=None that this should override
         """
         
-        # ####################
-        # handle CBVs if necessary:
-        # ####################
-        if fitType in (2,4,5): 
+        ### CORRECT ORDER TO CLEAN UP IN
+        #load in CBVS if needed
+        #then handle custom masking on all
+        #then do binning
+        #then do fractional fitting
+
+        if fitType in (2,4,5): #handle CBVs+quats
+        
             (self.time, self.intensity, self.error,
              self.quatTime, self.quatsIntensity, self.CBV1, self.CBV2,
              self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, self.time,
@@ -204,27 +225,37 @@ class etsMAIN(object):
                                                       self.tmin, self.camera, self.ccd,
                                                       self.CBV_folder, 
                                                       self.quaternion_folder_txt)
+                                                    
             self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
         else:
             self.quatsandcbvs = None #has to initiate as None or it'll freak
             
-        # ########################
-        # check for 8hr bin BEFORE trimming to percentages
-        # ########################
-        if binYesNo: #if need to bin
+            
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
+        
+        # 8hr binning5
+        if binYesNo and self.binned == False: #if need to bin
             (self.time, self.intensity, 
              self.error, self.lygosbg,
              self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=self.quatsandcbvs) 
+                                                 self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
+            self.binned = True #make sure you can't bin it more than once
                                                  
-        # if doing percent of max fitting
-        if fraction is not None:
+        # percent of max fitting
+        if fraction is not None and self.fractiontrimmed==False:
+            
             (self.time, self.intensity, self.error, self.lygosbg, 
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
                                                    self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
-                               
                                                 
+            self.fractiontrimmed=True #make sure you can't trim it more than once
+                               
+        if fitType in (2,4,5):
+            self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs 
+                              
         # load parameters by fit type                                           
         self.__setup_fittype_params(fitType, binYesNo, fraction, args,
                                logProbFunc, plotFit, filesavetag, labels, init_values)
@@ -293,7 +324,8 @@ class etsMAIN(object):
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
-            self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 1.8, 1.8, 1))
+            self.init_values = np.array((self.disctime-8, self.disctime-4, 0.1, 0.1, 1.8, 1.8, 1))
+            #print(self.init_values)
             self.plotFit = fitType
         elif fitType ==4: # double with
             self.args = (self.time, self.intensity, self.error,
@@ -316,7 +348,7 @@ class etsMAIN(object):
             self.init_values = np.array((1, 0,0,0,0))
             self.plotFit = fitType
         elif fitType == 6: # detrending lygos BG
-            if lygosbg == None:
+            if self.lygosbg is None:
                 print("NO LYGOS BG LOADED IN - CANNOT RUN THIS FIT")
                 raise AttributeError("Missing lygosbg!!")
                 return
@@ -334,7 +366,7 @@ class etsMAIN(object):
             self.filesavetag = filesavetag
             self.labels = labels
             self.init_values = init_values 
-            print(self.args)
+            #print(self.args)
             self.plotFit = plotFit
         else:
             print("THAT IS NOT AN ALLOWED FIT TYPE, EXITING")
@@ -371,6 +403,7 @@ class etsMAIN(object):
         for n in range(len(p0)): # add a little spice - YYY gaussian??
             p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
         
+        #print(p0[1])
         # ### Initial run
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
                                         self.logProbFunc,args=self.args) # setup
@@ -455,18 +488,20 @@ class etsMAIN(object):
         
         # this will be separate - plotting p(parameter)
         if self.plotFit != 10:
-            sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
-                                     self.targetlabel, self.filesavetag)
+            #sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
+             #                        self.targetlabel, self.filesavetag)
             
             sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
                                   sampler, self.labels, ndim, appendix = "-production")
         else:
-            sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
-                                     self.targetlabel, self.filesavetag)
+            #sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
+             #                        self.targetlabel, self.filesavetag)
             
             sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
                                   sampler, self.filelabels, ndim, appendix = "-production")
         
+        sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
+                                  self.targetlabel, self.filesavetag)
         print(len(flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
@@ -517,12 +552,13 @@ class etsMAIN(object):
         
         """Quick little thing to spit out the current light curve """
         plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
-        plt.xlabel("Time (BJD-sector start)")
-        plt.ylabel("Rel. Flux")
+        plt.xlabel(self.xlabel)
+        plt.ylabel(self.ylabel)
         plt.show()
         return
     
-    def run_GP_fit(self, binYesNo, fraction=None, n1=1000, n2=10000, filesavetag=None,
+    def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
+                   n1=1000, n2=10000, filesavetag=None,
                    customSigmaRho = None):
         """Run the GP fitting 
         
@@ -536,6 +572,9 @@ class etsMAIN(object):
         else:
             self.filesavetag = filesavetag
             
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
@@ -619,55 +658,14 @@ class etsMAIN(object):
         """
         print("under construction!")
         return
-
+    
+    def run_all_fit_types(self, cutIndices, binYesNo, fraction, n1, n2, saveBIC):
+        """Run all fitting with the default priors/etc. """
+        
+        for n in range(6):
+            fitType = n+1
+            self.run_MCMC(fitType, cutIndices=cutIndices, binYesNo = binYesNo, fraction = fraction, 
+                          n1=n1, n2=n2,saveBIC=saveBIC)
+            self.folderSAVE = self.foldersaveperm
         
                     
-# %%
-folderLOAD = "D:/18thIaAll/"
-folderSAVE = "D:/packagetesting/"
-CBV_folder = "C:/Users/conta/.eleanor/metadata/"
-quaternion_folder_raw = "D:/quaternions-raw/"
-quaternion_folder_txt = "D:/quaternions-txt/"
-bigInfoFile = "D:/18thmag_Ia.csv"
-#testSN = "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
-testSN = "D:/specialBabies/SN2018hzh/lygos/data/rflxtarg_SN2018hzh_0431_30mn_n005_d4.0_of11.csv"
-
-
-etstest = etsMAIN(folderSAVE, bigInfoFile, CBV_folder,
-                 quaternion_folder_raw, quaternion_folder_txt)
-
-etstest.load_data_lygos_single(testSN)
-etstest.test_plot()
-
-hzh2018mask = np.ones((len(etstest.time)))
-hzh2018mask[340:433] = 0
-hzh2018mask[900:] = 0
-
-etstest.custom_mask_it(hzh2018mask)
-etstest.test_plot()
-
-
-# run GP
-#etstest.run_GP_fit(False, fraction=None, n1=1000, n2=10000, filesavetag=None,
- #                  customSigmaRho = None)
-
-# run all in folder
-# folderToLoadFrom = "D:/specialBabies/"
-# etstest.run_multiple_MCMC_from_folder(folderToLoadFrom, 1, False)
-
-# run single one
-etstest.run_MCMC(1, fraction=0.4, n1=5000, n2=35000)
-
-# =============================================================================
-# priors = [0, 20, 0.5, 1, 0.0, 5.0, -5, 5]
-# args = (etstest.time, etstest.intensity, etstest.error, etstest.disctime, priors)
-# logProbFunc = mc.log_probability_singlepower_noCBV
-# filesavetag = "-singlepower-custom-arg-test"
-# labels = ["t0", "A", "beta",  "b"]
-# init_values = np.array((etstest.disctime-3, 0.1, 1.8, 1))
-# 
-# etstest.run_MCMC(fitType=0, binYesNo = False, fraction = None, n1=10000, n2=40000,
-#                  saveBIC=False, args=args,logProbFunc = logProbFunc, plotFit = 1,
-#                  filesavetag=filesavetag, labels=labels, init_values=init_values)
-# 
-# =============================================================================
