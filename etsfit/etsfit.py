@@ -46,7 +46,7 @@ class etsMAIN(object):
         bigInfoFile = big csv file of list of all targets from TNS
         CBV_folder = where in ur computer ur CBVs are
         quaternion_folder_raw = where the main fits files are (if not already in txt form)
-        quaternio_folder_txt = where the smaller txt files are for faster loading. 
+        quaternion_folder_txt = where the smaller txt files are for faster loading. 
         
         run make_quatsTxt() to get the raw to convert and save into the txt folder"""
     
@@ -67,8 +67,18 @@ class etsMAIN(object):
     def make_quatsTxt(self):
         """Only run me if you don't have the quat.txt files yet 
         should skip generation if they already exist in the txt folder"""
+        #be sure folder exists
+        if not os.path.isdir(self.quaternion_folder_raw):
+            raise Exception("Provided path to quaternion FITS file folder does not exist")
+            return
+        #be sure files are in there
+        for dirpath, dirnames, files in os.walk(self.quaternion_folder_raw):
+            if not files:
+                raise Exception("No files found in folder meant to contain quaternion FITS files")
+        #then run it!
         ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
         return
+    
     
     def load_data_lygos_single(self, fileToLoad, override=False):
         """Given a SPECIFIC filepath, load in data + information
@@ -87,7 +97,8 @@ class etsMAIN(object):
             self.camera=pieces[2][2]
             self.ccd = pieces[2][3]
         
-            print("LOADING IN:", self.targetlabel, self.sector, self.camera, self.ccd)
+            print("LOADING IN:", self.targetlabel, "SECTOR: ", self.sector, "CAMERA: ",
+			self.camera, "CCD: ", self.ccd)
             
             (self.time, self.intensity, 
              self.error, self.lygosbg) = ut.load_lygos_csv(fileToLoad)
@@ -107,11 +118,11 @@ class etsMAIN(object):
             
             return
         else: 
-            print("Not discovery sector data! Not loading anything in.")
-            print("If you want to load in anyways, pass override=True.")
-            return
+            raise ValueError("Not discovery sector data  \n" + 
+                             "If you want to load in anyways, pass override=True")
+
         
-    def load_custom_lc(self, time, intensity, error , disctime,
+    def load_custom_lc(self, time, intensity, error , disctime, targetlabel,
                         sector, camera, ccd):
         """load in your own light cuve. 
         assumes time & disctime has not be tmin subtracted
@@ -120,12 +131,19 @@ class etsMAIN(object):
         seems to be working fine 
         
         """
+        if (len(time) != len(intensity) or len(intensity) != len(error) or
+            len(time) != len(error)):
+            print("Time length:", len(time))
+            print("Intensity length:", len(intensity))
+            print("Error length:", len(error))
+            raise ValueError("Mismatched sizes on time, intensity, and error!")
         
         self.time = time
         self.intensity = intensity
         self.error = error
         self.lygosbg = None
         self.disctime = disctime
+        self.targetlabel = targetlabel
         self.sector = sector
         self.camera = camera
         self.ccd = ccd
@@ -554,6 +572,7 @@ class etsMAIN(object):
         plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
         plt.xlabel(self.xlabel)
         plt.ylabel(self.ylabel)
+        plt.title(self.targetlabel)
         plt.show()
         return
     
