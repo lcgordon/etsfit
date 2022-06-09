@@ -19,6 +19,9 @@ todo list:
 import etsfit.utils.utilities as ut
 import etsfit.utils.snPlotting as sp
 import etsfit.utils.MCMC as mc
+#import utils.utilities as ut
+#import utils.snPlotting as sp
+#import utils.MCMC as mc
 
 import time as timeModule
 import pandas as pd
@@ -148,8 +151,8 @@ class etsMAIN(object):
         self.camera = camera
         self.ccd = ccd
         self.tmin = time[0]
-        self.time-=tmin
-        self.disctime-=tmin
+        self.time-=self.tmin
+        self.disctime-=self.tmin
         self.bic_all = []
         self.params_all = []
         self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
@@ -195,6 +198,42 @@ class etsMAIN(object):
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
             return
+        
+    def window_rms_filt(self):
+        """ RUN runs an rms filter over the light curve  
+        returns an array of 0's and 1's that can be used in the custom masking argument"""
+        innersize = int(len(self.time)*0.005)
+        outersize = innersize * 20
+        print(innersize, outersize)
+        n = len(self.time)
+        rms_filt = np.ones(n)
+        for i in range(n):
+            outer_lower = max(0, i-outersize) #outer window, lower bound
+            outer_upper = min(n, i+outersize) #outer window, upper bound
+            inner_lower = max(0, i-innersize) #inner window, lower bound
+            inner_upper = min(n, i+innersize) #inner window, upper bound
+            
+            outer_window = self.intensity[outer_lower:outer_upper]
+            inner_window = self.intensity[inner_lower:inner_upper]
+            
+            std_outer = np.std(outer_window)
+            
+            rms_outer = np.sqrt(sum([s**2 for s in outer_window])/len(outer_window))
+            rms_inner = np.sqrt(sum([s**2 for s in inner_window])/len(inner_window))
+            
+            #print(i, rms_inner, rms_outer, std_outer)
+            
+            if ((rms_inner > (rms_outer + std_outer)) 
+                or (rms_inner < (rms_outer - std_outer))):
+                rms_filt[inner_lower:inner_upper] = 0 #bad point, discard
+                print(rms_inner, rms_outer, std_outer)
+        
+        rms_filt_plot = np.nonzero(rms_filt)
+        plt.scatter(self.time, self.intensity, color='green', label='bad')
+        plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], color='blue', label='good')
+        plt.legend()
+        return rms_filt
+        
         
     def __gen_output_folder(self):
         """set up output folder & files """
