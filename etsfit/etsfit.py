@@ -125,7 +125,7 @@ class etsMAIN(object):
                              "If you want to load in anyways, pass override=True")
 
         
-    def load_custom_lc(self, time, intensity, error , disctime, targetlabel,
+    def load_custom_lc(self, time, intensity, error, lygosbg, disctime, targetlabel,
                         sector, camera, ccd):
         """load in your own light cuve. 
         assumes time & disctime has not be tmin subtracted
@@ -144,7 +144,7 @@ class etsMAIN(object):
         self.time = time
         self.intensity = intensity
         self.error = error
-        self.lygosbg = None
+        self.lygosbg = lygosbg
         self.disctime = disctime
         self.targetlabel = targetlabel
         self.sector = sector
@@ -319,12 +319,12 @@ class etsMAIN(object):
         self.__gen_output_folder() 
                                                         
         # run it
-        best, bic = self.__mcmc_outer_structure(n1, n2)
+        best, upperError, lowerError, bic = self.__mcmc_outer_structure(n1, n2)
         if saveBIC:
             self.bic_all.append(bic)
             self.params_all.append(best)
             
-        return best, bic
+        return best, upperError, lowerError, bic
     
     def run_multiple_MCMC_from_folder(self, folderToLoadFrom, fitType, binYesNo, 
                                       fraction = None, n1=1000, n2=40000, 
@@ -468,7 +468,8 @@ class etsMAIN(object):
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
                               sampler, self.labels, ndim, appendix = "-burnin")
         
-        discardy = int(n1/2)
+        discardy = int(n1/3)
+        
         flat_samples = sampler.get_chain(discard=discardy, flat=True, thin=15)
         # get intermediate best
         best_mcmc_inter = np.zeros((1,ndim))
@@ -539,7 +540,7 @@ class etsMAIN(object):
             burnin = int(2 * np.max(tau))
             thin = int(0.5 * np.min(tau))
         else:
-            burnin = 5000
+            burnin = int(n2/4)
             thin = 15
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
         
@@ -602,7 +603,7 @@ class etsMAIN(object):
             file.write("BIC:{bicy:.3f} Converged:{conv} \n".format(bicy=BIC, 
                                                                 conv=converged))
         
-        return best_mcmc, BIC
+        return best_mcmc, upper_error, lower_error, BIC
     
     
     def test_plot(self):
@@ -613,6 +614,7 @@ class etsMAIN(object):
         plt.ylabel(self.ylabel)
         plt.title(self.targetlabel)
         plt.show()
+        plt.close()
         return
     
     def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
