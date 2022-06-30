@@ -15,81 +15,7 @@ import corner
 import os
 
 
-def plot_bic_ranked(path, x,y, QCBVs, lygosBG,
-                    targetlabel, disctime, 
-                    tmin, best_mcmc, bic_list):
-    """
-    Plot all five plots + residuals for their BIC values, ranked by best 
-    (lowest bic) to worst (highest bic)
-    """
-    nrows = len(bic_list) #only make rows for as many as there are fits
-    ncols = 2
-    fig, ax = plt.subplots(nrows, ncols, sharex=True,
-                                  figsize=(8*ncols * 2, 3*nrows * 2))
-    
-    ####sort bic_list - want sorted INDEXES based on the values inside of bic_list
-    if (len(bic_list) == 3):
-        for n in range(len(bic_list)):
-            print(bic_list[n])
-            if bic_list[n] == 2:
-                bic_list[n] = 5 # if you're only plotting the three of them lol
-    bic_sort = np.argsort(np.asarray(bic_list))
-    print(bic_sort)
-    titletags = ["Single-No", "Single-WithCBV", "Double-No", "Double-WithCBV", "QCBV-Only"]
-    
-    ####for each fit type
-    for j in range(len(bic_sort)):
-        fitType = bic_sort[j] + 1 #get which of them you're going to plot
-        indexOfFitType = bic_sort[j]
-        print(fitType, titletags[indexOfFitType])
-        print("params:", best_mcmc[indexOfFitType])
-        sl, bg = fitTypeModel(fitType, x, best_mcmc[indexOfFitType], QCBVs = QCBVs,
-                              lygosBG = lygosBG)
-        #model
-        model = sl + bg
-        ax[j][0].plot(x, model, label="Best Fit Model", color = 'red')
-        ax[j][0].set_title(titletags[indexOfFitType] + 
-                           "   BIC = {numbo:.2f}".format(numbo=(bic_list[j])))
-        ax[j][0].scatter(x, y, label = "Data", s = 5, color = 'black')
-        
-        if fitType != 5:
-            ax[j][0].plot(x, sl, label="Power Law", color = 'blue')
-            ax[j][0].plot(x, bg, label="Background", color = 'green')
-         
-        #ax[j][0].legend(fontsize=18, loc = "upper left")
-        #residuals
-        ax[j][1].set_title("Residual (data-model)")
-        residuals = y - model
-        ax[j][1].scatter(x,residuals, s=5, color = 'black', label='Residual')
-        ax[j][1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
-        #misc.
-        ax[j][0].axvline(disctime, color = 'grey', linestyle = 'dotted', 
-                  label="Ground Disc.")
-        ax[j][1].axvline(disctime, color = 'grey', linestyle = 'dotted', 
-                  label="Ground Disc.")
-        
-        ax[j][0].set_ylabel("Rel. Flux", fontsize=12)
-        ax[j][1].set_ylabel("Rel. Flux", fontsize=12)
-        if fitType != 5:
-            ax[j][0].axvline(best_mcmc[fitType][0], color = "saddlebrown",
-                             linestyle = 'dashed', label = r"$t_0$")
-            ax[j][1].axvline(best_mcmc[fitType][0], color = "saddlebrown",
-                             linestyle = 'dashed', label = r"$t_0$")
-        if fitType in (3,4):
-            ax[j][0].axvline(best_mcmc[fitType][1], color = 'saddlebrown',
-                             linestyle = 'dashed', label = r"$t_1$")
-            ax[j][1].axvline(best_mcmc[fitType][1], color = 'saddlebrown',
-                             linestyle = 'dashed', label = r"$t_1$")
-        ax[j][1].legend(fontsize=18, loc='upper left')
-        ax[j][0].legend(fontsize = 18, loc = 'upper left')
-    
-    fig.suptitle(targetlabel)
-    ax[nrows-1][0].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
-    ax[nrows-1][1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
-    plt.tight_layout()
-    plt.savefig(path + targetlabel + "-bic-sorted-all.png")
-    return
-    
+
 def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
                   autoStep, filesavetag):
     """ Plot autocorrelation time vs number of steps
@@ -189,10 +115,8 @@ def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
     plt.close()
     return
     
-    
-
 def plot_log_post(path, targetlabel,filesavetag, sampler):
-    '''plot that sweet sweet log posterior'''
+    '''plot the log posterior'''
     logprobs = sampler.get_log_prob()
     logprior = sampler.get_blobs()
     logpost = logprobs+logprior
@@ -240,7 +164,7 @@ def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels,
 
 def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     """
-    Produce plotting model for a given fit type (1-5) 
+    Produce plotting model for a given fit type (1-6) 
     Params:
         - fitType (int, which fit are you doing)
         - x (array, x-axis that starts at 0)
