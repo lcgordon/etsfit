@@ -131,7 +131,7 @@ class etsMAIN(object):
         assumes time & disctime has not be tmin subtracted
         lygosbg = None in this case (cannot run that fittype!! - should be protected
                                      w/in code tho against trying)
-        seems to be working fine 
+        seems to be working fine as of 6/30/22
         
         """
         if (len(time) != len(intensity) or len(intensity) != len(error) or
@@ -251,29 +251,44 @@ class etsMAIN(object):
         self.parameterSaveFile = self.folderSAVE + "output_params.txt"
         return
     
-    def run_MCMC(self, fitType, cutIndices, binYesNo = False, fraction = None, n1=1000, n2=10000,
+    def run_MCMC(self, fitType, cutIndices, binYesNo = False, fraction = None, 
+                 n1=1000, n2=10000, thinParams = None,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
                  labels=None, init_values=None):
-        """Run one MCMC instance
-        fitType is an integer 1-6 or 0 if you want to do custom arguments
-        binYesNo is true/false do you want it binned to 8 hours
-        fraction = None if not trimming, 0.6 for 60% or whatever otherwise
-        n1 is burnin steps n2 is production upper limit
+        """Run one MCMC instance - non GP fits
+        Parameters:
+            - fitType, integer 1-6 for default runs, 0 for custom arguments
+            - cutIndices, array of indices to remove if you want
+            - binYesNo, boolean to bin to 8 hours or not
+            - fraction, NONE if no trimming, 0.4 for 40% (or whatever)
+            - n1, int number for first run
+            - n2, int number for second chain
+            - thinParams, NONE to use defaults (1/4 first run discard, 15% trime) or
+                            [first run discard, percent thin]
+            - saveBIC, boolean, do you want to save the BIC value that comes out
+            - args, NONE for 1-6, use for 0 if you want it
+            - logProbFunc, NONE for 1-6, use for 0
+            - plotFit = NONE unless doing a custom fit - needs to match up with the 
+                logprobfunc being used
+            - filesavetag = NONE, custom string if you want it
+            - labels, NONE unless doing custom bullshit
+            - init_values, NONE unless doing custom bullshit
         
-        IF YOU ARE DOING CUSTOM PRIORS:
-            - run under fitType=0
-            - last item in args must be your priors array -- all probability functions
-            come with a positional argument priors=None that this should override
+        If you are doing custom priors:
+            - run under fitType = 0
+            - last items in args must be your priors array -- all probability functions
+                come with a positional argument priors = None that this should override
+    
+        Order of cleaning data:
+            - load in CBVs if needed (fitTypes 2,4,5)
+            - handle custom masking
+            - binning
+            - fractional cutoff
         """
-        
-        ### CORRECT ORDER TO CLEAN UP IN
-        #load in CBVS if needed
-        #then handle custom masking on all
-        #then do binning
-        #then do fractional fitting
 
-        if fitType in (2,4,5): #handle CBVs+quats
+        # handle CBVs+quats
+        if fitType in (2,4,5): 
         
             (self.time, self.intensity, self.error,
              self.quatTime, self.quatsIntensity, self.CBV1, self.CBV2,
@@ -285,48 +300,50 @@ class etsMAIN(object):
                                                     
             self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
         else:
-            self.quatsandcbvs = None #has to initiate as None or it'll freak
+            self.quatsandcbvs = None # has to initiate as None or it'll freak
             
             
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if not hasattr(self, 'cutindexes') and cutIndices is not None:
             self.__custom_mask_it(cutIndices, saveplot = None)
         
-        # 8hr binning5
+        # 8hr binning
         if binYesNo and self.binned == False: #if need to bin
             (self.time, self.intensity, 
              self.error, self.lygosbg,
              self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
                                                  self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
-            self.binned = True #make sure you can't bin it more than once
+            self.binned = True # make sure you can't bin it more than once
                                                  
         # percent of max fitting
         if fraction is not None and self.fractiontrimmed==False:
-            
             (self.time, self.intensity, self.error, self.lygosbg, 
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
                                                    self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
-                                                
             self.fractiontrimmed=True #make sure you can't trim it more than once
-                               
+        
+        # this is to fix the quats and cbv inputs after trimming                       
         if fitType in (2,4,5):
             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs 
-                              
+            
+
         # load parameters by fit type                                           
         self.__setup_fittype_params(fitType, binYesNo, fraction, args,
                                logProbFunc, plotFit, filesavetag, labels, init_values)
+        # set up the output folder
         self.__gen_output_folder() 
                                                         
         # run it
-        best, upperError, lowerError, bic = self.__mcmc_outer_structure(n1, n2)
+        best, upperError, lowerError, bic = self.__mcmc_outer_structure(n1, n2,
+                                                                        thinParams)
         if saveBIC:
             self.bic_all.append(bic)
             self.params_all.append(best)
             
         return best, upperError, lowerError, bic
     
-    def run_multiple_MCMC_from_folder(self, folderToLoadFrom, fitType, binYesNo, 
+    def BROKENrun_multiple_MCMC_from_folder(self, folderToLoadFrom, fitType, binYesNo, 
                                       fraction = None, n1=1000, n2=40000, 
                                       saveBIC=False):
         """Load all in the rflxtarg's within the folder
@@ -438,9 +455,13 @@ class etsMAIN(object):
             
             
 
-                    
-    def __mcmc_outer_structure(self, n1, n2):
+    def __mcmc_outer_structure(self, n1, n2, thinParams):
         """Fitting things that are NOT GP based
+        Params:
+            - n1 is an integer number of steps for the first chain
+            - n2 is an integer number of steps for the second chain
+            - thinParams is EITHER NONE (default thinning is used, 1/4 for the first run,
+                                         15% thinning) or [int to discard, thinning percent]
         """
         
         print("***")
@@ -450,6 +471,13 @@ class etsMAIN(object):
         print("Beginning MCMC run")
          
         timeModule.sleep(3) # this keeps things running orderly
+        
+        if thinParams is None:
+            discard1 = int(n1/4)
+            thinning = 15
+        else:
+            discard1, thinning = thinParams
+                              
 
         # ### MCMC setup
         np.random.seed(42)
@@ -460,17 +488,15 @@ class etsMAIN(object):
         for n in range(len(p0)): # add a little spice - YYY gaussian??
             p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
         
-        #print(p0[1])
         # ### Initial run
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
                                         self.logProbFunc,args=self.args) # setup
         sampler.run_mcmc(p0, n1, progress=True) # run it
+        
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
                               sampler, self.labels, ndim, appendix = "-burnin")
-        
-        discardy = int(n1/3)
-        
-        flat_samples = sampler.get_chain(discard=discardy, flat=True, thin=15)
+    
+        flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         # get intermediate best
         best_mcmc_inter = np.zeros((1,ndim))
         for i in range(ndim):
@@ -508,7 +534,6 @@ class etsMAIN(object):
             index += 1 # how many times have you saved it
         
             # Check convergence
-            # this first condition is absolutely where it's failing
             converged = np.all(tau * 100 < sampler.iteration)
             converged &= np.all(np.abs(old_tau - tau) / tau < 0.01) # normally 0.01
             if converged:
@@ -538,23 +563,17 @@ class etsMAIN(object):
         tau = sampler.get_autocorr_time(tol=0)
         if (np.max(tau) < (sampler.iteration/50)):
             burnin = int(2 * np.max(tau))
-            thin = int(0.5 * np.min(tau))
+            thinning = int(0.5 * np.min(tau))
         else:
             burnin = int(n2/4)
-            thin = 15
-        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+
+        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # this will be separate - plotting p(parameter)
         if self.plotFit != 10:
-            #sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
-             #                        self.targetlabel, self.filesavetag)
-            
             sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
                                   sampler, self.labels, ndim, appendix = "-production")
         else:
-            #sp.plot_paramIndividuals(flat_samples, self.labels, self.folderSAVE, 
-             #                        self.targetlabel, self.filesavetag)
-            
             sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
                                   sampler, self.filelabels, ndim, appendix = "-production")
         
@@ -575,7 +594,7 @@ class etsMAIN(object):
             lower_error[0][i] = q[0]
      
         logprob, blob = sampler.compute_log_prob(best_mcmc)
-        # print(logprob)
+
         # ### BIC
         BIC = ndim * np.log(len(self.time)) - 2 * np.log(logprob)
         print("BAYESIAN INF CRIT: ", BIC)
@@ -607,8 +626,7 @@ class etsMAIN(object):
     
     
     def test_plot(self):
-        
-        """Quick little thing to spit out the current light curve """
+        """Quick little thing to spit out the current light curve that's loaded in """
         plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
         plt.xlabel(self.xlabel)
         plt.ylabel(self.ylabel)
