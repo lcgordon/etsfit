@@ -112,16 +112,16 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         """ calculates log probabilty
         labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
         init_values = np.array((disctime-6, disctime, 0.1, 0.1, 1.8, 1.8, 1))"""
-        def func1(x, t1, t2, a1, a2, B1, B2):
-            return B1 *(x-t1)**a1
-        def func2(x, t1, t2, a1, a2, B1, B2):
-            return B1 * (x-t1)**a1 + B2 * (x-t2)**a2
+        def func1(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 *(x-t0)**beta1
+        def func2(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
         
         
-        t1, t2, a1,a2, beta1, beta2, b = theta
+        t0, t1, A1, A2, beta1, beta2, B = theta
         #handle priors:
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], disctime, t1,x[-1], 0, 5, 0, 5, 0.5, 6, 0.5, 6, -5, 5] 
+            priors = [x[0], disctime, t0, x[-1], 0, 5, 0, 5, 0.5, 6, 0.5, 6, -5, 5] 
             #t0, t1, a1, a2, beta1, beta2,b
         lp = check_priors(priors, theta)
         
@@ -129,9 +129,9 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
             return -np.inf, lp
         else: # if allowed, calculate the log likelihood
-            model = np.piecewise(x, [(t1 <= x)*(x < t2), t2 <= x], 
+            model = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
-                             t1, t2, a1, a2, beta1, beta2) + 1 + b
+                             t0, t1, A1, A2, beta1, beta2) + 1 + B
             
             yerr2 = yerr**2.0
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
@@ -143,13 +143,13 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
         labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",\
                   "cQ", "c1", "c2", "c3"]
         init_values = np.array((disctime-3, disctime, 0.1, 0.1, 1.8, 1.8, 0,0,0,0))"""
-        def func1(x, t1, t2, a1, a2, B1, B2):
-            return B1 *(x-t1)**a1
-        def func2(x, t1, t2, a1, a2, B1, B2):
-            return B1 * (x-t1)**a1 + B2 * (x-t2)**a2
+        def func1(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 *(x-t0)**beta1
+        def func2(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
         
+        t0, t1, A1, A2, beta1, beta2, cQ, c1, c2, c3 = theta
         
-        t1, t2, a1,a2, beta1, beta2, cQ, c1, c2, c3 = theta
         # handle log priors
         if priors is None: #if you didn't feed it something else
             priors = [x[0], disctime, t1,x[-1], 0, 5, 0, 5, 0.5, 6, 0.5, 6,
@@ -161,8 +161,9 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
         if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
             return -np.inf, -np.inf
         else: # if allowed, calculate the log likelihood
-            model = (np.piecewise(x, [(t1 <= x)*(x < t2), t2 <= x], 
-                                  [func1, func2], t1, t2, a1, a2, beta1, beta2)
+            model = (np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
+                             [func1, func2],
+                             t0, t1, A1, A2, beta1, beta2)
                      + cQ * Qall + c1 * CBV1 + c2 * CBV2 + c3 * CBV3 + 1)
             
             yerr2 = yerr**2.0

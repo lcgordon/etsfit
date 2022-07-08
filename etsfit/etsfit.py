@@ -49,18 +49,26 @@ class etsMAIN(object):
         bigInfoFile = big csv file of list of all targets from TNS
         CBV_folder = where in ur computer ur CBVs are
         quaternion_folder_raw = where the main fits files are (if not already in txt form)
-        quaternion_folder_txt = where the smaller txt files are for faster loading. 
+        quaternion_folder_txt = where the smaller txt files are for faster loading.
+        
+        Any of these can be None but you'll hit errors down the line if you don't set them and
+        you end up needing them
         
         run make_quatsTxt() to get the raw to convert and save into the txt folder"""
     
     def __init__(self, folderSAVE, bigInfoFile, CBV_folder,
                  quaternion_folder_raw, quaternion_folder_txt):
         """Load these bad bois in """
-        self.info = pd.read_csv(bigInfoFile)
+        if bigInfoFile is not None:
+            self.info = pd.read_csv(bigInfoFile)
         self.bigInfoFile = bigInfoFile
         self.folderSAVE = folderSAVE
         self.foldersaveperm = folderSAVE
+        if CBV_folder is None:
+            print("No CBV folder path set - cannot run types 2,4,5")
         self.CBV_folder = CBV_folder
+        if quaternion_folder_raw is None or quaternion_folder_txt is None:
+            print("No quaternion folder set - cannot run types 2,4,5")
         self.quaternion_folder_raw = quaternion_folder_raw
         self.quaternion_folder_txt = quaternion_folder_txt
         self.fractiontrimmed = False #not binned
@@ -71,7 +79,7 @@ class etsMAIN(object):
         """Only run me if you don't have the quat.txt files yet 
         should skip generation if they already exist in the txt folder"""
         #be sure folder exists
-        if not os.path.isdir(self.quaternion_folder_raw):
+        if quaternion_folder_raw is None or not os.path.isdir(self.quaternion_folder_raw):
             raise Exception("Provided path to quaternion FITS file folder does not exist")
             return
         #be sure files are in there
@@ -83,7 +91,7 @@ class etsMAIN(object):
         return
     
     
-    def load_data_lygos_single(self, fileToLoad, override=False):
+    def load_data_lygos_single(self, fileToLoad, disctime=None, override=False):
         """Given a SPECIFIC filepath, load in data + information
         and when i say SPECIFIC i mean like, 
         "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
@@ -95,18 +103,19 @@ class etsMAIN(object):
         if (self.sector < 10):
             self.sector = "0" + str(self.sector)
         if (pieces[2].startswith(str(self.sector)) or override == True):
-            self.targetlabel = pieces[1]
-            self.sector = pieces[2][0:2]
-            self.camera=pieces[2][2]
-            self.ccd = pieces[2][3]
+            
+            time, intensity, error, lygosbg = ut.load_lygos_csv(fileToLoad)
+            if self.bigInfoFile is None and disctime is None:
+                raise Exception("No big info file given AND no disctime was provided")
+            elif disctime is None:
+                disctime = ut.get_disctime(self.bigInfoFile, pieces[1][2:])
+            
+            self.load_custom_lc(time, intensity, error, lygosbg, disctime, pieces[1],
+                        pieces[2][0:2], pieces[2][2], pieces[2][3])
+            
         
             print("LOADING IN:", self.targetlabel, "SECTOR: ", self.sector, "CAMERA: ",
 			self.camera, "CCD: ", self.ccd)
-            
-            (self.time, self.intensity, 
-             self.error, self.lygosbg) = ut.load_lygos_csv(fileToLoad)
-            
-            self.disctime = ut.get_disctime(self.bigInfoFile, self.targetlabel[2:])
             
             (self.time, self.intensity, 
             self.error, self.lygosbg) =  ut.normalize_sigmaclip(self.time, self.intensity, 
@@ -140,6 +149,10 @@ class etsMAIN(object):
             print("Intensity length:", len(intensity))
             print("Error length:", len(error))
             raise ValueError("Mismatched sizes on time, intensity, and error!")
+        elif (time is None or intensity is None or error is None or lygosbg is None
+                 or disctime is None or targetlabel is None or sector is None or camera is None
+                 or ccd is None):
+            raise ValueError("Inputs all have to be SOMETHING you can't give any None's here")
         
         self.time = time
         self.intensity = intensity
@@ -238,6 +251,10 @@ class etsMAIN(object):
     def __gen_output_folder(self):
         """set up output folder & files """
         # check for an output folder's existence, if not, put it in. 
+        if (self.folderSAVE is None or self.targetlabel is None or self.sector is None
+            or self.camera is None or self.ccd is None):
+            raise ValueError("Cannot generate output folders, one of the parameters is None")
+        
         newfolderpath = (self.folderSAVE + self.targetlabel + 
                          str(self.sector) + str(self.camera) + str(self.ccd))
         if not os.path.exists(newfolderpath):
@@ -342,19 +359,6 @@ class etsMAIN(object):
             self.params_all.append(best)
             
         return best, upperError, lowerError, bic
-    
-    def BROKENrun_multiple_MCMC_from_folder(self, folderToLoadFrom, fitType, binYesNo, 
-                                      fraction = None, n1=1000, n2=40000, 
-                                      saveBIC=False):
-        """Load all in the rflxtarg's within the folder
-        DONT USE"""
-        
-        
-        for root, dirs, files in os.walk(folderToLoadFrom):
-            for f in files:
-                if "rflxtarg" in f:
-                    self.load_data_lygos_single(os.path.join(root,f))
-                    self.run_MCMC(fitType,binYesNo, fraction,n1,n2,saveBIC)
                     
     def __setup_fittype_params(self, fitType, binYesNo, fraction, args=None, 
                                logProbFunc = None, plotFit = None,
@@ -720,30 +724,4 @@ class etsMAIN(object):
         self.plotFit = 10
         self.__mcmc_outer_structure(n1, n2)
         return
-    
-    def GP_paramscan(self):
-        """Run a parameter scan over a set of values for rho and sigma
-        
-        - run over different regions of rho and sigma
-        - run with one frozen at a certain value
-        
-        
-        params:
-            - rhoparams = [rho start, rho stop, n regions]
-            - sigmaparams = [sigma start, sigma stop, n regions]
-        
-        
-        """
-        print("under construction!")
-        return
-    
-    def run_all_fit_types(self, cutIndices, binYesNo, fraction, n1, n2, saveBIC):
-        """Run all fitting with the default priors/etc. """
-        
-        for n in range(6):
-            fitType = n+1
-            self.run_MCMC(fitType, cutIndices=cutIndices, binYesNo = binYesNo, fraction = fraction, 
-                          n1=n1, n2=n2,saveBIC=saveBIC)
-            self.folderSAVE = self.foldersaveperm
-        
                     

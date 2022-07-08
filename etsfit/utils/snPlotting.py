@@ -188,25 +188,26 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
         bg = cQ * Qall + cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3 + 1 + B
         
     elif fitType == 3:
-        def func1(x, t1, t2, a1, a2, B1, B2):
-            return B1 *(x-t1)**a1
-        def func2(x, t1, t2, a1, a2, B1, B2):
-            return B1 * (x-t1)**a1 + B2 * (x-t2)**a2
-        t1, t2, a1,a2, beta1, beta2, b = best_mcmc
-        sl = np.piecewise(x, [(t1 <= x)*(x < t2), t2 <= x], 
+        def func1(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 *(x-t0)**beta1
+        def func2(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
+        t0, t1, A1, A2, beta1, beta2, B = best_mcmc
+        sl = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
-                             t1, t2, a1, a2, beta1, beta2) 
-        bg = np.ones(len(x)) + b
+                             t0, t1, A1, A2, beta1, beta2) 
+        bg = np.ones(len(x)) + B
     elif fitType ==4:
-        def func1(x, t1, t2, a1, a2, B1, B2):
-            return B1 *(x-t1)**a1
-        def func2(x, t1, t2, a1, a2, B1, B2):
-            return B1 * (x-t1)**a1 + B2 * (x-t2)**a2
+        def func1(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 *(x-t0)**beta1
+        def func2(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
         
         Qall, CBV1, CBV2, CBV3 = QCBVs
-        t1, t2, a1,a2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = best_mcmc#[0]
-        sl = np.piecewise(x, [(t1 <= x)*(x < t2), t2 <= x], 
-                                  [func1, func2], t1, t2, a1, a2, beta1, beta2)
+        t0, t1, A1, A2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = best_mcmc#[0]
+        sl = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
+                             [func1, func2],
+                             t0, t1, A1, A2, beta1, beta2)
         bg = cQ * Qall + cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3 + 1
         
     elif fitType ==5:
