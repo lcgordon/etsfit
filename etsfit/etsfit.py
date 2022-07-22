@@ -5,11 +5,6 @@ Created on Fri Apr 22 12:14:13 2022
 @author: lcgordon
 
 todo list:
-    - load in priors and ability to set own priors! [done 05072022]
-    - put GP code fitting in [done 05072022]
-    - test all of the diff fits like this [done 05182022]
-    - what if you need to make the quat .txt files [done]
-    - enforce lygosbg = None not allowing that one to work [done]
     - double check GP stuff is working [seems fine as of 05092022]
     - save a plot of trimmed regions for when doing custom masking. [done 05092022]
     - set up GP parameter scan function
@@ -43,58 +38,161 @@ warnings.filterwarnings("ignore")
 
 
 class etsMAIN(object):
-    """Make one of these for the light curve you're going to fit!
-    init parameters:
-        folderSAVE = where everything will save into subfolders
-        bigInfoFile = big csv file of list of all targets from TNS
-        CBV_folder = where in ur computer ur CBVs are
-        quaternion_folder_raw = where the main fits files are (if not already in txt form)
-        quaternion_folder_txt = where the smaller txt files are for faster loading.
-        
-        Any of these can be None but you'll hit errors down the line if you don't set them and
-        you end up needing them
-        
-        run make_quatsTxt() to get the raw to convert and save into the txt folder"""
+    """Make one of these for the light curve you're going to fit!"""
     
-    def __init__(self, folderSAVE, bigInfoFile, CBV_folder,
-                 quaternion_folder_raw, quaternion_folder_txt):
-        """Load these bad bois in """
-        if bigInfoFile is not None:
+    def __init__(self, folderSAVE, bigInfoFile):
+        """
+        Initialize an etsfit object
+        
+        This sets up a save path, loads in a csv of targets if you want,
+        and sets default values of the data not being trimmed, binned, and
+        there being no CBVs/quaternions accessible.
+        
+        -----------------------------------------------
+        Parameters:
+            
+            - folderSAVE (str) the path to where you want everything to be saved
+            should end with a /, it will self-correct if not
+            
+            - bigInfoFile (str) the path to a big pandas-readable CSV file
+            containing all the targets you could possibly care about
+        
+        """
+        
+        if not os.path.exists(folderSAVE):
+            raise ValueError("Not a valid save path!")
+        else:
+            if folderSAVE[-1] != "/": #if not ending with /, 
+                folderSAVE += "/"
+                self.folderSAVE = folderSAVE
+                self.foldersaveperm = folderSAVE #keep a copy in case
+        
+        
+        if os.path.exists(bigInfoFile):
             self.info = pd.read_csv(bigInfoFile)
         self.bigInfoFile = bigInfoFile
-        self.folderSAVE = folderSAVE
-        self.foldersaveperm = folderSAVE
-        if CBV_folder is None:
-            print("No CBV folder path set - cannot run types 2,4,5")
-        self.CBV_folder = CBV_folder
-        if quaternion_folder_raw is None or quaternion_folder_txt is None:
-            print("No quaternion folder set - cannot run types 2,4,5")
-        self.quaternion_folder_raw = quaternion_folder_raw
-        self.quaternion_folder_txt = quaternion_folder_txt
-        self.fractiontrimmed = False #not binned
+        
+        
+        self.cbvsquats = False #no cbvs/quats in
+        self.fractiontrimmed = False #not trimmed
         self.binned = False #not binned
         return
     
-    def make_quatsTxt(self):
-        """Only run me if you don't have the quat.txt files yet 
-        should skip generation if they already exist in the txt folder"""
-        #be sure folder exists
-        if quaternion_folder_raw is None or not os.path.isdir(self.quaternion_folder_raw):
-            raise Exception("Provided path to quaternion FITS file folder does not exist")
-            return
-        #be sure files are in there
-        for dirpath, dirnames, files in os.walk(self.quaternion_folder_raw):
-            if not files:
-                raise Exception("No files found in folder meant to contain quaternion FITS files")
-        #then run it!
-        ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
+    def use_quaternions_cbvs(self, CBV_folder,quaternion_folder_raw, 
+                             quaternion_folder_txt):
+        """ 
+        Function to set up access to CBVs and quaternions. 
+        If you do not have text file versions of the quaternions, they will
+        be generated for you.
+        
+        ----------------------------------------------------
+        Parameters: 
+            
+            - CBV_folder (str) a path to the folder holding all CBVs. 
+            this is probably within the eleanor directory
+            the directory structure should be such that there are files like
+            folder/s001/cbv_components_s0001_0001_0001.txt
+            
+            - quaternion_folder_raw (str) is the path to the folder holding
+            all of the .fits file versions of the quaternions. this can be
+            some random path if you already have produced the txt versions
+            
+            - quaternion_folder_txt (str) is the path to the folder either
+            HOLDING the .txt file versions of the quaternions OR the path to
+            the EMPTY folder that all the txt versions are about 
+            to be generated into
+        """
+        
+        if not os.path.exists(CBV_folder):
+            raise ValueError("Not a valid CBV path")
+        else:
+            self.CBV_folder = CBV_folder
+            
+        if not :
+            raise ValueError("Not  a valid raw quat path")
+        else:
+            self.quaternion_folder_raw = quaternion_folder_raw
+        
+        if not os.path.exists(quaternion_folder_txt):
+            raise ValueError("Not a valid txt quat path")
+        else:
+            self.quaternion_folder_txt = quaternion_folder_txt
+            if (len(os.listdir(self.quaternion_folder_txt))==0 &&
+                len(os.listdir(self.quaternion_folder_raw))!=0):
+                #empty directory, make txt files
+                ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
+                
+        self.cbvsquats = True
         return
+    
+    def window_rms_filt(self, plot=True):
+        """ 
+        Runs an RMS filter over the light curve and returns an array of 
+        0's (bad) and 1's (good) that can be used in the custom masking
+        argument of other functions. 
+        
+        This DOES NOT save the filter output inside the object. 
+        
+        Defaults the inner window as len(self.time)*0.005 and the outer as
+        inner*20. Custom arguments are on the to-do list, nudge Lindsey if 
+        you need them.
+        
+        -------------------------------
+        Parameters:
+            
+            - plot (bool) defaults as True, plots light curve w/ mask
+        
+        """
+        innersize = int(len(self.time)*0.005)
+        outersize = innersize * 20
+        print(innersize, outersize)
+        n = len(self.time)
+        rms_filt = np.ones(n)
+        for i in range(n):
+            outer_lower = max(0, i-outersize) #outer window, lower bound
+            outer_upper = min(n, i+outersize) #outer window, upper bound
+            inner_lower = max(0, i-innersize) #inner window, lower bound
+            inner_upper = min(n, i+innersize) #inner window, upper bound
+            
+            outer_window = self.intensity[outer_lower:outer_upper]
+            inner_window = self.intensity[inner_lower:inner_upper]
+            
+            std_outer = np.std(outer_window)
+            
+            rms_outer = np.sqrt(sum([s**2 for s in outer_window])/len(outer_window))
+            rms_inner = np.sqrt(sum([s**2 for s in inner_window])/len(inner_window))
+            
+            if ((rms_inner > (rms_outer + std_outer)) 
+                or (rms_inner < (rms_outer - std_outer))):
+                rms_filt[inner_lower:inner_upper] = 0 #bad point, discard
+                print(rms_inner, rms_outer, std_outer)
+        
+        if plot:
+            rms_filt_plot = np.nonzero(rms_filt)
+            plt.scatter(self.time, self.intensity, color='green', label='bad')
+            plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], color='blue', label='good')
+            plt.legend()
+        return rms_filt
+        
     
     
     def load_data_lygos_single(self, fileToLoad, disctime=None, override=False):
-        """Given a SPECIFIC filepath, load in data + information
-        and when i say SPECIFIC i mean like, 
-        "D:/18th1aAll/SN2018eod/lygos/data/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
+        """
+        Given a SPECIFIC filepath to a lygos lightcurve, load in the data
+        And I do mean SPECIFIC path.
+        
+        --------------------------------------------
+        Parameters:
+            
+            - fileToLoad (str), 
+            ie "D:/18th1aAll/SN2018eod/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
+            
+            - disctime (double, defaults to NONE) if no big CSV file is loaded, 
+            provide the discovery time (or custom disctime)
+            
+            - override (bool, defaults to FALSE) ignore it if loading data
+            from a sector that is NOT the discovery sector
+        
         """
         pieces = fileToLoad.split("_")
         # look up sector of discovery in big file
@@ -132,33 +230,64 @@ class etsMAIN(object):
         else: 
             raise ValueError("Not discovery sector data  \n" + 
                              "If you want to load in anyways, pass override=True")
+        return
 
+    
+    def load_single_lc(self, time, intensity, error, discoverytime, 
+                       targetlabel, sector, camera, ccd, lygosbg=None):
+        """ 
+        Load in one light curve from information you supply
         
-    def load_custom_lc(self, time, intensity, error, lygosbg, disctime, targetlabel,
-                        sector, camera, ccd):
-        """load in your own light cuve. 
-        assumes time & disctime has not be tmin subtracted
-        lygosbg = None in this case (cannot run that fittype!! - should be protected
-                                     w/in code tho against trying)
-        seems to be working fine as of 6/30/22
-        
+        ----------------------------------
+        Parameters:
+            
+            - time (array) time axis for the lc. this will get the 0th
+            index subtracted off. 
+            
+            - intensity (array) flux array for the lc 
+            [yyy handle pre-cleaned data?]
+            
+            - error (array) error on flux array
+            
+            - discoverytime (double) when ground telescopes found it
+            
+            - targetlabel (str) no spaces name, will be used on files
+            
+            - sector (str) this needs to be a two-character string (ie, sector
+                                                                    2 is "02")
+            
+            - camera (str) needs to be a 1 char string
+            
+            - ccd (str) needs to be a 1 char string
+            
+            - lygosbg (defaults to NONE) can put in lygos background array if 
+            doing that one specific fit. should also work to float other 
+            background arrays.
         """
+        
         if (len(time) != len(intensity) or len(intensity) != len(error) or
             len(time) != len(error)):
             print("Time length:", len(time))
             print("Intensity length:", len(intensity))
             print("Error length:", len(error))
             raise ValueError("Mismatched sizes on time, intensity, and error!")
-        elif (time is None or intensity is None or error is None or lygosbg is None
-                 or disctime is None or targetlabel is None or sector is None or camera is None
-                 or ccd is None):
+        elif (time is None or intensity is None or 
+              error is None or discoverytime is None or 
+              targetlabel is None or sector is None or 
+              camera is None or ccd is None):
             raise ValueError("Inputs all have to be SOMETHING you can't give any None's here")
+        elif type(sector) != str:
+            raise ValueError("Sector must be a string, see help()")
+        elif type(camera) != str:
+            raise ValueError("camera must be a string, see help()")
+        elif type(ccd) != str:
+            raise ValueError("ccd must be a string, see help()")
         
         self.time = time
         self.intensity = intensity
         self.error = error
         self.lygosbg = lygosbg
-        self.disctime = disctime
+        self.disctime = discoverytime
         self.targetlabel = targetlabel
         self.sector = sector
         self.camera = camera
@@ -171,7 +300,130 @@ class etsMAIN(object):
         self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
         self.ylabel = "Rel. Flux"
         return
+
     
+    
+    def run_MCMC(self, fitType, cutIndices=None, binYesNo = False, fraction = None, 
+                 n1=1000, n2=10000, thinParams = None,
+                 saveBIC=False, args=None, logProbFunc = None, plotFit = None,
+                 filesavetag=None,
+                 labels=None, init_values=None):
+        """
+        Run one MCMC instance - non GP fits
+        
+        Order of data cleaning:
+            1) load in CBVs/quats
+            2) handle custom masking of points
+            3) bin 
+            4) fractional cutoff applied to flux
+                                                                
+        
+        ---------------------------------------------------
+        Parameters:
+            
+            - fitType (int)
+                1-6 are default runs
+                0 are custom arguments (see below)
+            
+            - cutIndices (array of ints) true/false array of points ot trim
+                default is NONE
+                
+            - binYesNo (bool, default NONE) bins to 8 hours if true
+            
+            - fraction (default NONE, 0-1 for percent) trims intensity to 
+            percent of max. 0.4 is 40% of max, etc.
+            
+            - n1 (int def 1000) burn in first chain length
+            - n2 (int def 10000) production chain length
+            
+            
+            - thinParams, NONE to use defaults (1/4 first run discard, 15% trime) 
+                            or [first run discard, percent thin]
+                            
+            - saveBIC (bool) do you want to save the BIC value that comes out
+            
+            - args, NONE for 1-6, use for 0 if you want it (see below)
+            
+            - logProbFunc, NONE for 1-6, use for 0
+            
+            - plotFit = NONE unless doing a custom fit - needs to match up with the 
+                logprobfunc being used
+                
+            - filesavetag = NONE, custom string if you want it
+            
+            - labels, NONE unless doing custom bullshit, then array of str
+            
+            - init_values, NONE unless doing custom bullshit
+        
+        If you are doing custom priors:
+            - don't
+            - run under fitType = 0
+            - last items in args must be your priors array -- all probability functions
+                come with a positional argument priors = None that this should override
+            - hopefully the tutorial level shows how to set this up right
+    
+
+        """
+
+        # handle CBVs+quats
+        if cbvquats and fitType in (2,4,5):
+            (self.time, self.intensity, self.error,
+             self.quatTime, self.quatsIntensity, self.CBV1, self.CBV2,
+             self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, self.time,
+                                                      self.intensity,self.error, 
+                                                      self.tmin, self.camera, self.ccd,
+                                                      self.CBV_folder, 
+                                                      self.quaternion_folder_txt)
+                                                    
+            self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
+        elif not cbvquats and fitType in (2,4,5):
+            raise ValueError("Cannot run the requested fit type, you need to provide quaternion locations via use_quaternions_cbvs()")
+        else:
+            self.quatsandcbvs = None # has to initiate as None or it'll freak
+            
+            
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
+        
+        # 8hr binning
+        if binYesNo and self.binned == False: #if need to bin
+            (self.time, self.intensity, 
+             self.error, self.lygosbg,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
+            self.binned = True # make sure you can't bin it more than once
+                                                 
+        # percent of max fitting
+        if fraction is not None and self.fractiontrimmed==False:
+            (self.time, self.intensity, self.error, self.lygosbg, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosbg, 
+                                                   fraction, self.quatsandcbvs)
+            self.fractiontrimmed=True #make sure you can't trim it more than once
+        
+        # this is to fix the quats and cbv inputs after trimming                       
+        if fitType in (2,4,5):
+            self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs 
+            
+
+        # load parameters by fit type                                           
+        self.__setup_fittype_params(fitType, binYesNo, fraction, args,
+                                    logProbFunc, plotFit, filesavetag, 
+                                    labels, init_values)
+        # set up the output folder
+        self.__gen_output_folder() 
+                                                        
+        # run it
+        (best, upperError, 
+         lowerError, bic) = self.__mcmc_outer_structure(n1, n2, thinParams)
+        
+        if saveBIC:
+            self.bic_all.append(bic)
+            self.params_all.append(best)
+            
+        return best, upperError, lowerError, bic
+      
     def __custom_mask_it(self, cutIndices, saveplot = None):
         """remove certain indices from your light curve.
         cutIndices should be an array of size len(time), 0 = remove, 1=keep
@@ -210,49 +462,19 @@ class etsMAIN(object):
             return
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
-            return
-        
-    def window_rms_filt(self):
-        """ RUN runs an rms filter over the light curve  
-        returns an array of 0's and 1's that can be used in the custom masking argument"""
-        innersize = int(len(self.time)*0.005)
-        outersize = innersize * 20
-        print(innersize, outersize)
-        n = len(self.time)
-        rms_filt = np.ones(n)
-        for i in range(n):
-            outer_lower = max(0, i-outersize) #outer window, lower bound
-            outer_upper = min(n, i+outersize) #outer window, upper bound
-            inner_lower = max(0, i-innersize) #inner window, lower bound
-            inner_upper = min(n, i+innersize) #inner window, upper bound
-            
-            outer_window = self.intensity[outer_lower:outer_upper]
-            inner_window = self.intensity[inner_lower:inner_upper]
-            
-            std_outer = np.std(outer_window)
-            
-            rms_outer = np.sqrt(sum([s**2 for s in outer_window])/len(outer_window))
-            rms_inner = np.sqrt(sum([s**2 for s in inner_window])/len(inner_window))
-            
-            #print(i, rms_inner, rms_outer, std_outer)
-            
-            if ((rms_inner > (rms_outer + std_outer)) 
-                or (rms_inner < (rms_outer - std_outer))):
-                rms_filt[inner_lower:inner_upper] = 0 #bad point, discard
-                print(rms_inner, rms_outer, std_outer)
-        
-        rms_filt_plot = np.nonzero(rms_filt)
-        plt.scatter(self.time, self.intensity, color='green', label='bad')
-        plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], color='blue', label='good')
-        plt.legend()
-        return rms_filt
-        
-        
+            return     
+         
     def __gen_output_folder(self):
-        """set up output folder & files """
+        """
+        Internal function, sets up output folder for files
+        
+        """
         # check for an output folder's existence, if not, put it in. 
-        if (self.folderSAVE is None or self.targetlabel is None or self.sector is None
-            or self.camera is None or self.ccd is None):
+        if (self.folderSAVE is None or 
+            self.targetlabel is None or 
+            self.sector is None
+            or self.camera is None or 
+            self.ccd is None):
             raise ValueError("Cannot generate output folders, one of the parameters is None")
         
         newfolderpath = (self.folderSAVE + self.targetlabel + 
@@ -268,98 +490,6 @@ class etsMAIN(object):
         self.parameterSaveFile = self.folderSAVE + "output_params.txt"
         return
     
-    def run_MCMC(self, fitType, cutIndices, binYesNo = False, fraction = None, 
-                 n1=1000, n2=10000, thinParams = None,
-                 saveBIC=False, args=None, logProbFunc = None, plotFit = None,
-                 filesavetag=None,
-                 labels=None, init_values=None):
-        """Run one MCMC instance - non GP fits
-        Parameters:
-            - fitType, integer 1-6 for default runs, 0 for custom arguments
-            - cutIndices, array of indices to remove if you want
-            - binYesNo, boolean to bin to 8 hours or not
-            - fraction, NONE if no trimming, 0.4 for 40% (or whatever)
-            - n1, int number for first run
-            - n2, int number for second chain
-            - thinParams, NONE to use defaults (1/4 first run discard, 15% trime) or
-                            [first run discard, percent thin]
-            - saveBIC, boolean, do you want to save the BIC value that comes out
-            - args, NONE for 1-6, use for 0 if you want it
-            - logProbFunc, NONE for 1-6, use for 0
-            - plotFit = NONE unless doing a custom fit - needs to match up with the 
-                logprobfunc being used
-            - filesavetag = NONE, custom string if you want it
-            - labels, NONE unless doing custom bullshit
-            - init_values, NONE unless doing custom bullshit
-        
-        If you are doing custom priors:
-            - run under fitType = 0
-            - last items in args must be your priors array -- all probability functions
-                come with a positional argument priors = None that this should override
-    
-        Order of cleaning data:
-            - load in CBVs if needed (fitTypes 2,4,5)
-            - handle custom masking
-            - binning
-            - fractional cutoff
-        """
-
-        # handle CBVs+quats
-        if fitType in (2,4,5): 
-        
-            (self.time, self.intensity, self.error,
-             self.quatTime, self.quatsIntensity, self.CBV1, self.CBV2,
-             self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, self.time,
-                                                      self.intensity,self.error, 
-                                                      self.tmin, self.camera, self.ccd,
-                                                      self.CBV_folder, 
-                                                      self.quaternion_folder_txt)
-                                                    
-            self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
-        else:
-            self.quatsandcbvs = None # has to initiate as None or it'll freak
-            
-            
-        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
-        
-        # 8hr binning
-        if binYesNo and self.binned == False: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
-            self.binned = True # make sure you can't bin it more than once
-                                                 
-        # percent of max fitting
-        if fraction is not None and self.fractiontrimmed==False:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
-            self.fractiontrimmed=True #make sure you can't trim it more than once
-        
-        # this is to fix the quats and cbv inputs after trimming                       
-        if fitType in (2,4,5):
-            self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs 
-            
-
-        # load parameters by fit type                                           
-        self.__setup_fittype_params(fitType, binYesNo, fraction, args,
-                               logProbFunc, plotFit, filesavetag, labels, init_values)
-        # set up the output folder
-        self.__gen_output_folder() 
-                                                        
-        # run it
-        best, upperError, lowerError, bic = self.__mcmc_outer_structure(n1, n2,
-                                                                        thinParams)
-        if saveBIC:
-            self.bic_all.append(bic)
-            self.params_all.append(best)
-            
-        return best, upperError, lowerError, bic
-                    
     def __setup_fittype_params(self, fitType, binYesNo, fraction, args=None, 
                                logProbFunc = None, plotFit = None,
                                filesavetag=None, labels=None, init_values=None):

@@ -93,44 +93,6 @@ def fit_all_fakes_1(time,intensity,error,trueparams, fakedisctimes,
     return output_onesigma,output_twosigma
 
 
-# =============================================================================
-# def fake_type2(n, CBVALL):
-#     """Makes n 1000 point fake light curves with the second model type """
-# 
-#     import matplotlib.pyplot as plt
-#     timeaxis = np.arange(0,25,0.025) #25 days of data, 1000 data points (p typical of TESS)
-#     
-#     paramsall = np.ones((n,4)) #n light curves, 4 parameters
-#     intall = np.ones((n,1000)) #n light curves, 1000 data points
-#     noiseall = np.ones((n,1000)) #n light curves, 1000 data points
-#     t0 = np.random.uniform(2,15,n)
-#     A = np.random.uniform(0.0001,0.002,n)
-#     beta = np.random.uniform(0.5,4, n)
-#     B = np.random.uniform(-0.2,0.2, n)
-#     cQ = np.random.uniform(-2,2,n)
-#     c1 = np.random.uniform(-2,2,n)
-#     c2 = np.random.uniform(-2,2,n)
-#     c3 = np.random.uniform(-2,2,n)
-#     Qall, CBV1, CBV2, CBV3 = CBVALL
-#     
-#     for i in range(n):
-#         noiseall[i] = np.random.normal(0,0.5*A[i], 1000)
-#         t1 = timeaxis-t0[i]
-#         intall[i] = (np.heaviside((t1), 1) * A[i] *np.nan_to_num((t1**beta[i]))) + 1 + B[i]
-#         intall[i] += cQ * Qall + c1 * CBV1 + c2 * CBV2 + c3 * CBV3
-#     
-#     paramsall[:,0] = t0
-#     paramsall[:,1] = A
-#     paramsall[:,2] = beta
-#     paramsall[:,3] = B
-#     paramsall[:,4] = cQ
-#     paramsall[:,5] = c1
-#     paramsall[:,6] = c2
-#     paramsall[:,7] = c3
-#     
-#     return timeaxis, paramsall, intall+noiseall, noiseall
-# 
-# =============================================================================
 def fake_type3(n):
     """Makes n 1000 point fake light curves with the first model type"""
 
@@ -189,7 +151,7 @@ def fit_all_fakes_3(time,intensity,error,trueparams, fakedisctimes,
         disctime = trueparams[k][0] + fakedisctimes[k] #set up fake discovery time
         #(t0 never more than 15) so this never puts it beyond the x axis values
         if customtag is None:
-            tag = "Fake-LC-Type1-" + str(k) + "-" #tag for the thingy
+            tag = "Fake-LC-Type3-" + str(k) + "-" #tag for the thingy
         else:
             tag = customtag
         #make the etsfake object
@@ -237,3 +199,127 @@ output_onesigma,output_twosigma = fit_all_fakes_3(timeaxis,intall,noiseall,
                                                   paramsall, fakedisctimes, 
                                                   folderSAVE, customtag=None,
                                                   saveresults=saveresults)
+
+quatfile = "C:/Users/conta/OneDrive/Documents/GitHub/etsfit/tutorials/data/quats-sector04FASTLOAD.txt"
+cbvfile = "C:/Users/conta/OneDrive/Documents/GitHub/etsfit/tutorials/data/s0004/cbv_components_s0004_0003_0001.txt"
+def load_quat_cbvs_for_fake_LC(quatfile, cbvfile):
+    def speed_load_quats_from_fastloadfile(file):
+        c = np.genfromtxt(file) #
+        tQ = c[0]
+        Q1 = c[1]
+        Q2 = c[2]
+        Q3 = c[3] 
+        return tQ, Q1, Q2, Q3
+        
+    
+    tQ, Q1, Q2, Q3 = speed_load_quats_from_fastloadfile(quatfile)
+    Qall = Q1 + Q2 + Q3
+    
+    cbvs = np.genfromtxt(cbv_file)
+    CBV1 = cbvs[:,0]
+    CBV2 = cbvs[:,1]
+    CBV3 = cbvs[:,2]
+    # correct length differences:
+    lengths = np.array((1000, len(tQ), len(CBV1)))
+    length_corr = lengths.min()
+    tQ = tQ[:length_corr]
+    Qall = Qall[:length_corr]
+    CBV1 = CBV1[:length_corr]
+    CBV2 = CBV2[:length_corr]
+    CBV3 = CBV3[:length_corr]
+    tQ -= tQ[0]
+
+    return tQ, Qall, CBV1, CBV2, CBV3
+
+
+def fake_type2(n, quatfile, cbvfile):
+    """Makes n 1000 point fake light curves with the second model type """
+
+    import matplotlib.pyplot as plt
+    timeaxis = np.arange(0,25,0.025) #25 days of data, 1000 data points (p typical of TESS)
+    paramsall = np.ones((n,8)) #n light curves, 4 parameters
+    intall = np.ones((n,1000)) #n light curves, 1000 data points
+    noiseall = np.ones((n,1000)) #n light curves, 1000 data points
+    t0 = np.random.uniform(2,15,n)
+    A = np.random.uniform(0.0001,0.002,n)
+    beta = np.random.uniform(0.5,4, n)
+    B = np.random.uniform(-0.2,0.2, n)
+    cQ = np.random.uniform(-5,5,n)
+    c1 = np.random.uniform(-5,5,n)
+    c2 = np.random.uniform(-5,5,n)
+    c3 = np.random.uniform(-5,5,n)
+    
+    tQ, Qall, CBV1, CBV2, CBV3 = load_quat_cbvs_for_fake_LC(quatfile, cbvfile)
+
+    
+    for i in range(n):
+        noiseall[i] = np.random.normal(0,0.5*A[i], 1000)
+        t1 = timeaxis-t0[i]
+        intall[i] = (np.heaviside((t1), 1) * A[i] *np.nan_to_num((t1**beta[i]))) + 1 + B[i]
+        intall[i] += cQ[i] * Qall + c1[i] * CBV1 + c2[i] * CBV2 + c3[i] * CBV3
+    
+    paramsall[:,0] = t0
+    paramsall[:,1] = A
+    paramsall[:,2] = beta
+    paramsall[:,3] = B
+    paramsall[:,4] = cQ
+    paramsall[:,5] = c1
+    paramsall[:,6] = c2
+    paramsall[:,7] = c3
+    
+    return timeaxis, paramsall, intall+noiseall, noiseall
+
+def fit_all_fakes_2(time,intensity,error,trueparams, fakedisctimes, 
+                    folderSAVE, customtag=None,saveresults=None):
+    """Fits all fake type 1 light curves """
+    
+    output_onesigma = np.zeros(len(intensity)) #outputs true/false
+    output_twosigma = np.zeros(len(intensity)) #outputs true/false
+    
+    for k in range(len(intensity)): #for each input intensity array
+        print("running...", str(k)) #run on it
+        etsfakes = etsMAIN(folderSAVE, None, folderSAVE,folderSAVE, folderSAVE)
+        
+        fakelygosbg = np.zeros(len(time)) #this is just to trick the custom input fxn
+        disctime = trueparams[k][0] + fakedisctimes[k] #set up fake discovery time
+        #(t0 never more than 15) so this never puts it beyond the x axis values
+        if customtag is None:
+            tag = "Fake-LC-Type2-" + str(k) + "-" #tag for the thingy
+        else:
+            tag = customtag
+        #make the etsfake object
+        etsfakes.load_custom_lc(time, intensity[k], error[k], fakelygosbg, disctime, tag,
+                                0, 0, 0)
+        #run the etsfake object
+        best, upperE, lowerE, bic = etsfakes.run_MCMC(2, None, None, fraction=None, 
+                                                      n1=5000, n2=10000)
+
+        #check if within bounds of truth
+        onesig = 0
+        twosig = 0
+        for h in range(len(trueparams[0])):
+            if (best[0][h]-lowerE[0][h] < trueparams[k][h] < best[0][h]+upperE[0][h]):
+                print("parameter within onesigma")
+                onesig = 1 #falls in limits
+            else:
+                onesig = 0
+                
+            if (best[0][h]-(2*lowerE[0][h]) < trueparams[k][h] < best[0][h]+(2*upperE[0][h])):
+                print("parameter within twosigma")
+                twosig = 1 #set output to having been within the limits
+            else:
+                twosig = 0 #output is not within limits of what it should be
+        
+        output_onesigma[k] = onesig
+        output_twosigma[k] = twosig
+        trueparamsfile = folderSAVE+tag[:-1] + "-000/" + etsfakes.filesavetag[1:]+"/" +"trueparams.txt"
+        with open(trueparamsfile, 'w') as file:
+            file.write(str(trueparams[k]))
+    if saveresults is not None:
+        with open(saveresults, 'w') as file:
+            file.write(str(output_onesigma))
+            file.write("\n")
+            file.write(str(output_twosigma))
+        
+    return output_onesigma,output_twosigma
+

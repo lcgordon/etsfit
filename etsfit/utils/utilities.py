@@ -225,7 +225,15 @@ def quaternion_binning(quaternion_t, quat_data, tmin):
             
                   
     return np.asarray(binned_t), np.asarray(binned_Q), outlier_indexes
-            
+  
+def speed_load_quats_from_fastloadfile(file):
+    c = np.genfromtxt(file) #
+    tQ = c[0]
+    Q1 = c[1]
+    Q2 = c[2]
+    Q3 = c[3] 
+    return tQ, Q1, Q2, Q3
+          
 def metafile_load_smooth_quaternions(sector, tmin,
                                      quaternion_folder):
     """Helper function to get quaternions out of their text files 

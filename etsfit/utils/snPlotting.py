@@ -17,32 +17,43 @@ import os
 
 
 def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
-                  autoStep, filesavetag):
+                       autoStep, filesavetag):
     """ Plot autocorrelation time vs number of steps
     Params:
         - path (str) to save into
         - targetlabel (str) name of target
         - index (int) number of autocorr tests
-        - autocorr (array) test output
-        - converged (bool) did it converge or no
+        - autocorr (array) autocorr test mean output
+        - converged (bool) did the chain converge in the end or not
+        - autoStep (int) how many steps
+        - filesavetag (str) name for file
         
     """
-    n = autoStep * np.arange(1, index + 1) #x axis - number of steps
+    n = autoStep * np.arange(1, index + 1) #x axis = total number of steps
     plotAutocorr = autocorr[:index]
     plt.plot(n, n / 100, "--k") #plots the N vs N/100=tau threshold 
     #this determines length of chain vs autocorrelation time
     plt.plot(n, plotAutocorr)
     plt.xlim(0, n.max())
-    #plt.ylim(0, plotAutocorr.max() + 0.1 * (plotAutocorr.max() - plotAutocorr.min()))
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
-    plt.title(targetlabel + "  converged=" + str(converged))
-    plt.savefig(savepath+targetlabel+ "-" + filesavetag + "-autocorr-mean.png")
+    plt.title(targetlabel + ",  converged = " + str(converged))
+    plt.savefig(savepath+targetlabel+ "-" + filesavetag + "-autocorr-mean-plot.png")
     plt.close()
     
 def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
                              autoStep, labels, filesavetag):
-    """Plot each autocorrleation time function from an array of all of them """
+    """Plot each autocorrleation time function from an array of all of them 
+    Params:
+        - savepath (str) to put files into
+        - targetlabel (str) name of target
+        - index (int) number of autocorr tests
+        - autocorr_all (array of size (params,index)) with all 
+            parameter autocorrelation times
+        - autoStep (int) how many steps
+        - labels (array of strings) what each param is called
+        - filesavetag (string) to name file with
+    """
     n = autoStep * np.arange(1, index + 1) #x axis - number of steps
     for i in range(len(labels)):
         
@@ -61,15 +72,21 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
 
 
 def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
-    """ produce corner plot of params """
+    """ Produces corner plot of all parameters against one another
+    Params:
+        - flat_samples (array) returned from emcee
+        - labels (array of strings) what each parameter is called
+        - path (string) to save into
+        - targetlabel (string) name of target
+        - filesavetag (string) what to label file with
+    """
     fig = corner.corner(
         flat_samples, labels=labels,
         quantiles = [0.16, 0.5, 0.84],
                        show_titles=True, title_fmt = ".4f", 
-                       title_kwargs={"fontsize": 18}
-    );
+                       title_kwargs={"fontsize": 18});
     plt.yticks(fontsize=6)
-    plt.xticks(fontsize =6)
+    plt.xticks(fontsize=6)
     plt.tight_layout()
     fig.savefig(path + targetlabel + filesavetag + '-corner-plot-params.png')
     plt.show()
@@ -77,7 +94,7 @@ def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
     return
 
 def plot_paramIndividuals(flat_samples, labels, path, targetlabel, filesavetag):
-    """ plots param vs p(param) histograms """
+    """ Plots parameters vs p(parameter) histograms individually"""
     
     for p in range(len(labels)):
         plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
@@ -90,11 +107,11 @@ def plot_paramIndividuals(flat_samples, labels, path, targetlabel, filesavetag):
     return
 
 def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
-    """Plot all the param histograms together """
+    """Plot all the parameter vs p(param) histograms together """
     
     axN = len(labels)
     if axN % 2 != 0:
-        axN+=1 #make it odd (two columns)
+        axN+=1 #make it even (two columns)
     nrows = int(axN/2)
     ncols = 2
     fig, ax = plt.subplots(nrows, ncols, sharex=False,
@@ -106,17 +123,15 @@ def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
                 ax[m, n].hist(flat_samples[:, p], 100, color="k", histtype="step")
                 ax[m, n].set_xlabel(labels[p])
                 ax[m, n].set_ylabel("p("+labels[p]+")")
-                #ax[m, n].gca().set_yticks([])
                 p+=1
     
     fig.suptitle("Parameter Plots")
-    plt.savefig(path + targetlabel + "-" + filesavetag + 
-                    "-chainHisto-all.png.png")
+    plt.savefig(path + targetlabel + "-" + filesavetag + "-chainHisto-all.png.png")
     plt.close()
     return
     
 def plot_log_post(path, targetlabel,filesavetag, sampler):
-    '''plot the log posterior'''
+    '''plot the log posteriors'''
     logprobs = sampler.get_log_prob()
     logprior = sampler.get_blobs()
     logpost = logprobs+logprior

@@ -24,21 +24,32 @@ rcParams['figure.figsize'] = 16,6
 
 
 def check_priors(priors, theta):
-    """ Function to automate the priors - allows for override by user 
-    priors should be in the format [lower1, upper1, lower2, upper2....]
-    ie, for fitType=1, priors = [x[0], x[-1], 0.5, 6.0, 0.0, 5.0, -5, 5]
+    """ 
+    Function to check that the current walker position is within the allowed
+    prior values. This allows for override of the defaults by the user. 
     
-    important!!! MUST be in order that they are in theta!!
+    --------------------------------------------------
+    Parameters:
+        
+        - priors (array of doubles): ie, for fit type 1, 
+            priors = [x[0], x[-1], 0.5, 6.0, 0.0, 5.0, -5, 5]
+            it is SO important that these are in the correct order for
+            the parameters (see each fit type for what order they're in)
+            
+          priors should be ordred as [lower limit, upper limit] per pair                  
+                            
+        - theta (array of doubles): the parameters from MCMC being compared
+        in order by default.
+        
     
-    test code: 
-        priors = [0, 10, 0.5, 6.0, 0.0, 5.0, -5, 5]
-        theta = (1, 12, 4, 4)
         
-        print(check_priors(priors, theta))
+    
         
-    it WILL check them in order - if you only put priors on the first 4 it will check those
-    if you don't need a prior on one value then use +/- inf for those if you have priors 
-    to check after that one in theta!!'
+    it WILL check them in order - if you only put priors on the first 4 
+    it will check those
+    if you don't need a prior on one value then use +/- inf 
+    for those if you have priors to check after that one in theta!!'
+    (ie, params A,B,C, B has no limits on priors but C does, so set B to +/- inf )
             
     """
     
@@ -58,10 +69,26 @@ def check_priors(priors, theta):
     
 
 def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime, priors=None):
-        """ calculates log probabilty for model w/ single power law and no cbv fitting
-        labels = ["t0", "A", "beta",  "b"]
-        init_values = np.array((disctime-3, 0.1, 1.8, 1))
-        returns loglike, logprior"""
+        """ 
+        
+        Calculates the log probability for the model with a single power law
+        and a flat background. 
+        
+        Associated labels: ["t0", "A", "beta",  "b"]
+        init_values in MCMC: np.array((disctime-3, 0.1, 1.8, 1))
+        
+        Parameters:
+            - theta (params in MCMC)
+            - x (time index)
+            - y (flux)
+            - yerr (error)
+            - disctime (discovery time)
+            - priors (defaults to NONE, can be custom-set)
+        
+
+        returns loglike, logprior
+        
+        """
         
         t0, A, beta, b = theta
         # handle log priors
