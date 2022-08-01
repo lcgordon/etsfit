@@ -54,14 +54,15 @@ def normalize_sigmaclip(time, flux,error, bg, axis=0):
     '''
     medians = np.median(flux, axis = axis, keepdims=True)
     flux = flux / medians
-    bg = bg / np.median(bg, axis = axis, keepdims=True)
     from astropy.stats import SigmaClip
     sigclip = SigmaClip(sigma=4, maxiters=None, cenfunc='median')
     clipped_inds = np.nonzero(np.ma.getmask(sigclip(flux)))
     time = np.delete(time, clipped_inds)
     flux = np.delete(flux, clipped_inds)
     error = np.delete(error, clipped_inds)
-    bg = np.delete(bg, clipped_inds)
+    if bg is not None:
+        bg = np.delete(bg, clipped_inds)
+        bg = bg / np.median(bg, axis = axis, keepdims=True)
     return time,flux,error, bg
 
 def fractionalfit(time, flux, error, bg, fraction, QCBVALL):

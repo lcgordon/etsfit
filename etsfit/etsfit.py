@@ -11,12 +11,16 @@ todo list:
     - TEST GP CUSTOM PRIOR/INPUTS 
 """
 
-import etsfit.utils.utilities as ut
-import etsfit.utils.snPlotting as sp
-import etsfit.utils.MCMC as mc
+#import etsfit.utils.utilities as ut
+#import etsfit.utils.snPlotting as sp
+#import etsfit.utils.MCMC as mc
 #import utils.utilities as ut
 #import utils.snPlotting as sp
 #import utils.MCMC as mc
+
+from etsfit.utils import utilities as ut
+from etsfit.utils import snPlotting as sp
+from etsfit.utils import MCMC as mc
 
 import time as timeModule
 import pandas as pd
@@ -73,7 +77,7 @@ class etsMAIN(object):
         self.bigInfoFile = bigInfoFile
         
         
-        self.cbvsquats = False #no cbvs/quats in
+        self.cbvquats = False #no cbvs/quats in
         self.fractiontrimmed = False #not trimmed
         self.binned = False #not binned
         return
@@ -108,7 +112,7 @@ class etsMAIN(object):
         else:
             self.CBV_folder = CBV_folder
             
-        if not :
+        if not os.path.exists(quaternion_folder_raw):
             raise ValueError("Not  a valid raw quat path")
         else:
             self.quaternion_folder_raw = quaternion_folder_raw
@@ -117,7 +121,7 @@ class etsMAIN(object):
             raise ValueError("Not a valid txt quat path")
         else:
             self.quaternion_folder_txt = quaternion_folder_txt
-            if (len(os.listdir(self.quaternion_folder_txt))==0 &&
+            if (len(os.listdir(self.quaternion_folder_txt))==0 and
                 len(os.listdir(self.quaternion_folder_raw))!=0):
                 #empty directory, make txt files
                 ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
@@ -125,7 +129,8 @@ class etsMAIN(object):
         self.cbvsquats = True
         return
     
-    def window_rms_filt(self, plot=True):
+    def window_rms_filt(self, innerfilt = None, outerfilt = None,
+                        plot=True):
         """ 
         Runs an RMS filter over the light curve and returns an array of 
         0's (bad) and 1's (good) that can be used in the custom masking
@@ -140,11 +145,21 @@ class etsMAIN(object):
         -------------------------------
         Parameters:
             
+            - innerfilt = None by default, can set to an int for the inner
+            window of compariosn
+            - outerfilt = None by default, can set to an int for the outer
+            window of comparison
             - plot (bool) defaults as True, plots light curve w/ mask
         
         """
-        innersize = int(len(self.time)*0.005)
-        outersize = innersize * 20
+        if innerfilt is None:
+            innersize = int(len(self.time)*0.005)
+        else:
+            innersize = innerfilt
+        if outerfilt is None:
+            outersize = innersize * 20
+        else:
+            outersize=outerfilt
         print(innersize, outersize)
         n = len(self.time)
         rms_filt = np.ones(n)
@@ -165,12 +180,13 @@ class etsMAIN(object):
             if ((rms_inner > (rms_outer + std_outer)) 
                 or (rms_inner < (rms_outer - std_outer))):
                 rms_filt[inner_lower:inner_upper] = 0 #bad point, discard
-                print(rms_inner, rms_outer, std_outer)
+                #print(rms_inner, rms_outer, std_outer)
         
         if plot:
             rms_filt_plot = np.nonzero(rms_filt)
             plt.scatter(self.time, self.intensity, color='green', label='bad')
-            plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], color='blue', label='good')
+            plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], 
+                        color='blue', s=2, label='good')
             plt.legend()
         return rms_filt
         
@@ -213,7 +229,7 @@ class etsMAIN(object):
             
         
             print("LOADING IN:", self.targetlabel, "SECTOR: ", self.sector, "CAMERA: ",
-			self.camera, "CCD: ", self.ccd)
+            self.camera, "CCD: ", self.ccd)
             
             (self.time, self.intensity, 
             self.error, self.lygosbg) =  ut.normalize_sigmaclip(self.time, self.intensity, 
@@ -225,6 +241,7 @@ class etsMAIN(object):
             self.params_all = []
             self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
             self.ylabel = "Rel. Flux"
+            self.cleaningdone = False
             
             return
         else: 
@@ -299,12 +316,93 @@ class etsMAIN(object):
         self.params_all = []
         self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
         self.ylabel = "Rel. Flux"
+# =============================================================================
+#         (self.time, self.intensity, 
+#         self.error, self.lygosbg) =  ut.normalize_sigmaclip(self.time, self.intensity, 
+#                                                             self.error, self.lygosbg)
+# =============================================================================
+        self.cleaningdone = False
         return
 
     
+    def pre_run_clean(self, fitType, cutIndices=None, binYesNo = False, 
+                      fraction = None):
+        """
+        A function to be run before running run_MCMC()
+        This function MUST be run before running run_MCMC() or it will
+        give u an error, even if you have no cleaning to be done. 
+        
+        ---------------------------------
+        Parameters:
+            
+            - fitType (int)
+                1-6 are default runs
+                0 are custom arguments (see below)
+            
+            - cutIndices (array of ints) true/false array of points ot trim
+                default is NONE
+                
+            - binYesNo (bool, default NONE) bins to 8 hours if true
+            
+            - fraction (default NONE, 0-1 for percent) trims intensity to 
+            percent of max. 0.4 is 40% of max, etc.
+        """
+        # handle CBVs+quats
+        if self.cbvquats and fitType in (2,4,5):
+            print("stuff")
+            (self.time, 
+             self.intensity, 
+             self.error,
+             self.quatTime, 
+             self.quatsIntensity, 
+             self.CBV1, 
+             self.CBV2, 
+             self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, 
+                                                      self.time,
+                                                      self.intensity,
+                                                      self.error, 
+                                                      self.tmin, 
+                                                      self.camera, 
+                                                      self.ccd,
+                                                      self.CBV_folder, 
+                                                      self.quaternion_folder_txt)
+            self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
+        elif not self.cbvquats and fitType in (2,4,5):
+            print("You need to provide quaternion locations via use_quaternions_cbvs()")
+            raise ValueError("Cannot run the requested fit type")
+        else:
+            self.quatsandcbvs = None # has to initiate as None or it'll freak
+ 
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
+       
+        # 8hr binning
+        if binYesNo and self.binned == False: #if need to bin
+            (self.time, self.intensity, 
+             self.error, self.lygosbg,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
+            self.binned = True # make sure you can't bin it more than once
+                                                 
+        # percent of max fitting
+        if fraction is not None and self.fractiontrimmed==False:
+            (self.time, self.intensity, self.error, self.lygosbg, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosbg, 
+                                                   fraction, self.quatsandcbvs)
+            self.fractiontrimmed=True #make sure you can't trim it more than once
+        
+        # this is to fix the quats and cbv inputs after trimming                       
+        if fitType in (2,4,5):
+            self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs
+         
+        #once  you are done with this stuff:
+        self.cleaningdone = True 
+        self.fitType = fitType
+        return
     
-    def run_MCMC(self, fitType, cutIndices=None, binYesNo = False, fraction = None, 
-                 n1=1000, n2=10000, thinParams = None,
+    def run_MCMC(self, n1=1000, n2=10000, thinParams = None,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
                  labels=None, init_values=None):
@@ -320,18 +418,6 @@ class etsMAIN(object):
         
         ---------------------------------------------------
         Parameters:
-            
-            - fitType (int)
-                1-6 are default runs
-                0 are custom arguments (see below)
-            
-            - cutIndices (array of ints) true/false array of points ot trim
-                default is NONE
-                
-            - binYesNo (bool, default NONE) bins to 8 hours if true
-            
-            - fraction (default NONE, 0-1 for percent) trims intensity to 
-            percent of max. 0.4 is 40% of max, etc.
             
             - n1 (int def 1000) burn in first chain length
             - n2 (int def 10000) production chain length
@@ -365,50 +451,10 @@ class etsMAIN(object):
 
         """
 
-        # handle CBVs+quats
-        if cbvquats and fitType in (2,4,5):
-            (self.time, self.intensity, self.error,
-             self.quatTime, self.quatsIntensity, self.CBV1, self.CBV2,
-             self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, self.time,
-                                                      self.intensity,self.error, 
-                                                      self.tmin, self.camera, self.ccd,
-                                                      self.CBV_folder, 
-                                                      self.quaternion_folder_txt)
-                                                    
-            self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
-        elif not cbvquats and fitType in (2,4,5):
-            raise ValueError("Cannot run the requested fit type, you need to provide quaternion locations via use_quaternions_cbvs()")
-        else:
-            self.quatsandcbvs = None # has to initiate as None or it'll freak
-            
-            
-        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
-        
-        # 8hr binning
-        if binYesNo and self.binned == False: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
-            self.binned = True # make sure you can't bin it more than once
-                                                 
-        # percent of max fitting
-        if fraction is not None and self.fractiontrimmed==False:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
-            self.fractiontrimmed=True #make sure you can't trim it more than once
-        
-        # this is to fix the quats and cbv inputs after trimming                       
-        if fitType in (2,4,5):
-            self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs 
-            
-
+        if not self.cleaningdone:
+            raise Exception("You must run self.pre_run_clean() first!")
         # load parameters by fit type                                           
-        self.__setup_fittype_params(fitType, binYesNo, fraction, args,
+        self.__setup_fittype_params(self.fitType, binYesNo, fraction, args,
                                     logProbFunc, plotFit, filesavetag, 
                                     labels, init_values)
         # set up the output folder
