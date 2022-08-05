@@ -41,9 +41,6 @@ def check_priors(priors, theta):
         - theta (array of doubles): the parameters from MCMC being compared
         in order by default.
         
-    
-        
-    
         
     it WILL check them in order - if you only put priors on the first 4 
     it will check those
@@ -93,7 +90,7 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         t0, A, beta, b = theta
         # handle log priors
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], x[-1], 0.0, 5.0, 0.5, 6.0, -5, 5]
+            priors = [x[0], x[-1], 0.0, 10.0, 0.5, 6.0, -30, 30]
         lp = check_priors(priors, theta)
     
         # if not allowed values
@@ -119,7 +116,7 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
         # handle log priors
         
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], x[-1], 0.0, 5.0, 0.5, 6.0] #t0, A, beta
+            priors = [x[0], x[-1], 0.0, 10.0, 0.5, 6.0, -30,30, -30,30, -30,30, -30,30, -30,30] 
         lp = check_priors(priors, theta)
         
         # if not allowed values
@@ -148,7 +145,7 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         t0, t1, A1, A2, beta1, beta2, B = theta
         #handle priors:
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], disctime, t0, x[-1], 0, 5, 0, 5, 0.5, 6, 0.5, 6, -5, 5] 
+            priors = [x[0], disctime, t0, x[-1], 0, 10, 0, 10, 0.5, 6, 0.5, 6, -30, 30] 
             #t0, t1, a1, a2, beta1, beta2,b
         lp = check_priors(priors, theta)
         

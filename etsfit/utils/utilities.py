@@ -69,7 +69,9 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
     """Trims light curve to chosen % of peak flux as in olling et al 2015. 
     Need 10 indices in a row all brighter than the fraction in order to consider
     it brighter"""
-    fractionalBright = ((flux.max()-1) * fraction) + 1
+    #fractionalBright = ((flux.max()-1) * fraction) + 1
+    #find range, take percent of range, add to min
+    fractionalBright = flux.max() - (((flux.max() - flux.min())) * (1-fraction))
     
     p = 0 # if you hit 10 in a row brighter than cutoff, you can stop there
     for n in range(len(flux)):
@@ -92,9 +94,11 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
         print('quall', len(Qall))
         #QCBVALL = [np.asarray(Qall[:cutoffindex]), np.asarray(CBV1[:cutoffindex]), 
          #          np.asarray(CBV2[:cutoffindex]), np.asarray(CBV3[:cutoffindex])]
+    if bg is not None:
+        bg = bg[:cutoffindex]
 
     return (time[:cutoffindex], flux[:cutoffindex], 
-            error[:cutoffindex], bg[:cutoffindex], QCBVALL)
+            error[:cutoffindex], bg, QCBVALL)
 
 def bin_8_hours(time, flux, error, bg, QCBVALL=None):
     """Bin all light curves to 8 hours as in Fausnaugh 2020 

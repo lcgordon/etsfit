@@ -63,13 +63,14 @@ class etsMAIN(object):
         
         """
         
-        if not os.path.exists(folderSAVE):
-            raise ValueError("Not a valid save path!")
+        if not os.path.exists(folderSAVE): #if the folder that the subfolders are going into
+        #is not real
+            raise ValueError("Outermost folder to save into must be a real path!")
         else:
             if folderSAVE[-1] != "/": #if not ending with /, 
                 folderSAVE += "/"
-                self.folderSAVE = folderSAVE
-                self.foldersaveperm = folderSAVE #keep a copy in case
+            self.folderSAVE = folderSAVE
+            self.foldersaveperm = folderSAVE #keep a copy in case
         
         
         if os.path.exists(bigInfoFile):
@@ -77,12 +78,12 @@ class etsMAIN(object):
         self.bigInfoFile = bigInfoFile
         
         
-        self.cbvquats = False #no cbvs/quats in
+        self.cbvsquatsActive = False #no cbvs/quats in
         self.fractiontrimmed = False #not trimmed
         self.binned = False #not binned
         return
     
-    def use_quaternions_cbvs(self, CBV_folder,quaternion_folder_raw, 
+    def use_quaternions_cbvs(self, CBV_folder, quaternion_folder_raw, 
                              quaternion_folder_txt):
         """ 
         Function to set up access to CBVs and quaternions. 
@@ -126,7 +127,7 @@ class etsMAIN(object):
                 #empty directory, make txt files
                 ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
                 
-        self.cbvsquats = True
+        self.cbvsquatsActive = True
         return
     
     def window_rms_filt(self, innerfilt = None, outerfilt = None,
@@ -160,7 +161,7 @@ class etsMAIN(object):
             outersize = innersize * 20
         else:
             outersize=outerfilt
-        print(innersize, outersize)
+        print("window sizes: ", innersize, outersize)
         n = len(self.time)
         rms_filt = np.ones(n)
         for i in range(n):
@@ -188,6 +189,8 @@ class etsMAIN(object):
             plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], 
                         color='blue', s=2, label='good')
             plt.legend()
+            plt.show()
+            plt.close()
         return rms_filt
         
     
@@ -316,11 +319,6 @@ class etsMAIN(object):
         self.params_all = []
         self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
         self.ylabel = "Rel. Flux"
-# =============================================================================
-#         (self.time, self.intensity, 
-#         self.error, self.lygosbg) =  ut.normalize_sigmaclip(self.time, self.intensity, 
-#                                                             self.error, self.lygosbg)
-# =============================================================================
         self.cleaningdone = False
         return
 
@@ -348,8 +346,8 @@ class etsMAIN(object):
             percent of max. 0.4 is 40% of max, etc.
         """
         # handle CBVs+quats
-        if self.cbvquats and fitType in (2,4,5):
-            print("stuff")
+        if self.cbvsquatsActive and fitType in (2,4,5):
+            print("Loading in quaternions and CBVs")
             (self.time, 
              self.intensity, 
              self.error,
@@ -367,7 +365,7 @@ class etsMAIN(object):
                                                       self.CBV_folder, 
                                                       self.quaternion_folder_txt)
             self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
-        elif not self.cbvquats and fitType in (2,4,5):
+        elif not self.cbvsquatsActive and fitType in (2,4,5):
             print("You need to provide quaternion locations via use_quaternions_cbvs()")
             raise ValueError("Cannot run the requested fit type")
         else:
@@ -392,6 +390,8 @@ class etsMAIN(object):
                                                    self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
             self.fractiontrimmed=True #make sure you can't trim it more than once
+            self.fract = fraction
+            
         
         # this is to fix the quats and cbv inputs after trimming                       
         if fitType in (2,4,5):
@@ -454,7 +454,7 @@ class etsMAIN(object):
         if not self.cleaningdone:
             raise Exception("You must run self.pre_run_clean() first!")
         # load parameters by fit type                                           
-        self.__setup_fittype_params(self.fitType, binYesNo, fraction, args,
+        self.__setup_fittype_params(self.fitType, args,
                                     logProbFunc, plotFit, filesavetag, 
                                     labels, init_values)
         # set up the output folder
@@ -505,6 +505,7 @@ class etsMAIN(object):
             plt.show()
             if saveplot is not None:
                 plt.savefig(saveplot)
+            plt.close()
             return
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
@@ -536,7 +537,7 @@ class etsMAIN(object):
         self.parameterSaveFile = self.folderSAVE + "output_params.txt"
         return
     
-    def __setup_fittype_params(self, fitType, binYesNo, fraction, args=None, 
+    def __setup_fittype_params(self, fitType, args=None, 
                                logProbFunc = None, plotFit = None,
                                filesavetag=None, labels=None, init_values=None):
         """
@@ -557,7 +558,10 @@ class etsMAIN(object):
             
         """
         if fitType == 1: # single without
-            self.args = (self.time, self.intensity, self.error, self.disctime)
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, self.disctime)
+            else:
+                self.args = args
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
             self.labels = ["t0", "A", "beta",  "b"]
@@ -565,16 +569,24 @@ class etsMAIN(object):
             self.plotFit = fitType
             
         elif fitType == 2: # single with
-            self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                         self.disctime)
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, 
+                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                             self.disctime)
+            else:
+                self.args = args
+            
             self.logProbFunc = mc.log_probability_singlepower_withCBV
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
             self.plotFit = fitType
         elif fitType == 3: # double without
-            self.args = (self.time, self.intensity, self.error, self.disctime)
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, self.disctime)
+            else:
+                self.args = args
+                
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
@@ -582,9 +594,12 @@ class etsMAIN(object):
             #print(self.init_values)
             self.plotFit = fitType
         elif fitType ==4: # double with
-            self.args = (self.time, self.intensity, self.error,
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                         self.disctime)
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, 
+                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                             self.disctime)
+            else:
+                self.args = args
             self.logProbFunc = mc.log_probability_doublepower_withCBV
             self.filesavetag = "-doublepower-CBV"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  
@@ -593,9 +608,12 @@ class etsMAIN(object):
                                     1.8, 1.8, 0,0,0,0))
             self.plotFit = fitType
         elif fitType == 5: # just CBVs
-            self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                         self.disctime)
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, 
+                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                             self.disctime)
+            else:
+                self.args = args
             self.logProbFunc = mc.log_probability_justCBV
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
@@ -626,11 +644,11 @@ class etsMAIN(object):
             print("THAT IS NOT AN ALLOWED FIT TYPE, EXITING")
             raise ValueError("not an allowed fit type")
             
-        if binYesNo: # it has to go in this order - need to load, then set args, then set this
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
             self.filesavetag = self.filesavetag + "-8HourBin"
     
-        if fraction is not None:
-            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=fraction)
+        if self.fractiontrimmed:
+            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
         return
             
             
@@ -695,7 +713,7 @@ class etsMAIN(object):
         index = 0 # number of checks
         autocorr = np.empty(n2) # total possible checks
         old_tau = np.inf
-        autoStep = 1000 # how often to check
+        autoStep = 100 # how often to check
         autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
         
         # sample up to n2 steps
@@ -811,6 +829,8 @@ class etsMAIN(object):
         plt.xlabel(self.xlabel)
         plt.ylabel(self.ylabel)
         plt.title(self.targetlabel)
+        if hasattr(self, 'disctime'):
+            plt.axvline(self.disctime)
         plt.show()
         plt.close()
         return

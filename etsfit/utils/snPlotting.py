@@ -310,6 +310,7 @@ def plot_mcmc(path, time, intensity, targetlabel, disctime, best_mcmc, flat_samp
     
     plt.tight_layout()
     plt.savefig(path + targetlabel + filesavetag + "-MCMCmodel-bestFit.png")
+    plt.close()
     return
 
 def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
@@ -328,6 +329,7 @@ def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
     axes[-1].set_xlabel("step number");
     plt.savefig(path + targetlabel+ plotlabel)
     plt.show()
+    plt.close()
     rcParams['figure.figsize'] = 16,6
     return
 
