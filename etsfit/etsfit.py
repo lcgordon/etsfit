@@ -130,6 +130,96 @@ class etsMAIN(object):
         self.cbvsquatsActive = True
         return
     
+    def run_tessreduce_retrieval_csvlist(self, fileToPullFrom, folderToPutIn,
+                                         cdir, failurererun=None):
+        """
+        Given a file with a column of names to pull, retrieve all tessreduce lc
+        returns indices of the light curves that should exist but vizier crapped out on
+        
+        -------------------------------
+        Parameters:
+            - fileToPullFrom is a csv file containing a column labeled "Name"
+            - folderToPut in is a path to the top level folder to save all retreived data into
+            - cdir is the local cache directory that tessreduce saves you into. 
+        
+        """
+        import tessreduce as tr
+        import gc
+        
+        biglist = pd.read_csv(fileToPullFrom)
+        failures = []
+        
+        for i in range(0,len(biglist)):
+            try:
+                print(i)
+                #if given a rerun list and i is not on that list, move on
+                if failurererun is not None and  not (i in failurererun):
+                    continue
+                time.sleep(40)
+                print(biglist['Name'].iloc[i])
+                targ = biglist['Name'].iloc[i]
+                if targ.startswith("SN "):
+                    targ = targ[3:]
+                    
+                obs = tr.sn_lookup(targ)
+                tess = tr.tessreduce(obs_list=obs,plot=False,reduce=True)
+
+                holder = ""
+                for root, dirs, files in os.walk(cdir):
+                    for name in files:
+                        holder = root + "/" + name
+                        print(holder)
+                        try:
+                            filenamepieces = name.split("-")
+                            sector = str(filenamepieces[1][3:])
+                            camera = str(filenamepieces[2])
+                            ccd = str(filenamepieces[3][0])
+                            os.remove(holder)
+                            break
+                        except IndexError:
+                            print("deleting extraneous file in folder")
+                            os.remove(holder)
+                            continue
+                print(sector)
+                print(camera)
+                print(ccd)
+                
+                #make subfolder to save into 
+                targlabel = targ + sector + camera + ccd 
+                newfolder = folderToPutIn + targlabel + "/"
+                if not os.path.exists(newfolder):
+                    os.mkdir(newfolder)
+                    filesave = newfolder + targlabel + "-tessreduce.csv"
+                    tess.save_lc(filesave)
+                    tess.to_flux()
+                    filesave = newfolder + targlabel + "-tessreduce-fluxconverted.csv"
+                    tess.save_lc(filesave)
+                    
+                    del(obs)
+                    del(tess)
+                    gc.collect()
+                else:
+                    print("Folder already exists (lc already downloaded), exiting")
+                    continue
+                
+            except ValueError:
+                print("value error - something is wrong with vizier as always")
+                failures.append(i)
+                continue
+            except IndexError:
+                print("index error - tesscut can't find it?")
+                continue
+            except ConnectionResetError:
+                print("failed??")
+                failures.append(i)
+                continue
+            except TimeoutError:
+                print("failed??")
+                failures.append(i)
+                continue
+        return failures
+
+    
     def window_rms_filt(self, innerfilt = None, outerfilt = None,
                         plot=True):
         """ 
@@ -320,6 +410,18 @@ class etsMAIN(object):
         self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
         self.ylabel = "Rel. Flux"
         self.cleaningdone = False
+        return
+    
+    def test_plot(self):
+        """Quick little thing to spit out the current light curve that's loaded in """
+        plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
+        plt.xlabel(self.xlabel)
+        plt.ylabel(self.ylabel)
+        plt.title(self.targetlabel)
+        if hasattr(self, 'disctime'):
+            plt.axvline(self.disctime)
+        plt.show()
+        plt.close()
         return
 
     
@@ -524,17 +626,18 @@ class etsMAIN(object):
             self.ccd is None):
             raise ValueError("Cannot generate output folders, one of the parameters is None")
         
-        newfolderpath = (self.folderSAVE + self.targetlabel + 
-                         str(self.sector) + str(self.camera) + str(self.ccd))
+        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
+        newfolderpath = (self.folderSAVE + internaluse)
         if not os.path.exists(newfolderpath):
             os.mkdir(newfolderpath)
         # make subfolder for this run
+        print(internaluse)
         print(self.filesavetag)
         subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
         if not os.path.exists(subfolderpath):
             os.mkdir(subfolderpath)
         self.folderSAVE = subfolderpath + "/"
-        self.parameterSaveFile = self.folderSAVE + "output_params.txt"
+        self.parameterSaveFile = self.folderSAVE + internaluse + self.filesavetag + "-output-params.txt"
         return
     
     def __setup_fittype_params(self, fitType, args=None, 
@@ -813,27 +916,17 @@ class etsMAIN(object):
                  self.targetlabel, self.filesavetag, plotComponents=False)
         
         with open(self.parameterSaveFile, 'w') as file:
-            file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc,
-                                                                   upper=upper_error,
-                                                                   lower=lower_error))
-            file.write("BIC:{bicy:.3f} Converged:{conv} \n".format(bicy=BIC, 
+            #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
+            file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
+                                                                   upper=upper_error[0],
+                                                                   lower=lower_error[0]))
+            file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
                                                                 conv=converged))
         
         return best_mcmc, upper_error, lower_error, BIC
     
     
-    def test_plot(self):
-        """Quick little thing to spit out the current light curve that's loaded in """
-        plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
-        plt.xlabel(self.xlabel)
-        plt.ylabel(self.ylabel)
-        plt.title(self.targetlabel)
-        if hasattr(self, 'disctime'):
-            plt.axvline(self.disctime)
-        plt.show()
-        plt.close()
-        return
+    
     
     def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
                    n1=1000, n2=10000, filesavetag=None,
