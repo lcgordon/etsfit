@@ -8,84 +8,90 @@ Created on Mon Jul 18 12:48:30 2022
 
 #%%
 
-# import pandas as pd
-# import numpy as np
-# import tessreduce as tr
-# import time
-# import os
+import pandas as pd
+import numpy as np
+import tessreduce as tr
+import time
+import os
 
 
-# Ia18thFile = "/Users/lindseygordon/research/urop/18thmag_Ia.csv"
-# info = pd.read_csv(Ia18thFile)
-# filesavestub = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# failures = []
+Ia18thFile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
+info = pd.read_csv(Ia18thFile)
+filesavestub = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+failures = []
 
 
-# for i in range(50,len(info)):
-#     try:
-#         print(i)
-#         time.sleep(40)
-#         print(info['Name'].iloc[i])
-#         targ = info['Name'].iloc[i][3:]
-#         obs = tr.sn_lookup(targ)
-#         cdir = "/Users/lindseygordon/.lightkurve-cache/tesscut/"
-#         tess = tr.tessreduce(obs_list=obs,plot=False,reduce=True)
+for i in range(52,len(info)):
 
-#         holder = ""
-#         for root, dirs, files in os.walk(cdir):
-#             for name in files:
-#                 holder = root + "/" + name
-#                 print(holder)
-#                 try:
-#                     filenamepieces = name.split("-")
-#                     sector = str( filenamepieces[1][3:])
-#                     camera = str( filenamepieces[2])
-#                     ccd = str(filenamepieces[3][0])
-#                     os.remove(holder)
-#                     break
-#                 except IndexError:
-#                     print("eek")
-#                     os.remove(holder)
-#                     continue
-#         print(sector)
-#         print(camera)
-#         print(ccd)
+    print(i)
+    time.sleep(40)
+    print(info['Name'].iloc[i])
+    targ = info['Name'].iloc[i][3:]
+    try:
+        obs = tr.sn_lookup(targ)
+        cdir = "/Users/lindseygordon/.lightkurve-cache/tesscut/"
+        tess = tr.tessreduce(obs_list=obs,plot=False,reduce=True)
         
-#         #make subfolder to save into 
-#         targlabel = targ[3:] + sector + camera + ccd 
-#         newfolder = filesavestub + targlabel + "/"
-#         if not os.path.exists(newfolder):
-#             os.mkdir(newfolder)
-#             filesave = newfolder + targlabel + "-tessreduce.csv"
-#             tess.save_lc(filesave)
-#             tess.to_flux()
-#             filesave = newfolder + targlabel + "-tessreduce-fluxconverted.csv"
-#             tess.save_lc(filesave)
-            
-#             del(obs)
-#             del(tess)
-#         else:
-#             print("Folder already exists, exiting")
-#             continue
+    except ValueError:   
+        print("value error - something is wrong with vizier as fucking always")
+        print("failed??")
+        failures.append(i)
+        continue
+    except IndexError:
+        print("index error - tesscut can't find it?")
+        continue
+    except ConnectionResetError:
+        print("failed??")
+        failures.append(i)
+        continue
+    except TimeoutError:
+        print("failed??")
+        failures.append(i)
+        continue
+    except ConnectionError:
+        print("fuck")
+        failures.append(i)
+        continue
+
+    holder = ""
+    for root, dirs, files in os.walk(cdir):
+        for name in files:
+            holder = root + "/" + name
+            print(holder)
+            try:
+                filenamepieces = name.split("-")
+                sector = str( filenamepieces[1][3:])
+                camera = str( filenamepieces[2])
+                ccd = str(filenamepieces[3][0])
+                os.remove(holder)
+                break
+            except IndexError:
+                print("eek")
+                os.remove(holder)
+                continue
+    print(sector)
+    print(camera)
+    print(ccd)
+    
+    #make subfolder to save into 
+    targlabel = targ[3:] + sector + camera + ccd 
+    newfolder = filesavestub + targlabel + "/"
+    if not os.path.exists(newfolder):
+        os.mkdir(newfolder)
+        filesave = newfolder + targlabel + "-tessreduce.csv"
+        tess.save_lc(filesave)
+        tess.to_flux()
+        filesave = newfolder + targlabel + "-tessreduce-fluxconverted.csv"
+        tess.save_lc(filesave)
+    
+        del(obs)
+        del(tess)
+    else:
+        print("Folder already exists, exiting")
+        continue
         
-#     except ValueError:
-#         print("value error - something is wrong with vizier as fucking always")
-#         print("failed??")
-#         failures.append(i)
-#         continue
-#     except IndexError:
-#         print("index error - tesscut can't find it?")
-#         continue
-#     except ConnectionResetError:
-#         print("failed??")
-#         failures.append(i)
-#         continue
-#     except TimeoutError:
-#         print("failed??")
-#         failures.append(i)
-#         continue
- 
-    #%%
+   
+#%%
 
 # =============================================================================
 #     
@@ -181,10 +187,10 @@ for root, dirs, files in os.walk(foldersave):
             filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
             #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
             #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-            t0.append(filerow1[1])
-            A.append(filerow1[2])
-            beta.append(filerow1[3])
-            B.append(filerow1[4])
+            t0.append(filerow1[0][1:])
+            A.append(filerow1[1])
+            beta.append(filerow1[2])
+            B.append(filerow1[3][:-1])
             
 plt.hist(beta)
 
@@ -194,6 +200,30 @@ plt.hist(beta)
 # filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
 # filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
 
+#%% okay fuck this stupid fucking crossmatch shit
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import os
+from etsfit import etsMAIN
+from astropy.time import Time
+import gc
 
+def get_all_18thmagIas(csvall, filesave):
+    """
+    Given a path to a file containing a TNS output of SN, save a new csv file
+    containing all of the targets that are classified type Ias and also brighter than
+    18th magnitude
+    """
 
+fullistfile = "/Users/lindseygordon/research/urop/full_csv_list.csv"
+savefile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
+
+fulllist = pd.read_csv(fullistfile)
+
+#Ia list
+listIa = fulllist[fulllist["Obj. Type"].str.contains("SN Ia")]
+#18th mag discovery list:
+list18thmag = listIa[listIa["Discovery Mag/Flux"]<18]
+list18thmag.to_csv(savefile)
 

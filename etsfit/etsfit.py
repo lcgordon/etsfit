@@ -930,7 +930,7 @@ class etsMAIN(object):
     
     def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
                    n1=1000, n2=10000, filesavetag=None,
-                   customSigmaRho = None):
+                   customSigmaRho = None, thinParams=None):
         """Run the GP fitting 
         
         customSigmaRho must unpack as: [sigma start, rho start, sigma lower, sigma upper,
@@ -1011,6 +1011,6 @@ class etsMAIN(object):
         
         fitType = 10
         self.plotFit = 10
-        self.__mcmc_outer_structure(n1, n2)
+        self.__mcmc_outer_structure(n1, n2, thinParams)
         return
                     
