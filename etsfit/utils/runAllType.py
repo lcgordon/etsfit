@@ -21,7 +21,7 @@ import gc
 
 lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-bigInfoFile = "/Users/lindseygordon/research/urop/18thmag_Ia.csv"
+bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
 quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
@@ -34,11 +34,13 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
     run of all a certain type of fit w/ otherwise default parameters
     """
     info = pd.read_csv(bigInfoFile)
+    i = 0
     for root, dirs, files in os.walk(lightcurveFolder):
         for name in files:
             if name.endswith("-tessreduce"):
                 holder = root + "/" + name
                 #print(holder)
+                print(i)
                 loadedraw = pd.read_csv(holder)
                 time = Time(loadedraw["time"], format='mjd').jd
                 intensity = loadedraw["flux"].to_numpy()
@@ -46,6 +48,8 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 #p
                 fulllabel = holder.split("/")[-1].split("-")[0]
                 targetlabel = fulllabel[0:7]
+                if targetlabel[-1].isdigit():
+                    targetlabel=targetlabel[0:6]
                 sector = fulllabel[-4:-2]
                 camera = fulllabel[-2]
                 ccd = fulllabel[-1]
@@ -53,7 +57,7 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                print(discoverytime)
+                #print(discoverytime)
                 #run it
                 trlc = etsMAIN(foldersave, bigInfoFile)
                 
@@ -67,7 +71,7 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 filterMade = trlc.window_rms_filt()
                 trlc.pre_run_clean(fitType, cutIndices=filterMade, 
                                    binYesNo = False, fraction = None)
-                trlc.run_MCMC(n1=10000, n2=40000, thinParams = None,
+                trlc.run_MCMC(n1=10000, n2=60000, thinParams = None,
                              saveBIC=False, args=None, logProbFunc = None, 
                              plotFit = None,
                              filesavetag=None,
@@ -75,11 +79,12 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 del(loadedraw)
                 del(trlc)
                 gc.collect()
+                i+=1
     return
 
-# run_all_fits(3, lightcurveFolder, foldersave, CBV_folder, 
-#                  quaternion_folder_raw, 
-#                  quaternion_folder_txt, bigInfoFile)
+run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
+                  quaternion_folder_raw, 
+                  quaternion_folder_txt, bigInfoFile)
 
 def run_allGP(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
@@ -88,11 +93,12 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
     run of all a certain type of fit w/ otherwise default parameters
     """
     info = pd.read_csv(bigInfoFile)
+    i = 0
     for root, dirs, files in os.walk(lightcurveFolder):
         for name in files:
             if name.endswith("-tessreduce"):
                 holder = root + "/" + name
-                #print(holder)
+                print(i)
                 loadedraw = pd.read_csv(holder)
                 time = Time(loadedraw["time"], format='mjd').jd
                 intensity = loadedraw["flux"].to_numpy()
@@ -103,11 +109,13 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
                 sector = fulllabel[-4:-2]
                 camera = fulllabel[-2]
                 ccd = fulllabel[-1]
+                if targetlabel[-1].isdigit():
+                    targetlabel=targetlabel[0:6]
                 print(targetlabel, sector, camera, ccd)
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                print(discoverytime)
+                #print(discoverytime)
                 #run it
                 trlc = etsMAIN(foldersave, bigInfoFile)
                 
@@ -121,8 +129,9 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
                 del(loadedraw)
                 del(trlc)
                 gc.collect()
+                i+=1
     return
 
-run_allGP(lightcurveFolder, foldersave, CBV_folder, 
-                 quaternion_folder_raw, 
-                 quaternion_folder_txt, bigInfoFile)
+# run_allGP(lightcurveFolder, foldersave, CBV_folder, 
+#                   quaternion_folder_raw, 
+#                   quaternion_folder_txt, bigInfoFile)

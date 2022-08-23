@@ -829,14 +829,13 @@ class etsMAIN(object):
             if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
                 print("autocorr is nan or inf")
                 print(tau)
-            # this pops out with len(tau) = ndims - need all to converge to be conv
             autocorr[index] = np.mean(tau) # save mean autocorr time
             autocorr_all[index] = tau # save all autocorr times for plotting
             index += 1 # how many times have you saved it
         
             # Check convergence
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01) # normally 0.01
+            converged = np.all((tau * 100) < sampler.iteration)
+            converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
             if converged:
                 print("Converged, ending chain")
                 break
@@ -897,7 +896,9 @@ class etsMAIN(object):
         logprob, blob = sampler.compute_log_prob(best_mcmc)
 
         # ### BIC
-        BIC = ndim * np.log(len(self.time)) - 2 * np.log(logprob)
+        #print(np.log(len(self.time)))
+        print("log prob:", logprob)
+        BIC = ndim * np.log(len(self.time)) - 2 * logprob
         print("BAYESIAN INF CRIT: ", BIC)
         if np.isnan(np.float64(BIC[0])): # if it's a nan
             BIC = 50000
@@ -1013,4 +1014,4 @@ class etsMAIN(object):
         self.plotFit = 10
         self.__mcmc_outer_structure(n1, n2, thinParams)
         return
-                    
+    

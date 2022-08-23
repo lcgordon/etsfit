@@ -37,7 +37,7 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     plt.xlim(0, n.max())
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
-    plt.title(targetlabel + ",  converged = " + str(converged))
+    plt.title(targetlabel + ", mean autocorr. time, converged = " + str(converged))
     plt.savefig(savepath+targetlabel+ "-" + filesavetag + "-autocorr-mean-plot.png")
     plt.close()
     

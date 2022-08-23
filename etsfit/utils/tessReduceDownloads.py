@@ -15,17 +15,17 @@ import time
 import os
 
 
-Ia18thFile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
+Ia18thFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 info = pd.read_csv(Ia18thFile)
 filesavestub = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 failures = []
 
 
-for i in range(52,len(info)):
+for i in range(20,len(info)):
 
     print(i)
     time.sleep(40)
-    print(info['Name'].iloc[i])
+    print(info['Name'].iloc[i][3:])
     targ = info['Name'].iloc[i][3:]
     try:
         obs = tr.sn_lookup(targ)
@@ -74,7 +74,7 @@ for i in range(52,len(info)):
     print(ccd)
     
     #make subfolder to save into 
-    targlabel = targ[3:] + sector + camera + ccd 
+    targlabel = targ + sector + camera + ccd 
     newfolder = filesavestub + targlabel + "/"
     if not os.path.exists(newfolder):
         os.mkdir(newfolder)
@@ -158,72 +158,7 @@ for root, dirs, files in os.walk(topfolder):
             gc.collect()
     
 #%%
-#load parameters from files
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import os
-from etsfit import etsMAIN
-from astropy.time import Time
-import gc
-
-datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-Ia18thFile = "/Users/lindseygordon/research/urop/18thmag_Ia.csv"
-foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
-quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
-quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
-
-#cmd + 1 to comment
-t0 = []
-A = []
-beta = []
-B = []
-for root, dirs, files in os.walk(foldersave):
-    for name in files:
-        if name.endswith("singlepower-output-params.txt"):
-            filepath = root + "/" + name
-            print(filepath)
-            filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-            #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-            #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-            t0.append(filerow1[0][1:])
-            A.append(filerow1[1])
-            beta.append(filerow1[2])
-            B.append(filerow1[3][:-1])
-            
-plt.hist(beta)
 
 
-# filepath = "/Users/lindseygordon/research/urop/plotOutput/2018exc0111/singlepower/2018exc0111-singlepower-output-params.txt"
-# filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-# filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-# filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
 
-#%% okay fuck this stupid fucking crossmatch shit
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import os
-from etsfit import etsMAIN
-from astropy.time import Time
-import gc
-
-def get_all_18thmagIas(csvall, filesave):
-    """
-    Given a path to a file containing a TNS output of SN, save a new csv file
-    containing all of the targets that are classified type Ias and also brighter than
-    18th magnitude
-    """
-
-fullistfile = "/Users/lindseygordon/research/urop/full_csv_list.csv"
-savefile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
-
-fulllist = pd.read_csv(fullistfile)
-
-#Ia list
-listIa = fulllist[fulllist["Obj. Type"].str.contains("SN Ia")]
-#18th mag discovery list:
-list18thmag = listIa[listIa["Discovery Mag/Flux"]<18]
-list18thmag.to_csv(savefile)
 
