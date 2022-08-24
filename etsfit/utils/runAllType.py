@@ -15,6 +15,7 @@ import os
 from etsfit import etsMAIN
 from astropy.time import Time
 import gc
+import etsfit.utils.utilities as ut
 
 
 
@@ -41,19 +42,8 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 holder = root + "/" + name
                 #print(holder)
                 print(i)
-                loadedraw = pd.read_csv(holder)
-                time = Time(loadedraw["time"], format='mjd').jd
-                intensity = loadedraw["flux"].to_numpy()
-                error = loadedraw["flux_err"].to_numpy()
-                #p
-                fulllabel = holder.split("/")[-1].split("-")[0]
-                targetlabel = fulllabel[0:7]
-                if targetlabel[-1].isdigit():
-                    targetlabel=targetlabel[0:6]
-                sector = fulllabel[-4:-2]
-                camera = fulllabel[-2]
-                ccd = fulllabel[-1]
-                print(targetlabel, sector, camera, ccd)
+                (time, intensity, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(holder)
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
@@ -82,9 +72,9 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 i+=1
     return
 
-run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
-                  quaternion_folder_raw, 
-                  quaternion_folder_txt, bigInfoFile)
+# run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
+#                   quaternion_folder_raw, 
+#                   quaternion_folder_txt, bigInfoFile)
 
 def run_allGP(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 

@@ -17,6 +17,7 @@ from etsfit import etsMAIN
 from astropy.time import Time
 import gc
 from pylab import rcParams
+import etsfit.utils.snPlotting as sp
 
 datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
@@ -53,36 +54,18 @@ for root, dirs, files in os.walk(foldersave):
                 B.append(float(filerow1[3][:-1]))
 
             
-def plot_histogram(data, bins, x_label, filename):
-    """ 
-    Plot a histogram with one light curve from each bin plotted on top
-    * Data is the histogram data
-    * Bins is bins for the histogram
-    * x_label for the x-axis of the histogram
-    * filename is the exact place you want it saved
-    """
-    rcParams['figure.figsize'] = 10,10
-    fig, ax1 = plt.subplots()
-    n_in, bins, patches = ax1.hist(data, bins)
-    
-    y_range = np.abs(n_in.max() - n_in.min())
-    x_range = np.abs(data.max() - data.min())
-    ax1.set_ylabel('Number of light curves')
-    ax1.set_xlabel(x_label)
-    #ax1.set_xticks(fontsize=10)
-    
-    if filename is not None:
-        plt.tight_layout()
-        plt.savefig(filename)
-    plt.show()
-    #plt.close()
-    rcParams['figure.figsize'] = 16,6
-    return 
-
-plot_histogram(np.asarray(beta), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-all.png")
+sp.plot_histogram(np.asarray(beta), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-all.png")
 
 
-# filepath = "/Users/lindseygordon/research/urop/plotOutput/2018exc0111/singlepower/2018exc0111-singlepower-output-params.txt"
-# filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-# filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-# filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+#%% load in and plot 3 things
+
+nrows = 2
+ncols = 3
+
+fig, ax = plt.subplots(nrows, ncols, sharex=False,
+                           figsize=(8*ncols * 2, 3*nrows * 2))
+
+#load in light curves
+#load in parameters
+#generate the models from parameters
+#plot it all

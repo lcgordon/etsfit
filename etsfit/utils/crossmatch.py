@@ -7,7 +7,6 @@ Created on Fri Aug 12 09:24:31 2022
 
 yet another crossmatch file
 
-
 """
 
 import matplotlib.pyplot as plt
@@ -135,9 +134,6 @@ def compile_csvs(folder, suffix, savefilename = None):
         all_info.to_csv(folder + savefilename + ".csv", index=False)
         
     return all_info.reset_index()
-
-compile_csvs("/Users/lindseygordon/research/urop/august2022crossmatch/", "-wtv-matched.csv",
-             "WTV-matched-all")
  
  
 def sectorfile_tesscut_match(TNSfile, savefile, sector):
@@ -188,3 +184,22 @@ def run_all_tesscut_matches(folderIn, folderOut, startsat=None):
             
         k += 13
     return
+
+
+def get_not_in_common_entries(file1, file2):
+    """
+    For 2 TNS valued csvs, find the entries that only exist in one list
+    the left file will be the file1, file2 is right (for merge)
+    """
+
+    file1 = pd.read_csv(tesscut_all)
+    file2 = pd.read_csv(wtv_all)
+    
+    df_all = file1.merge(file2.drop_duplicates(), on=["Name", "Name"], how="left", indicator=True)
+    df_ind = df_all[df_all["_merge"] != "both"]
+    return df_ind
+
+tesscut_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
+wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/WTV-matched-all.csv"
+df_ind = get_not_in_common_entries(tesscut_all, wtv_all)
+df_ind.to_csv("/Users/lindseygordon/research/urop/august2022crossmatch/uniqueToOneList.csv")

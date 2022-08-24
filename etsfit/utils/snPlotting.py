@@ -350,7 +350,10 @@ def plot_histogram(data, bins, x_label, filename):
     ax1.set_ylabel('Number of light curves')
     ax1.set_xlabel(x_label)
     
-    plt.savefig(filename)
+    if filename is not None:
+             plt.tight_layout()
+             plt.savefig(filename)
+    plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6
     return 

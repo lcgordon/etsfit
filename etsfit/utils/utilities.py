@@ -11,6 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from astropy.time import Time
+import tessreduce as tr
+import time
 
 def load_lygos_csv(file):
      """
@@ -337,3 +339,97 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
     CBV2 = CBV2[:length_corr]
     CBV3 = CBV3[:length_corr]
     return x,y,yerr, tQ, Qall, CBV1, CBV2, CBV3
+
+def tr_downloader(fileOfTargets, fileSavePath, cdir):
+    """ 
+    Download the tessreduce lc for your list
+    """
+    info = pd.read_csv(fileOfTargets)
+    failures = []
+    for i in range(20,len(info)):
+    
+        print(i)
+        time.sleep(40)
+        print(info['Name'].iloc[i][3:])
+        targ = info['Name'].iloc[i][3:]
+        try:
+            obs = tr.sn_lookup(targ)
+            #cdir = "/Users/lindseygordon/.lightkurve-cache/tesscut/"
+            tess = tr.tessreduce(obs_list=obs,plot=False,reduce=True)
+            
+        except ValueError:   
+            print("value error - something is wrong with vizier or no target in pixels")
+            failures.append(i)
+            continue
+        except IndexError:
+            print("index error - tesscut thinks it wasn't observed")
+            continue
+        except ConnectionResetError:
+            print("vizier problems again")
+            failures.append(i)
+            continue
+        except TimeoutError:
+            print("vizier problems")
+            failures.append(i)
+            continue
+        except ConnectionError:
+            print("more! vizier! problems!")
+            failures.append(i)
+            continue
+    
+        holder = ""
+        for root, dirs, files in os.walk(cdir):
+            for name in files:
+                holder = root + "/" + name
+                print(holder)
+                try:
+                    filenamepieces = name.split("-")
+                    sector = str( filenamepieces[1][3:])
+                    camera = str( filenamepieces[2])
+                    ccd = str(filenamepieces[3][0])
+                    os.remove(holder)
+                    break
+                except IndexError:
+                    print("eek")
+                    os.remove(holder)
+                    continue
+        print(sector)
+        print(camera)
+        print(ccd)
+        
+        #make subfolder to save into 
+        targlabel = targ + sector + camera + ccd 
+        newfolder = fileSavePath + targlabel + "/"
+        if not os.path.exists(newfolder):
+            os.mkdir(newfolder)
+            filesave = newfolder + targlabel + "-tessreduce.csv"
+            tess.save_lc(filesave)
+            tess.to_flux()
+            filesave = newfolder + targlabel + "-tessreduce-fluxconverted.csv"
+            tess.save_lc(filesave)
+        
+            del(obs)
+            del(tess)
+        else:
+            print("Folder already exists, exiting")
+            continue
+    return failures
+
+def tr_load_lc(file):
+    """
+    Given a filename, load in the data. Assumes filenames formatted as in tr_downloader()
+    """
+    loadedraw = pd.read_csv(file)
+    time = Time(loadedraw["time"], format='mjd').jd
+    intensity = loadedraw["flux"].to_numpy()
+    error = loadedraw["flux_err"].to_numpy()
+    #
+    fulllabel = holder.split("/")[-1].split("-")[0]
+    targetlabel = fulllabel[0:7]
+    if targetlabel[-1].isdigit():
+        targetlabel=targetlabel[0:6]
+    sector = fulllabel[-4:-2]
+    camera = fulllabel[-2]
+    ccd = fulllabel[-1]
+    print(targetlabel, sector, camera, ccd)
+    return time, intensity, error, targetlabel, sector, camera, ccd
