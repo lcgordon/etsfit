@@ -45,6 +45,70 @@ def get_disctime(file, name):
     d = Time(d.iloc[0], format = 'iso', scale='utc')
     return d.jd
     
+def window_rms(time, intensity, innerfilt = None, outerfilt = None,
+                    plot=True):
+    """ 
+    Runs an RMS filter over the light curve and returns an array of 
+    0's (bad) and 1's (good) that can be used in the custom masking
+    argument of other functions. 
+    
+    This DOES NOT save the filter output inside the object. 
+    
+    Defaults the inner window as len(self.time)*0.005 and the outer as
+    inner*20. Custom arguments are on the to-do list, nudge Lindsey if 
+    you need them.
+    
+    -------------------------------
+    Parameters:
+        
+        - innerfilt = None by default, can set to an int for the inner
+        window of compariosn
+        - outerfilt = None by default, can set to an int for the outer
+        window of comparison
+        - plot (bool) defaults as True, plots light curve w/ mask
+    
+    """
+    if innerfilt is None:
+        innersize = int(len(time)*0.005)
+    else:
+        innersize = innerfilt
+    if outerfilt is None:
+        outersize = innersize * 20
+    else:
+        outersize=outerfilt
+    print("window sizes: ", innersize, outersize)
+    n = len(time)
+    rms_filt = np.ones(n)
+    for i in range(n):
+        outer_lower = max(0, i-outersize) #outer window, lower bound
+        outer_upper = min(n, i+outersize) #outer window, upper bound
+        inner_lower = max(0, i-innersize) #inner window, lower bound
+        inner_upper = min(n, i+innersize) #inner window, upper bound
+        
+        outer_window = intensity[outer_lower:outer_upper]
+        inner_window = intensity[inner_lower:inner_upper]
+        
+        std_outer = np.std(outer_window)
+        
+        rms_outer = np.sqrt(sum([s**2 for s in outer_window])/len(outer_window))
+        rms_inner = np.sqrt(sum([s**2 for s in inner_window])/len(inner_window))
+        
+        if ((rms_inner > (rms_outer + std_outer)) 
+            or (rms_inner < (rms_outer - std_outer))):
+            rms_filt[inner_lower:inner_upper] = 0 #bad point, discard
+            #print(rms_inner, rms_outer, std_outer)
+    
+    if plot:
+        rms_filt_plot = np.nonzero(rms_filt)
+        plt.scatter(time, intensity, color='green', label='bad', s=2)
+        plt.scatter(time[rms_filt_plot], intensity[rms_filt_plot], 
+                    color='blue', s=2, label='good')
+        plt.legend()
+        plt.show()
+        plt.close()
+    return rms_filt
+
+
 def normalize_sigmaclip(time, flux,error, bg, axis=0):
     '''
     Tidy up that data! Currently a 4 sigma clip.
@@ -424,12 +488,14 @@ def tr_load_lc(file):
     intensity = loadedraw["flux"].to_numpy()
     error = loadedraw["flux_err"].to_numpy()
     #
-    fulllabel = holder.split("/")[-1].split("-")[0]
+    fulllabel = file.split("/")[-1].split("-")[0]
     targetlabel = fulllabel[0:7]
     if targetlabel[-1].isdigit():
         targetlabel=targetlabel[0:6]
     sector = fulllabel[-4:-2]
     camera = fulllabel[-2]
     ccd = fulllabel[-1]
+    if targetlabel[-1].isdigit():
+        targetlabel=targetlabel[0:6]
     print(targetlabel, sector, camera, ccd)
     return time, intensity, error, targetlabel, sector, camera, ccd

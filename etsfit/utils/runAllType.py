@@ -89,19 +89,9 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
             if name.endswith("-tessreduce"):
                 holder = root + "/" + name
                 print(i)
-                loadedraw = pd.read_csv(holder)
-                time = Time(loadedraw["time"], format='mjd').jd
-                intensity = loadedraw["flux"].to_numpy()
-                error = loadedraw["flux_err"].to_numpy()
-                #p
-                fulllabel = holder.split("/")[-1].split("-")[0]
-                targetlabel = fulllabel[0:7]
-                sector = fulllabel[-4:-2]
-                camera = fulllabel[-2]
-                ccd = fulllabel[-1]
-                if targetlabel[-1].isdigit():
-                    targetlabel=targetlabel[0:6]
-                print(targetlabel, sector, camera, ccd)
+                (time, intensity, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(holder)
+
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd

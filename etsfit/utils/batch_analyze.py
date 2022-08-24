@@ -18,6 +18,7 @@ from astropy.time import Time
 import gc
 from pylab import rcParams
 import etsfit.utils.snPlotting as sp
+import etsfit.utils.utilities as ut
 
 datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
@@ -26,46 +27,100 @@ quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 
 #cmd + 1 to comment
-t0 = []
-A = []
-beta = []
-B = []
-for root, dirs, files in os.walk(foldersave):
-    for name in files:
-        if name.endswith("singlepower-output-params.txt"):
-            filepath = root + "/" + name
-            #print(filepath)
-            filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-            #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-            #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-            #print(filerow1)
-            if filerow1[0] == "[": #first string is just [
+# t0 = []
+# A = []
+# beta = []
+# B = []
+# for root, dirs, files in os.walk(foldersave):
+#     for name in files:
+#         if name.endswith("singlepower-output-params.txt"):
+#             filepath = root + "/" + name
+#             #print(filepath)
+#             filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
+#             #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+#             #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+#             #print(filerow1)
+#             if filerow1[0] == "[": #first string is just [
                 
-                t0.append(float(filerow1[1]))
-                A.append(float(filerow1[2]))
-                beta.append(float(filerow1[3]))
-                B.append(float(filerow1[4][:-1]))
+#                 t0.append(float(filerow1[1]))
+#                 A.append(float(filerow1[2]))
+#                 beta.append(float(filerow1[3]))
+#                 B.append(float(filerow1[4][:-1]))
             
-            else: #first string contains [
-                #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
-                t0.append(float(filerow1[0][1:]))
-                A.append(float(filerow1[1]))
-                beta.append(float(filerow1[2]))
-                B.append(float(filerow1[3][:-1]))
+#             else: #first string contains [
+#                 #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
+#                 t0.append(float(filerow1[0][1:]))
+#                 A.append(float(filerow1[1]))
+#                 beta.append(float(filerow1[2]))
+#                 B.append(float(filerow1[3][:-1]))
 
             
-sp.plot_histogram(np.asarray(beta), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-all.png")
+#sp.plot_histogram(np.asarray(beta), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-all.png")
+
+def extract_singlepowerparams_from_file(filepath):
+    
+    filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
+    #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+    #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+    #print(filerow1)
+    if filerow1[0] == "[": #first string is just [
+        
+        t0= float(filerow1[1])
+        A=float(filerow1[2])
+        beta=float(filerow1[3])
+        B=float(filerow1[4][:-1])
+    
+    else: #first string contains [
+        #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
+        t0=float(filerow1[0][1:])
+        A=float(filerow1[1])
+        beta=float(filerow1[2])
+        B=float(filerow1[3][:-1])
+    return t0,A,beta,B
 
 
-#%% load in and plot 3 things
+#load in and plot 3 things
 
 nrows = 2
 ncols = 3
 
 fig, ax = plt.subplots(nrows, ncols, sharex=False,
                            figsize=(8*ncols * 2, 3*nrows * 2))
+#write down the name sof the ones you want and then give it the folders to skim the actual files from
+lc_to_load = ["2018exc", "2018fub", "2018hib"]
+datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+outputfolder = "/Users/lindseygordon/research/urop/plotOutput/"
+bigFile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
+info = pd.read_csv(bigFile)
 
-#load in light curves
-#load in parameters
-#generate the models from parameters
-#plot it all
+for i in range(len(lc_to_load)):
+    for root,dirs,files in os.walk(datafolder):
+        for f in files:
+            if lc_to_load[i] in f and f.endswith("tessreduce"):
+                (time, intensity, error, 
+                 targetlabel, sector, camera, ccd) = ut.tr_load_lc(root + "/" + f)
+                d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
+                discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
+                tmin = time[0]
+                time -= tmin
+                discoverytime -= tmin
+                ax[0,i].scatter(time, intensity, s=1, color='grey', label = "tessreduce")
+                ax[0,i].axvline(discoverytime, color="green", linestyle="dashed", label = "disc. time")
+                
+                #load in parameters:
+                for root1, dirs1, files1 in os.walk(outputfolder):
+                    for f1 in files1:
+                        if lc_to_load[i] in f1 and f1.endswith("singlepower-output-params.txt"):
+                            filepath = root1 + "/" + f1
+                            print(filepath)
+                            t0,A,beta,B = extract_singlepowerparams_from_file(filepath)
+                            break   
+                        
+                #build model, plot model
+                t1 = time - t0
+                model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
+                ax[0,i].plot(time, model, color="blue", label="model")
+                ax[0,i].axvline(t0, linestyle="dashed", color="purple", label="t0")
+                ax[0,i].legend(loc="upper left", fontsize=12)
+                ax[1,i].scatter(time, intensity-model, color = "darkgrey", s=2)
+                #!!! this doesn't show the points that get eliminated by the window filter!! 

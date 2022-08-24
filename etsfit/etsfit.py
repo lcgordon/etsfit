@@ -243,45 +243,8 @@ class etsMAIN(object):
             - plot (bool) defaults as True, plots light curve w/ mask
         
         """
-        if innerfilt is None:
-            innersize = int(len(self.time)*0.005)
-        else:
-            innersize = innerfilt
-        if outerfilt is None:
-            outersize = innersize * 20
-        else:
-            outersize=outerfilt
-        print("window sizes: ", innersize, outersize)
-        n = len(self.time)
-        rms_filt = np.ones(n)
-        for i in range(n):
-            outer_lower = max(0, i-outersize) #outer window, lower bound
-            outer_upper = min(n, i+outersize) #outer window, upper bound
-            inner_lower = max(0, i-innersize) #inner window, lower bound
-            inner_upper = min(n, i+innersize) #inner window, upper bound
-            
-            outer_window = self.intensity[outer_lower:outer_upper]
-            inner_window = self.intensity[inner_lower:inner_upper]
-            
-            std_outer = np.std(outer_window)
-            
-            rms_outer = np.sqrt(sum([s**2 for s in outer_window])/len(outer_window))
-            rms_inner = np.sqrt(sum([s**2 for s in inner_window])/len(inner_window))
-            
-            if ((rms_inner > (rms_outer + std_outer)) 
-                or (rms_inner < (rms_outer - std_outer))):
-                rms_filt[inner_lower:inner_upper] = 0 #bad point, discard
-                #print(rms_inner, rms_outer, std_outer)
-        
-        if plot:
-            rms_filt_plot = np.nonzero(rms_filt)
-            plt.scatter(self.time, self.intensity, color='green', label='bad')
-            plt.scatter(self.time[rms_filt_plot], self.intensity[rms_filt_plot], 
-                        color='blue', s=2, label='good')
-            plt.legend()
-            plt.show()
-            plt.close()
-        return rms_filt
+        return ut.window_rms(self.time, self.intensity, innerfilt = innerfilt, 
+                        outerfilt = outerfilt,plot=plot)
         
     
     
