@@ -27,42 +27,54 @@ quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 
 #cmd + 1 to comment
-# t0 = []
-# A = []
-# beta = []
-# B = []
-# for root, dirs, files in os.walk(foldersave):
-#     for name in files:
-#         if name.endswith("singlepower-output-params.txt"):
-#             filepath = root + "/" + name
-#             #print(filepath)
-#             filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-#             #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-#             #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-#             #print(filerow1)
-#             if filerow1[0] == "[": #first string is just [
+t0all = []
+Aall= []
+betaall = []
+Ball = []
+for root, dirs, files in os.walk(foldersave):
+    for name in files:
+        if name.endswith("singlepower-output-params.txt"):
+            filepath = root + "/" + name
+            #print(filepath)
+            filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
+            bicrow = np.loadtxt(filepath, skiprows=4, dtype=str, max_rows=1)
+            #print(bicrow)
+            conv = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1)
+            #print(conv)
+            if "False" in str(conv):
                 
-#                 t0.append(float(filerow1[1]))
-#                 A.append(float(filerow1[2]))
-#                 beta.append(float(filerow1[3]))
-#                 B.append(float(filerow1[4][:-1]))
+                continue
+            else:
+                print(filepath)
+                print(bicrow)
+            #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+            #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+            #print(filerow1)
+            if filerow1[0] == "[": #first string is just [
+                
+                t0= float(filerow1[1])
+                A=float(filerow1[2])
+                beta=float(filerow1[3])
+                B=float(filerow1[4][:-1])
             
-#             else: #first string contains [
-#                 #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
-#                 t0.append(float(filerow1[0][1:]))
-#                 A.append(float(filerow1[1]))
-#                 beta.append(float(filerow1[2]))
-#                 B.append(float(filerow1[3][:-1]))
+            else: #first string contains [
+                #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
+                t0=float(filerow1[0][1:])
+                A=float(filerow1[1])
+                beta=float(filerow1[2])
+                B=float(filerow1[3][:-1])
+                
+            t0all.append(t0)
+            Aall.append(A)
+            betaall.append(beta)
+            Ball.append(B)
 
             
-#sp.plot_histogram(np.asarray(beta), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-all.png")
-
+sp.plot_histogram(np.asarray(betaall), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-histogram-converged.png")
+#%%
 def extract_singlepowerparams_from_file(filepath):
     
     filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-    #filerow2 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    #filerow3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-    #print(filerow1)
     if filerow1[0] == "[": #first string is just [
         
         t0= float(filerow1[1])
@@ -80,14 +92,14 @@ def extract_singlepowerparams_from_file(filepath):
 
 
 #load in and plot 3 things
-
+rerunspartials = 
 nrows = 2
 ncols = 3
 
-fig, ax = plt.subplots(nrows, ncols, sharex=False,
+fig, ax = plt.subplots(nrows, ncols, sharex=True,
                            figsize=(8*ncols * 2, 3*nrows * 2))
 #write down the name sof the ones you want and then give it the folders to skim the actual files from
-lc_to_load = ["2018exc", "2018fub", "2018hib"]
+lc_to_load = ["2020tld", "2018hkx", "2018fhw"]
 datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 outputfolder = "/Users/lindseygordon/research/urop/plotOutput/"
 bigFile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
@@ -104,15 +116,22 @@ for i in range(len(lc_to_load)):
                 tmin = time[0]
                 time -= tmin
                 discoverytime -= tmin
-                ax[0,i].scatter(time, intensity, s=1, color='grey', label = "tessreduce")
+                
+                rms_filt = ut.window_rms(time, intensity, innerfilt = None, outerfilt = None,
+                                    plot=False)
+                
+                ax[0,i].scatter(time, intensity, s=1, color='red', label = "TR raw")
+                rms_filt_plot = np.nonzero(rms_filt)
+                ax[0,i].scatter(time[rms_filt_plot], intensity[rms_filt_plot], s=5, color='black', label = "TR filtered")
                 ax[0,i].axvline(discoverytime, color="green", linestyle="dashed", label = "disc. time")
+                ax[1,i].axvline(discoverytime, color="green", linestyle="dashed", label = "disc. time")
                 
                 #load in parameters:
                 for root1, dirs1, files1 in os.walk(outputfolder):
                     for f1 in files1:
                         if lc_to_load[i] in f1 and f1.endswith("singlepower-output-params.txt"):
                             filepath = root1 + "/" + f1
-                            print(filepath)
+                            #print(filepath)
                             t0,A,beta,B = extract_singlepowerparams_from_file(filepath)
                             break   
                         
@@ -121,6 +140,19 @@ for i in range(len(lc_to_load)):
                 model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
                 ax[0,i].plot(time, model, color="blue", label="model")
                 ax[0,i].axvline(t0, linestyle="dashed", color="purple", label="t0")
+                ax[1,i].axvline(t0, linestyle="dashed", color="purple", label="t0")
+                ax[0,i].axhline(B, linestyle="dashed", label = "B")
+                
+                ax[1,i].scatter(time[rms_filt_plot], (intensity-model)[rms_filt_plot], color = "black", s=5, label="residuals")
+                ax[1,i].axhline(0, color='darkgreen', linestyle='dashed')
+                ax[0,i].set_ylabel("Raw TR Flux")
+                ax[1,i].set_ylabel("Residual Flux")
+                ax[0,i].set_title(targetlabel)
+                ax[1,i].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
+                
                 ax[0,i].legend(loc="upper left", fontsize=12)
-                ax[1,i].scatter(time, intensity-model, color = "darkgrey", s=2)
-                #!!! this doesn't show the points that get eliminated by the window filter!! 
+                ax[1,i].legend(loc="lower left", fontsize=12)
+                
+#fig.suptitle("Good, Average, Ugly")
+plt.tight_layout()
+#plt.savefig("/Users/lindseygordon/research/urop/plotOutput/triplePlotTest.png")

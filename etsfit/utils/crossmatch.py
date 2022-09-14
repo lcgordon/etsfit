@@ -195,11 +195,21 @@ def get_not_in_common_entries(file1, file2):
     file1 = pd.read_csv(tesscut_all)
     file2 = pd.read_csv(wtv_all)
     
-    df_all = file1.merge(file2.drop_duplicates(), on=["Name", "Name"], how="left", indicator=True)
-    df_ind = df_all[df_all["_merge"] != "both"]
+    df_all_left = file1.merge(file2.drop_duplicates(), on=["Name", "Name"], how="left", indicator=True)
+    df_ind_left = df_all_left[df_all_left["_merge"] != "both"]
+    df_all_right = file1.merge(file2.drop_duplicates(), on=["Name", "Name"], how="right", indicator=True)
+    df_ind_right = df_all_right[df_all_right["_merge"] != "both"]
+    df_ind = pd.concat((df_ind_left, df_ind_right))
     return df_ind
 
 tesscut_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
 wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/WTV-matched-all.csv"
-df_ind = get_not_in_common_entries(tesscut_all, wtv_all)
+df_ind = get_not_in_common_entries(wtv_all,tesscut_all)
 df_ind.to_csv("/Users/lindseygordon/research/urop/august2022crossmatch/uniqueToOneList.csv")
+
+
+compile_csvs("/Users/lindseygordon/research/urop/august2022crossmatch/cycle3/", 
+             "tesscut.csv", savefilename = "cycle3-tesscut-all")
+
+reduce_list(tesscut_all, "/Users/lindseygordon/research/urop/august2022crossmatch/Ia205mag.csv", 
+            "Ia", 20.5)

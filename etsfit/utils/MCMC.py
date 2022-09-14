@@ -244,7 +244,7 @@ def log_probability_singlePower_LBG(theta, x, y, yerr, lygosBG, disctime, priors
         
 
 def log_probability_GP(theta, x, y, yerr, disctime, gp, priors=None):
-        """GP log probability calculator"""
+        """GP log probability fxn"""
         
         t0, A, beta, b = theta[:4]
         GPparams = theta[4:]
@@ -255,7 +255,7 @@ def log_probability_GP(theta, x, y, yerr, disctime, gp, priors=None):
         #add lp of actual
         
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], disctime, 0.001, 2, 0.5, 6, -5, 5]
+            priors = [x[0], disctime, 0.001, 5, 0.5, 6]
             
         lp += check_priors(priors, theta[:4]) #ADD to gp prior function
         
@@ -266,13 +266,16 @@ def log_probability_GP(theta, x, y, yerr, disctime, gp, priors=None):
         t1 = x - t0
         model = ((np.heaviside((t1), 1) * A 
                   *np.nan_to_num((t1**beta))) + 1 + b)
+        
+        residual = y - model
 
-        model += gp.predict(y, x, return_cov=False)
+        ll = gp.log_likelihood(residual, quiet=True) #fit the GP to JUST the residual
         
         yerr2 = yerr**2.0
-        ll = -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2))
+        ll += -0.5 * np.nansum((residual) ** 2 / yerr2 + np.log(yerr2))
         #if ll is no good
         if not np.isfinite(ll):
             return lp, -np.inf
         
         return ll+lp, lp
+    

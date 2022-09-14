@@ -30,7 +30,8 @@ quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 
 def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
-                 quaternion_folder_txt, bigInfoFile):
+                 quaternion_folder_txt, bigInfoFile, fraction=None,
+                 goodList = None):
     """ 
     run of all a certain type of fit w/ otherwise default parameters
     """
@@ -44,6 +45,8 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 print(i)
                 (time, intensity, error, targetlabel, 
                  sector, camera, ccd) = ut.tr_load_lc(holder)
+                if goodList is not None and targetlabel not in goodList:
+                        continue
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
@@ -58,27 +61,31 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                     trlc.use_quaternions_cbvs(CBV_folder, quaternion_folder_raw, 
                                               quaternion_folder_txt)
                 
-                filterMade = trlc.window_rms_filt()
+                filterMade = trlc.window_rms_filt(plot=False)
                 trlc.pre_run_clean(fitType, cutIndices=filterMade, 
-                                   binYesNo = False, fraction = None)
+                                   binYesNo = False, fraction = fraction)
                 trlc.run_MCMC(n1=10000, n2=60000, thinParams = None,
                              saveBIC=False, args=None, logProbFunc = None, 
                              plotFit = None,
                              filesavetag=None,
                              labels=None, init_values=None)
-                del(loadedraw)
+                #del(loadedraw)
                 del(trlc)
                 gc.collect()
                 i+=1
     return
 
+fraction = 0.6
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2020xyw", "2020hvq", 
+         "2020hdw", "2020bj", "2019gqv"]
 # run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
 #                   quaternion_folder_raw, 
-#                   quaternion_folder_txt, bigInfoFile)
+#                   quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
 
 def run_allGP(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
-                 quaternion_folder_txt, bigInfoFile):
+                 quaternion_folder_txt, bigInfoFile, 
+                 goodList = None):
     """ 
     run of all a certain type of fit w/ otherwise default parameters
     """
@@ -92,6 +99,8 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
                 (time, intensity, error, targetlabel, 
                  sector, camera, ccd) = ut.tr_load_lc(holder)
 
+                if goodList is not None and targetlabel not in goodList:
+                        continue
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
@@ -102,16 +111,16 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
                 trlc.load_single_lc(time, intensity, error, discoverytime, 
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 
-                filterMade = trlc.window_rms_filt()
+                filterMade = trlc.window_rms_filt(plot=False)
                 trlc.run_GP_fit(filterMade, binYesNo=False, fraction=None, 
                                n1=10000, n2=40000, filesavetag=None,
                                customSigmaRho = None, thinParams=None)
-                del(loadedraw)
+                #del(loadedraw)
                 del(trlc)
                 gc.collect()
                 i+=1
     return
 
-# run_allGP(lightcurveFolder, foldersave, CBV_folder, 
-#                   quaternion_folder_raw, 
-#                   quaternion_folder_txt, bigInfoFile)
+run_allGP(lightcurveFolder, foldersave, CBV_folder, 
+                  quaternion_folder_raw, 
+                  quaternion_folder_txt, bigInfoFile, gList)

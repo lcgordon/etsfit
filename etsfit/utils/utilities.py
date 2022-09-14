@@ -76,7 +76,7 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
         outersize = innersize * 20
     else:
         outersize=outerfilt
-    print("window sizes: ", innersize, outersize)
+    #print("window sizes: ", innersize, outersize)
     n = len(time)
     rms_filt = np.ones(n)
     for i in range(n):
@@ -118,10 +118,8 @@ def normalize_sigmaclip(time, flux,error, bg, axis=0):
         - error (array error values)
         - axis = 0 for 1D data, =1 if you want to clip multiple things stacked
     '''
-    medians = np.median(flux, axis = axis, keepdims=True)
-    flux = flux / medians
     from astropy.stats import SigmaClip
-    sigclip = SigmaClip(sigma=4, maxiters=None, cenfunc='median')
+    sigclip = SigmaClip(sigma=5, maxiters=None, cenfunc='median')
     clipped_inds = np.nonzero(np.ma.getmask(sigclip(flux)))
     time = np.delete(time, clipped_inds)
     flux = np.delete(flux, clipped_inds)
@@ -129,6 +127,12 @@ def normalize_sigmaclip(time, flux,error, bg, axis=0):
     if bg is not None:
         bg = np.delete(bg, clipped_inds)
         bg = bg / np.median(bg, axis = axis, keepdims=True)
+        
+    origmin = min(flux)
+    origrange = max(flux) - origmin
+    newmin = 0
+    newrange = 1
+    flux = [(n - origmin) / origrange * newrange + newmin for n in flux]
     return time,flux,error, bg
 
 def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
@@ -479,7 +483,7 @@ def tr_downloader(fileOfTargets, fileSavePath, cdir):
             continue
     return failures
 
-def tr_load_lc(file):
+def tr_load_lc(file, printname=True):
     """
     Given a filename, load in the data. Assumes filenames formatted as in tr_downloader()
     """
@@ -497,5 +501,7 @@ def tr_load_lc(file):
     ccd = fulllabel[-1]
     if targetlabel[-1].isdigit():
         targetlabel=targetlabel[0:6]
-    print(targetlabel, sector, camera, ccd)
+    
+    if printname:
+        print(targetlabel, sector, camera, ccd)
     return time, intensity, error, targetlabel, sector, camera, ccd

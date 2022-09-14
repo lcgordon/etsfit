@@ -547,7 +547,7 @@ class etsMAIN(object):
             print("*******")
             return
         elif hasattr(self, 'time'): #if something loaded in and going to trim
-            plt.scatter(self.time, self.intensity, color='red', s=2)
+            #plt.scatter(self.time, self.intensity, color='red', s=2)
                 
             self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
             self.time = self.time[self.cutindexes]
@@ -564,13 +564,13 @@ class etsMAIN(object):
                 self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
                 
             #self.custommasked = True
-            plt.scatter(self.time, self.intensity, color='blue', s=2)
-            plt.xlabel(self.xlabel)
-            plt.ylabel(self.ylabel)
-            plt.show()
-            if saveplot is not None:
-                plt.savefig(saveplot)
-            plt.close()
+            #plt.scatter(self.time, self.intensity, color='blue', s=2)
+            #plt.xlabel(self.xlabel)
+            #plt.ylabel(self.ylabel)
+            #plt.show()
+            #if saveplot is not None:
+            #    plt.savefig(saveplot)
+            #plt.close()
             return
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
@@ -875,9 +875,15 @@ class etsMAIN(object):
                          self.tmin, self.lygosbg,
                          self.quatsandcbvs)
         else:
-            sp.plot_mcmc_GP(self.folderSAVE, self.time, self.intensity, self.error, 
-                            best_mcmc, self.gp, self.disctime, self.tmin,
-                 self.targetlabel, self.filesavetag, plotComponents=False)
+            sp.plot_mcmc_GP(self.folderSAVE, self.time, self.intensity, 
+                            self.error, best_mcmc, self.gp, self.disctime, 
+                            self.tmin,self.targetlabel, self.filesavetag, 
+                            plotComponents=False)
+            print("starting second GP plotter")
+            sp.plot_mcmc_GP_2(self.folderSAVE, self.time, self.intensity, 
+                              self.error, best_mcmc, self.gp, self.disctime, 
+                              self.tmin, self.targetlabel, self.filesavetag, 
+                              plotComponents=False)
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))

@@ -406,5 +406,63 @@ def plot_mcmc_GP(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin
     plt.close()
     return
 
-            
+def plot_mcmc_GP_2(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin,
+                 targetlabel, filesavetag, plotComponents=False):
+    """Plot the best fit model from the mcmc run w/ GP on """
+    
+    t0, A,beta,B = best_mcmc[0][:4]
+    t1 = time - t0
+    model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    gp.set_parameter_vector(best_mcmc[0][4:])
+    
+
+    #model = sl + bg
+    
+    nrows = 3
+    ncols = 1
+    fig, ax = plt.subplots(nrows, ncols, sharex=True,
+                                   figsize=(8*ncols * 2, 3*nrows * 2))
+    
+    #top row: data, model
+    ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
+    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
+    ax[0].legend(fontsize=10, loc="upper left")
+    if plotComponents:
+        ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
+        ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
+    
+    #middle row: residual, GP
+    residual1 = intensity - model
+    ax[1].set_title("Model Residual")
+    bg, var = gp.predict(residual1, time, return_var=True)
+    err_bg = np.sqrt(var)
+    ax[1].scatter(time, residual1, label = "Model  Residual", s = 5, color = 'black')
+    ax[1].plot(time, bg, label="GP", color="green")
+    ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
+    ax[1].legend(fontsize=10)
+    
+    #bottom row: GP residual
+    residual2 = residual1 - bg
+    ax[2].set_title("GP Residual")
+    ax[2].scatter(time, residual2, label = "GP Residual", s = 5, color = 'black')
+    ax[2].legend(fontsize=10)
+    
+    #all plots: t_0, disc, rel flux label 
+    
+    for n in range(nrows):
+        ax[n].axvline(t0, color = 'saddlebrown', linestyle = 'dashed',
+                          label=r"$t_0$")
+        ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
+                      label="Ground Disc.")
+        ax[n].set_ylabel("Rel. Flux", fontsize=12)
         
+    #plot labelling
+    ax[0].set_title(targetlabel + filesavetag)
+    ax[nrows-1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
+    
+    plt.tight_layout()
+    plt.savefig(pathSave + targetlabel + filesavetag + "-MCMC-GP-TriplePlotResiduals.png")
+    plt.show()
+    plt.close()
+    return       
+   
