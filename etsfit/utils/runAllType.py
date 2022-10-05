@@ -12,12 +12,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
-from etsfit import etsMAIN
+#from etsfit import etsMAIN
 from astropy.time import Time
 import gc
 import etsfit.utils.utilities as ut
-
-
+import etsfit
 
 
 lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
@@ -82,7 +81,7 @@ gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2020xyw", "2020
 #                   quaternion_folder_raw, 
 #                   quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
 
-def run_allGP(lightcurveFolder, foldersave, CBV_folder, 
+def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
                  quaternion_folder_txt, bigInfoFile, 
                  goodList = None):
@@ -112,8 +111,8 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 
                 filterMade = trlc.window_rms_filt(plot=False)
-                trlc.run_GP_fit(filterMade, binYesNo=False, fraction=None, 
-                               n1=10000, n2=40000, filesavetag=None,
+                trlc.run_GP_fit_celerite(filterMade, binYesNo=False, fraction=None, 
+                               n1=7000, n2=20000, filesavetag=None,
                                customSigmaRho = None, thinParams=None)
                 #del(loadedraw)
                 del(trlc)
@@ -121,6 +120,54 @@ def run_allGP(lightcurveFolder, foldersave, CBV_folder,
                 i+=1
     return
 
-run_allGP(lightcurveFolder, foldersave, CBV_folder, 
+# run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder, 
+#                   quaternion_folder_raw, 
+#                   quaternion_folder_txt, bigInfoFile, gList)
+
+def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder, 
+                 quaternion_folder_raw, 
+                 quaternion_folder_txt, bigInfoFile, 
+                 goodList = None):
+    """ 
+    run of all a certain type of fit w/ otherwise default parameters
+    """
+    info = pd.read_csv(bigInfoFile)
+    i = 0
+    for root, dirs, files in os.walk(lightcurveFolder):
+        for name in files:
+            if name.endswith("-tessreduce") and i==0:
+                holder = root + "/" + name
+                print(i)
+                (time, intensity, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(holder)
+
+                if goodList is not None and targetlabel not in goodList:
+                        continue
+                #get discovery time
+                d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
+                discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
+                #print(discoverytime)
+                #run it
+                trlc = etsMAIN(foldersave, bigInfoFile)
+                
+                trlc.load_single_lc(time, intensity, error, discoverytime, 
+                                   targetlabel, sector, camera, ccd, lygosbg=None)
+                
+                filterMade = trlc.window_rms_filt(plot=False)
+                trlc.pre_run_clean(1, cutIndices=filterMade, 
+                                   binYesNo = False, fraction = fraction)
+                trlc.run_tinyGP_postfit(filterMade, binYesNo=False, fraction=fraction, 
+                               n1=7000, n2=20000, filesavetag="-tinygp-post-fit",
+                               args=None, thinParams=None, saveBIC=False, 
+                               logProbFunc = None, plotFit = None,
+                               labels=None, init_values=None)
+                
+                #del(loadedraw)
+                del(trlc)
+                gc.collect()
+                i+=1
+    return
+
+run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder, 
                   quaternion_folder_raw, 
                   quaternion_folder_txt, bigInfoFile, gList)

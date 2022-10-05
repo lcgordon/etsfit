@@ -470,7 +470,7 @@ class etsMAIN(object):
     def run_MCMC(self, n1=1000, n2=10000, thinParams = None,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
-                 labels=None, init_values=None):
+                 labels=None, init_values=None, mu=2, sigma=1):
         """
         Run one MCMC instance - non GP fits
         
@@ -521,19 +521,19 @@ class etsMAIN(object):
         # load parameters by fit type                                           
         self.__setup_fittype_params(self.fitType, args,
                                     logProbFunc, plotFit, filesavetag, 
-                                    labels, init_values)
+                                    labels, init_values, mu, sigma)
         # set up the output folder
         self.__gen_output_folder() 
                                                         
         # run it
-        (best, upperError, 
-         lowerError, bic) = self.__mcmc_outer_structure(n1, n2, thinParams)
+        (self.best, self.upperError, 
+         self.lowerError, self.bic) = self.__mcmc_outer_structure(n1, n2, thinParams)
         
         if saveBIC:
-            self.bic_all.append(bic)
-            self.params_all.append(best)
+            self.bic_all.append(self.bic)
+            self.params_all.append(self.best)
             
-        return best, upperError, lowerError, bic
+        return (self.best, self.upperError, self.lowerError, self.bic) 
       
     def __custom_mask_it(self, cutIndices, saveplot = None):
         """remove certain indices from your light curve.
@@ -601,11 +601,13 @@ class etsMAIN(object):
             os.mkdir(subfolderpath)
         self.folderSAVE = subfolderpath + "/"
         self.parameterSaveFile = self.folderSAVE + internaluse + self.filesavetag + "-output-params.txt"
+        print(self.folderSAVE)
         return
     
     def __setup_fittype_params(self, fitType, args=None, 
                                logProbFunc = None, plotFit = None,
-                               filesavetag=None, labels=None, init_values=None):
+                               filesavetag=None, labels=None, init_values=None,
+                               mu = 2, sigma = 1):
         """
         1 = single without
         2 = single with cbv
@@ -613,6 +615,7 @@ class etsMAIN(object):
         4 = double with
         5 = just cbv
         6 = single lygos bg
+        7 = gaussian prior on beta
         0 = custom inputs
         any other number = will exit with an error
         
@@ -631,6 +634,7 @@ class etsMAIN(object):
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
             self.labels = ["t0", "A", "beta",  "b"]
+            self.filelabels = self.labels
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
             self.plotFit = fitType
             
@@ -645,6 +649,7 @@ class etsMAIN(object):
             self.logProbFunc = mc.log_probability_singlepower_withCBV
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
+            self.filelabels = self.labels
             self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
             self.plotFit = fitType
         elif fitType == 3: # double without
@@ -656,6 +661,7 @@ class etsMAIN(object):
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
+            self.filelabels = self.labels
             self.init_values = np.array((self.disctime-8, self.disctime-4, 0.1, 0.1, 1.8, 1.8, 1))
             #print(self.init_values)
             self.plotFit = fitType
@@ -670,6 +676,7 @@ class etsMAIN(object):
             self.filesavetag = "-doublepower-CBV"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  
                       "cQ", "c1", "c2", "c3"]
+            self.filelabels = self.labels
             self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
             self.plotFit = fitType
@@ -683,6 +690,7 @@ class etsMAIN(object):
             self.logProbFunc = mc.log_probability_justCBV
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
+            self.filelabels = self.labels
             self.init_values = np.array((1, 0,0,0,0))
             self.plotFit = fitType
         elif fitType == 6: # detrending lygos BG
@@ -696,13 +704,29 @@ class etsMAIN(object):
                 self.logProbFunc = mc.log_probability_singlePower_LBG
                 self.filesavetag = "-singlepower-lygosBG"
                 self.labels = ["t0", "A", "beta",  "b", "LBG"]
+                self.filelabels = self.labels
                 self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
                 self.plotFit = fitType
+         
+        elif fitType == 7: # gaussian beta
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, self.disctime,
+                             mu, sigma)
+            else:
+                self.args = args
+            self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
+            self.filesavetag = "-singlepower-GBeta"
+            self.labels = ["t0", "A", "beta",  "b"]
+            self.filelabels = self.labels
+            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+            self.plotFit = fitType
+        
         elif fitType == 0: # diy your stuff
             self.args = args # LAST ONE MUST BE PRIORS IF USING CUSTOMS
             self.logProbFunc = logProbFunc
             self.filesavetag = filesavetag
             self.labels = labels
+            self.filelabels = self.labels
             self.init_values = init_values 
             #print(self.args)
             self.plotFit = plotFit
@@ -715,6 +739,11 @@ class etsMAIN(object):
     
         if self.fractiontrimmed:
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+        
+        
+        if filesavetag is not None:
+            self.filesavetag = filesavetag
+        
         return
             
             
@@ -752,6 +781,7 @@ class etsMAIN(object):
         for n in range(len(p0)): # add a little spice - YYY gaussian??
             p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
         
+        print("Starting burnin chain")
         # ### Initial run
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
                                         self.logProbFunc,args=self.args) # setup
@@ -804,24 +834,18 @@ class etsMAIN(object):
                 break
             old_tau = tau
         
-        # #plot autocorr things
-        if self.plotFit != 10:
-            sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
-                                  autocorr, converged, 
-                                  autoStep, self.filesavetag)
-            
-            sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
-                                        autocorr_all, autoStep, self.labels, 
-                                        self.filesavetag)
-        else:
-            sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
-                                  autocorr, converged, 
-                                  autoStep, self.filesavetag)
-            
-            sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
-                                        autocorr_all, autoStep, self.filelabels, 
-                                        self.filesavetag)
+        # ######
+        #plot autocorr things
+        ########
+        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
+                              autocorr, converged, 
+                              autoStep, self.filesavetag)
+        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
+                                    autocorr_all, autoStep, self.labels,
+                                    self.filelabels, 
+                                    self.filesavetag)
         
+            
         #thin and burn out dump
         tau = sampler.get_autocorr_time(tol=0)
         if (np.max(tau) < (sampler.iteration/50)):
@@ -832,16 +856,13 @@ class etsMAIN(object):
 
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
-        # this will be separate - plotting p(parameter)
-        if self.plotFit != 10:
-            sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
-                                  sampler, self.labels, ndim, appendix = "-production")
-        else:
-            sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
-                                  sampler, self.filelabels, ndim, appendix = "-production")
+        # plot chains, parameters
+        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
+                              sampler, self.labels, ndim, appendix = "-production")
         
         sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag)
+        
         print(len(flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
@@ -868,22 +889,22 @@ class etsMAIN(object):
         else:
             BIC = BIC[0]
             
-        if self.plotFit != 10:
+        if self.plotFit < 10:
             sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.targetlabel, 
                          self.disctime, best_mcmc[0], 
                          flat_samples, self.labels, self.plotFit, self.filesavetag, 
                          self.tmin, self.lygosbg,
                          self.quatsandcbvs)
-        else:
-            sp.plot_mcmc_GP(self.folderSAVE, self.time, self.intensity, 
+        elif self.plotFit == 10:
+            sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
                             self.error, best_mcmc, self.gp, self.disctime, 
                             self.tmin,self.targetlabel, self.filesavetag, 
                             plotComponents=False)
-            print("starting second GP plotter")
-            sp.plot_mcmc_GP_2(self.folderSAVE, self.time, self.intensity, 
-                              self.error, best_mcmc, self.gp, self.disctime, 
-                              self.tmin, self.targetlabel, self.filesavetag, 
-                              plotComponents=False)
+        elif self.plotfit == 11:
+            sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, 
+                            self.error, best_mcmc, self.disctime, 
+                            self.tmin,self.targetlabel, self.filesavetag, 
+                            plotComponents=False)
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
@@ -898,7 +919,7 @@ class etsMAIN(object):
     
     
     
-    def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
+    def run_GP_fit_celerite(self, cutIndices, binYesNo, fraction=None, 
                    n1=1000, n2=10000, filesavetag=None,
                    customSigmaRho = None, thinParams=None):
         """Run the GP fitting 
@@ -909,7 +930,7 @@ class etsMAIN(object):
         
         """
         if filesavetag is None:
-            self.filesavetag = "-GP-matern32-fit"
+            self.filesavetag = "-matern32-celerite"
         else:
             self.filesavetag = filesavetag
             
@@ -935,7 +956,7 @@ class etsMAIN(object):
 
 
         #set up kernel
-        #### SET UP NEW MATERN-32 GP
+        # SET UP NEW MATERN-32 GP
         if customSigmaRho is None:
             sigma = 0.01 #amplitude
             rho = 1.2 #timescale
@@ -975,7 +996,7 @@ class etsMAIN(object):
         
         # set up arguments etc.
         self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
-        self.logProbFunc = mc.log_probability_GP
+        self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
         
@@ -984,3 +1005,139 @@ class etsMAIN(object):
         self.__mcmc_outer_structure(n1, n2, thinParams)
         return
     
+    def __run_GP_fit_tinygp(self, cutIndices, binYesNo, fraction=None, 
+                          n1=1000, n2=10000, filesavetag=None,
+                          thinParams=None):
+        """Run the GP fitting 
+        
+        customSigmaRho must unpack as: [sigma start, rho start, sigma lower, sigma upper,
+                                        rho lower, rho upper, sigma frozen, rho frozen]
+        the default run of this is [0.01, 1.2, 0.0001, 0.3, 1, 2, 0, 0]
+        
+        """
+        from tinygp import kernels, GaussianProcess
+        import jax
+        import jax.numpy as jnp
+        
+        if filesavetag is None:
+            self.filesavetag = "-tinygp-expsqr"
+        else:
+            self.filesavetag = filesavetag
+            
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binYesNo: #if need to bin
+            (self.time, self.intensity, 
+             self.error, self.lygosbg,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosbg, QCBVALL=None) 
+                                                 
+        # if doing percent of max fitting
+        if fraction is not None:
+            (self.time, self.intensity, self.error, self.lygosbg, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosbg, 
+                                                   fraction, self.quatsandcbvs)
+        #make folders to save into
+        self.__gen_output_folder()   
+
+
+        # set up arguments etc.
+        self.args = (self.time,self.intensity, self.error, self.disctime)
+        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0.0, np.log(0.3), np.log(1.1)))
+   
+        self.logProbFunc = mc.log_probability_tinygp
+        self.labels = ["t0", "A", "beta",  "b", r"$\alpha$","length"] 
+        self.filelabels = ["t0", "A", "beta",  "b",  "alpha", "length"]
+        
+        fitType = 11
+        self.plotFit = 11
+        print("entering mcmc outer")
+        self.__mcmc_outer_structure(n1, n2, thinParams)
+        return
+    
+    def run_tinyGP_postfit(self,cutIndices, binYesNo, fraction=None, 
+                   n1=1000, n2=10000, filesavetag=None,
+                   args=None, thinParams=None, saveBIC=False, 
+                   logProbFunc = None, plotFit = None,
+                   labels=None, init_values=None):
+        """
+        Fit a single power law, then fit the tinygp to the residual
+        """
+        self.run_MCMC(n1, n2, thinParams,
+                     saveBIC, args, logProbFunc, plotFit,
+                     filesavetag,
+                     labels, init_values, mu=None, sigma=None)
+        
+        t0, A, beta, B = self.best[0]
+        t1 = self.time - t0
+        sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
+        bg = np.ones(len(self.time)) + B
+        
+        residual = self.intensity - sl - bg
+        
+        #fit  tinygp to the residual
+        
+        import jax
+        import jax.numpy as jnp
+        from tinygp import kernels, GaussianProcess
+        jax.config.update("jax_enable_x64", True)
+
+
+        def build_gp(theta, X):
+            amps = jnp.exp(theta["log_amps"])
+            scales = jnp.exp(theta["log_scales"])
+
+            k1 = amps[0] * kernels.ExpSquared(scales[0])
+            return GaussianProcess(
+                k1, X, diag=jnp.exp(theta["log_diag"]), mean=theta["mean"]
+            )
+
+        def neg_log_likelihood(theta, X, y):
+            gp = build_gp(theta, X)
+            return -gp.log_probability(y)
+
+
+        theta_init = {
+            "mean": np.float64(0.0),
+            "log_diag": np.log(0.19),
+            "log_amps": np.log([10.0]),
+            "log_scales": np.log([5.0]),
+        }
+
+        # `jax` can be used to differentiate functions, and also note that we're calling
+        # `jax.jit` for the best performance.
+        obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
+
+        print(f"Initial negative log likelihood: {obj(theta_init, t, y)[0]}")
+        print(
+            f"Gradient of the negative log likelihood, wrt the parameters:\n{obj(theta_init, t, y)[1]}"
+        )
+        import jaxopt
+
+        solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+        soln = solver.run(theta_init, X=t, y=y)
+        print(f"Final negative log likelihood: {soln.state.fun_val}")
+
+        print(soln.params)
+        amps = np.exp(soln.params["log_amps"][0])
+        scales = np.exp(soln.params["log_scales"][0])
+        
+        
+        
+        #plot the residual stuff
+        best_mcmc = [t0, A, beta, B, amps, scales]
+        
+        
+        #needs to contain the four first and then the gp params
+        sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, 
+                               self.intensity, self.error, best_mcmc,
+                                self.disctime, t0, self.tmin,
+                                self.targetlabel, self.filesavetag, 
+                                plotComponents=False)
+        
+        return
+        

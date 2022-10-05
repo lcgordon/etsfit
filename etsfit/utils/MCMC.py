@@ -22,11 +22,17 @@ import time as timeModule
 from pylab import rcParams
 rcParams['figure.figsize'] = 16,6
 
+from tinygp import kernels, GaussianProcess
+import jax
+import jax.numpy as jnp
+
 
 def check_priors(priors, theta):
     """ 
     Function to check that the current walker position is within the allowed
     prior values. This allows for override of the defaults by the user. 
+    
+    Uniform priors ONLY in this function
     
     --------------------------------------------------
     Parameters:
@@ -62,8 +68,8 @@ def check_priors(priors, theta):
             return -np.inf
         
     return 0.0 #everything checked out
-        
-    
+ 
+          
 
 def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         """ 
@@ -90,7 +96,7 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         t0, A, beta, b = theta
         # handle log priors
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], x[-1], 0.0, 10.0, 0.5, 6.0, -30, 30]
+            priors = [x[0], x[-1], 0.0, 10.0, 0.5, 6.0]
         lp = check_priors(priors, theta)
     
         # if not allowed values
@@ -241,9 +247,53 @@ def log_probability_singlePower_LBG(theta, x, y, yerr, lygosBG, disctime, priors
             
             yerr2 = yerr**2.0
             return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
+  
+def log_probability_singlepower_gaussianbeta(theta, x, y, yerr, disctime, mu,
+                                             sigma, priors=None):
+        """ 
+        
+        Calculates the log probability for the model with a single power law
+        and a flat background. Gaussian distro on beta values instead of flat.
+        
+        Associated labels: ["t0", "A", "beta",  "b"]
+        init_values in MCMC: np.array((disctime-3, 0.1, 1.8, 1))
+        
+        Parameters:
+            - theta (params in MCMC)
+            - x (time index)
+            - y (flux)
+            - yerr (error)
+            - disctime (discovery time)
+            - mu = mean of beta distro
+            - sigma = variance of beta distro
+            - priors (defaults to NONE, can be custom-set)
         
 
-def log_probability_GP(theta, x, y, yerr, disctime, gp, priors=None):
+        returns loglike, logprior
+        
+        """
+        
+        t0, A, beta, b = theta
+        newtheta = [t0,A]
+        # handle log priors
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], x[-1], 0.0, 10.0]
+        lp = check_priors(priors, newtheta)
+        
+        lp = lp + np.log(1.0/(np.sqrt(2*np.pi)*sigma))-0.5*(beta-mu)**2/sigma**2
+    
+        # if not allowed values
+        if not np.isfinite(lp) or np.isnan(lp): # if lp is not 0.0
+            return -np.inf, lp
+        else: # if allowed, calculate the log likelihood
+            t1 = x - t0
+            model = (np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta))) + 1 + b
+            
+            yerr2 = yerr**2.0
+            return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
+
+
+def log_probability_celerite(theta, x, y, yerr, disctime, gp, priors=None):
         """GP log probability fxn"""
         
         t0, A, beta, b = theta[:4]
@@ -278,4 +328,48 @@ def log_probability_GP(theta, x, y, yerr, disctime, gp, priors=None):
             return lp, -np.inf
         
         return ll+lp, lp
-    
+
+@jax.jit 
+def tinygp_loglike(residual, x, amps, scales):
+    amps 
+    kernel = jnp.exp(amps) * kernels.ExpSquared(jnp.exp(scales))
+    gp = GaussianProcess(kernel, x, mean=0.0)
+    return -1 * gp.log_probability(residual)
+   
+def log_probability_tinygp(theta, x, y, yerr, disctime, priors=None):
+        """tinygp squared exponential log probability fxn"""
+        
+        #print("ENTERED PROBABILITY FUNCTION")
+        t0, A, beta, b, amps, scales = theta
+
+        #check priors:
+        
+        if priors is None: #if you didn't feed it something else
+            priors = [x[0], disctime, 0.001, 5, 0.5, 6]
+            
+        #check the regular priors
+        #print("checking priors")
+        lp = check_priors(priors, theta)
+        #check the gp priors:
+        #lp += check_priors([0.0, 1.0, 0.0, 3.0], [amps, scales])    
+        
+        #if lp is no good   
+        if not np.isfinite(lp):
+            return -np.inf, -np.inf #ll, lp
+
+        #build model, calc likelihood
+        t1 = x - t0
+        model = ((np.heaviside((t1), 1) * A 
+                  *np.nan_to_num((t1**beta))) + 1 + b)
+        
+        residual = jnp.asarray(y - model)
+        #print("building gp")
+        ll =  tinygp_loglike(residual, t1, amps, scales) #fit the GP to JUST the residual
+        
+        yerr2 = yerr**2.0
+        ll += -0.5 * jnp.nansum((residual) ** 2 / yerr2 + jnp.log(yerr2))
+        #if ll is no good
+        if not np.isfinite(ll):
+            return lp, -np.inf
+        
+        return ll+lp, lp

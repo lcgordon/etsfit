@@ -31,7 +31,7 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     """
     n = autoStep * np.arange(1, index + 1) #x axis = total number of steps
     plotAutocorr = autocorr[:index]
-    plt.plot(n, n / 100, "--k") #plots the N vs N/100=tau threshold 
+    plt.plot(n, n / 100, "--k", label = "N/100 threshold") #plots the N vs N/100=tau threshold 
     #this determines length of chain vs autocorrelation time
     plt.plot(n, plotAutocorr)
     plt.xlim(0, n.max())
@@ -42,7 +42,7 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     plt.close()
     
 def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
-                             autoStep, labels, filesavetag):
+                             autoStep, labels, filelabels, filesavetag):
     """Plot each autocorrleation time function from an array of all of them 
     Params:
         - savepath (str) to put files into
@@ -52,6 +52,7 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
             parameter autocorrelation times
         - autoStep (int) how many steps
         - labels (array of strings) what each param is called
+        - filelabels (array of strings) what each is called formatted for filenames
         - filesavetag (string) to name file with
     """
     n = autoStep * np.arange(1, index + 1) #x axis - number of steps
@@ -67,7 +68,7 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
         plt.ylabel(r"$\hat{\tau} for $" + labels[i])
         plt.title(targetlabel + "  autocorr time for " + labels[i])
         plt.savefig(savepath+targetlabel+ "-" + filesavetag + 
-                    "-autocorr-" + labels[i] +".png")
+                    "-autocorr-" + filelabels[i] +".png")
         plt.close()
 
 
@@ -131,7 +132,10 @@ def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
     return
     
 def plot_log_post(path, targetlabel,filesavetag, sampler):
-    '''plot the log posteriors'''
+    '''
+    plot the log posteriors
+    unclear if this gets used anywhere?
+    '''
     logprobs = sampler.get_log_prob()
     logprior = sampler.get_blobs()
     logpost = logprobs+logprior
@@ -144,38 +148,7 @@ def plot_log_post(path, targetlabel,filesavetag, sampler):
     plt.close()
     return
 
-def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, 
-                       ndim, appendix = ""):
-    """plot mcmc chain by parameter AND log posterior at top """
-    rcParams['figure.figsize'] = 30,30
-    rcParams['ytick.labelsize'] = 10
-    fig, axes = plt.subplots(ndim+1, figsize=(10, 7), sharex=True)
-    samples = sampler.get_chain()
-    labels = labels
-    logprobs = sampler.get_log_prob()
-    logprior = sampler.get_blobs()
-    logpost = logprobs+logprior
-    xaxis = np.linspace(1,len(logpost), len(logpost[:,0]))
-    
-    for h in range(len(logpost[0])):
-        ax = axes[0]
-        ax.scatter(xaxis, logpost[:,0], alpha=0.3, color='black', s=2)
-        ax.set_ylabel("Log \n Post.")
-    
-    for i in range(ndim):
-        ax = axes[i+1]
-        ax.plot(samples[:, :, i], "k", alpha=0.3)
-        ax.set_xlim(0, len(samples))
-        ax.set_ylabel(labels[i])
-        ax.yaxis.set_label_coords(-0.1, 0.5)
-    
-    axes[-1].set_xlabel("step number");
-    plt.savefig(path + "/" + targetlabel + "-" + filesavetag + appendix 
-                + "-chain-logpost.png")
-    plt.show()
-    plt.close()
-    rcParams['figure.figsize'] = 16,6
-    return
+
 
 def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     """
@@ -190,7 +163,7 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
         - bg (background part, either a single run of B or the complex linear combo)
     """
     print("starting model creation time axis at: ", x[0])
-    if fitType == 1:
+    if fitType == 1 or fitType == 7:
         t0, A,beta,B = best_mcmc
         t1 = x - t0
         sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
@@ -241,80 +214,44 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     
     return sl, bg
 
-def plot_mcmc(path, time, intensity, targetlabel, disctime, best_mcmc, flat_samples,
-              labels, fitType, filesavetag, tmin, lygosBG, QCBVs = None):
-    ""
-    """main plotting function for mcmc 
-    params:
-        - path (string, to save into)
-        - x  (array, time axis STARTING AT 0)
-        - y  (array, actual intensity data)
-        - targetlabel (string, SN name for various things. no spaces.)
-        - disctime (float, start date from target, should be from 0 to 30!)
-        - best_mcmc (array of best fit parameters)
-        - flat_samples (??) idk this comes out of emcee sampler
-        - labels (array of str) what parameters were floated
-        - fitType (int) indicates which of the models you're using
-        - filesavetag (str) label for output
-        - tmin (float) start time for sector, rounded 
-        
-    fitType options:
-        - 1 = single no
-        - 2 = single with
-        - 3 = double no
-        - 4 = double with
-        - 5 = flat
+def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, 
+                       ndim, appendix = ""):
     """
-    #set up model = sl + bg but can be plot separately.
-    sl, bg = fitTypeModel(fitType, time, best_mcmc, QCBVs, lygosBG)
-    model = sl + bg    
-    plot_corner(flat_samples, labels, path, targetlabel, filesavetag)
+    plot mcmc chain by parameter AND log posterior at top 
+    """
+    rcParams['figure.figsize'] = 30,30
+    rcParams['ytick.labelsize'] = 10
+    fig, axes = plt.subplots(ndim+1, figsize=(10, 7), sharex=True)
+    samples = sampler.get_chain()
+    logprobs = sampler.get_log_prob()
+    logprior = sampler.get_blobs()
+    logpost = logprobs+logprior
+    xaxis = np.linspace(1,len(logpost), len(logpost[:,0]))
     
-    nrows = 2
-    ncols = 1
-    fig, ax = plt.subplots(nrows, ncols, sharex=True,
-                                   figsize=(8*ncols * 2, 3*nrows * 2))
+    for h in range(len(logpost[0])):
+        ax = axes[0]
+        ax.scatter(xaxis, logpost[:,0], alpha=0.3, color='black', s=2)
+        ax.set_ylabel("Log \n Post.")
     
-    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
-    ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
-    if fitType != 5:
-        ax[0].plot(time, sl+1, label="Source", color = 'blue')
-        if fitType % 2 == 0:
-            #evens are w/ cbvs, odds are without
-            ax[0].plot(time, bg, label="CBV fit", color = 'green')
-        else:
-            ax[0].plot(time, bg, label="Offset", color = 'green')
+    for i in range(ndim):
+        ax = axes[i+1]
+        ax.plot(samples[:, :, i], "k", alpha=0.3)
+        ax.set_xlim(0, len(samples))
+        ax.set_ylabel(labels[i])
+        ax.yaxis.set_label_coords(-0.1, 0.5)
     
-    for n in range(nrows):
-        if fitType != 5:
-            ax[n].axvline(best_mcmc[0], color = 'saddlebrown', linestyle = 'dashed',
-                          label=r"$t_0$")
-        if fitType in (3,4):
-            ax[n].axvline(best_mcmc[1], color = 'orange', linestyle = 'dashed',
-                          label=r"$t_1$")
-        ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
-                      label="Ground Disc.")
-        ax[n].set_ylabel("Rel. Flux", fontsize=12)
-        
-    #main
-    ax[0].set_title(targetlabel + filesavetag)
-    ax[0].legend(fontsize=18, loc="upper left")
-    ax[nrows-1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
-    
-    #residuals
-    ax[1].set_title("Residual")
-    residuals = intensity - model
-    ax[1].scatter(time,residuals, s=5, color = 'black', label='Residual')
-    ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
-    ax[1].legend()
-    
-    plt.tight_layout()
-    plt.savefig(path + targetlabel + filesavetag + "-MCMCmodel-bestFit.png")
+    axes[-1].set_xlabel("step number");
+    plt.savefig(path + "/" + targetlabel + "-" + filesavetag + appendix 
+                + "-chain-logpost.png")
+    plt.show()
     plt.close()
+    rcParams['figure.figsize'] = 16,6
     return
 
 def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
-    """Plots mcmc chain by parameter """
+    """
+    Plots mcmc chains - each parameter is a subpanel stacked vertically
+    """
     rcParams['figure.figsize'] = 30,30
     rcParams['ytick.labelsize'] = 10
     fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
@@ -358,8 +295,43 @@ def plot_histogram(data, bins, x_label, filename):
     rcParams['figure.figsize'] = 16,6
     return 
 
-def plot_mcmc_GP(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin,
-                 targetlabel, filesavetag, plotComponents=False):
+def plot_mcmc(pathSave, time, intensity, targetlabel, disctime, best_mcmc, flat_samples,
+              labels, fitType, filesavetag, tmin, lygosBG, QCBVs = None):
+    ""
+    """main plotting function for mcmc 
+    params:
+        - path (string, to save into)
+        - x  (array, time axis STARTING AT 0)
+        - y  (array, actual intensity data)
+        - targetlabel (string, SN name for various things. no spaces.)
+        - disctime (float, start date from target, should be from 0 to 30!)
+        - best_mcmc (array of best fit parameters)
+        - flat_samples (??) idk this comes out of emcee sampler
+        - labels (array of str) what parameters were floated
+        - fitType (int) indicates which of the models you're using
+        - filesavetag (str) label for output
+        - tmin (float) start time for sector, rounded 
+        
+    fitType options:
+        - 1 = single no
+        - 2 = single with
+        - 3 = double no
+        - 4 = double with
+        - 5 = flat
+    """
+    #set up model = sl + bg but can be plot separately.
+    sl, bg = fitTypeModel(fitType, time, best_mcmc, QCBVs, lygosBG)
+    model = sl + bg    
+    plot_corner(flat_samples, labels, path, targetlabel, filesavetag)
+    
+    plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+                     disctime, t0, tmin,targetlabel, filesavetag)
+    
+    return
+
+def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp, 
+                          disctime, tmin, targetlabel, 
+                          filesavetag, plotComponents=False):
     """Plot the best fit model from the mcmc run w/ GP on """
     
     t0, A,beta,B = best_mcmc[0][:4]
@@ -370,15 +342,53 @@ def plot_mcmc_GP(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin
 
     model = sl + bg
     
+    plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+                     disctime, t0, tmin,targetlabel, filesavetag)
+    
+    gp_plots(pathSave, sl, bg, model, time, intensity, error,
+                 disctime, t0, tmin, targetlabel, filesavetag, 
+                 gpfiletag = "-MCMC-celeriteGP-TriplePlotResiduals.png")
+    return
+
+def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
+                        disctime, t0, tmin,targetlabel, filesavetag, 
+                        plotComponents=False):
+    """Plot the best fit model from the mcmc run w/ tinyGP on """
+    
+    t0, A,beta,B = best_mcmc[0][:4]
+    t1 = time - t0
+    sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    
+    kernel = best_mcmc[0][4] * kernels.ExpSquared(best_mcmc[0][5])
+    gp = GaussianProcess(kernel, time, mean=0.0)
+    
+    bg = gp.predict(intensity-sl, time, return_cov=False)
+
+    model = sl + bg
+    
+    plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+                     disctime, t0, tmin,targetlabel, filesavetag)
+    
+    gp_plots(pathSave, sl, bg, model, time, intensity, error,
+                 disctime, tmin, targetlabel, filesavetag, 
+                 gpfiletag = "-MCMC-tinyGP-TriplePlotResiduals.png")
+    
+    return
+
+def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+                 disctime, t0, tmin,targetlabel, filesavetag):
+    """ 
+    Plots the main 2 panel mcmc model + residual
+    """
     nrows = 2
     ncols = 1
     fig, ax = plt.subplots(nrows, ncols, sharex=True,
                                    figsize=(8*ncols * 2, 3*nrows * 2))
     
     ax[0].plot(time, model, label="Best Fit Model", color = 'red')
-    if plotComponents:
-        ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
-        ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
+    #if plotComponents:
+     #   ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
+      #  ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
         
     ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
     
@@ -387,7 +397,7 @@ def plot_mcmc_GP(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin
                           label=r"$t_0$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
-        ax[n].set_ylabel("Rel. Flux", fontsize=12)
+        ax[n].set_ylabel("Flux (e-/s)", fontsize=12)
         
     #main
     ax[0].set_title(targetlabel + filesavetag)
@@ -406,63 +416,60 @@ def plot_mcmc_GP(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin
     plt.close()
     return
 
-def plot_mcmc_GP_2(pathSave, time, intensity, error, best_mcmc, gp, disctime, tmin,
-                 targetlabel, filesavetag, plotComponents=False):
-    """Plot the best fit model from the mcmc run w/ GP on """
+def gp_plots(pathSave, sl, bg, model, time, intensity, error,
+                 disctime,t0, tmin,targetlabel, filesavetag, gpfiletag):
+                 #plotComponents=False):
+    """ 
+    Plots the gp residual plots (3 panels, 1 model, 2 residuals)
+    """
     
-    t0, A,beta,B = best_mcmc[0][:4]
-    t1 = time - t0
-    model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
-    gp.set_parameter_vector(best_mcmc[0][4:])
-    
-
-    #model = sl + bg
-    
+    #second plot: 
     nrows = 3
     ncols = 1
     fig, ax = plt.subplots(nrows, ncols, sharex=True,
                                    figsize=(8*ncols * 2, 3*nrows * 2))
     
-    #top row: data, model
+    #top row: data, model ONLY
     ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
-    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
-    ax[0].legend(fontsize=10, loc="upper left")
-    if plotComponents:
-        ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
-        ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
+    ax[0].plot(time, sl, label="Best Fit Model", color = 'red')
     
-    #middle row: residual, GP
-    residual1 = intensity - model
+    # if plotComponents:
+    #     ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
+    #     ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
+    
+    #middle row: residual, GP fit to residual
+    residual1 = intensity - sl
     ax[1].set_title("Model Residual")
-    bg, var = gp.predict(residual1, time, return_var=True)
-    err_bg = np.sqrt(var)
+    #bg, var = gp.predict(residual1, time, return_var=True)
+    #err_bg = np.sqrt(var)
     ax[1].scatter(time, residual1, label = "Model  Residual", s = 5, color = 'black')
     ax[1].plot(time, bg, label="GP", color="green")
     ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
-    ax[1].legend(fontsize=10)
+    
     
     #bottom row: GP residual
     residual2 = residual1 - bg
     ax[2].set_title("GP Residual")
     ax[2].scatter(time, residual2, label = "GP Residual", s = 5, color = 'black')
-    ax[2].legend(fontsize=10)
     
     #all plots: t_0, disc, rel flux label 
-    
     for n in range(nrows):
         ax[n].axvline(t0, color = 'saddlebrown', linestyle = 'dashed',
                           label=r"$t_0$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
-        ax[n].set_ylabel("Rel. Flux", fontsize=12)
+        ax[n].set_ylabel("Flux (e-/s)", fontsize=12)
         
     #plot labelling
     ax[0].set_title(targetlabel + filesavetag)
     ax[nrows-1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
     
+    ax[0].legend(fontsize=10, loc="upper left")
+    ax[1].legend(fontsize=10)
+    ax[2].legend(fontsize=10)
+    
     plt.tight_layout()
-    plt.savefig(pathSave + targetlabel + filesavetag + "-MCMC-GP-TriplePlotResiduals.png")
+    plt.savefig(pathSave + targetlabel + filesavetag + gpfiletag)
     plt.show()
     plt.close()
-    return       
-   
+    return
