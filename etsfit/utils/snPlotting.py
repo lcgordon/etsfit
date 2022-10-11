@@ -295,7 +295,8 @@ def plot_histogram(data, bins, x_label, filename):
     rcParams['figure.figsize'] = 16,6
     return 
 
-def plot_mcmc(pathSave, time, intensity, targetlabel, disctime, best_mcmc, flat_samples,
+def plot_mcmc(pathSave, time, intensity, error, 
+              targetlabel, disctime, best_mcmc, flat_samples,
               labels, fitType, filesavetag, tmin, lygosBG, QCBVs = None):
     ""
     """main plotting function for mcmc 
@@ -320,9 +321,10 @@ def plot_mcmc(pathSave, time, intensity, targetlabel, disctime, best_mcmc, flat_
         - 5 = flat
     """
     #set up model = sl + bg but can be plot separately.
+    t0 = best_mcmc[0]
     sl, bg = fitTypeModel(fitType, time, best_mcmc, QCBVs, lygosBG)
     model = sl + bg    
-    plot_corner(flat_samples, labels, path, targetlabel, filesavetag)
+    plot_corner(flat_samples, labels, pathSave, targetlabel, filesavetag)
     
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
                      disctime, t0, tmin,targetlabel, filesavetag)
@@ -354,12 +356,15 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
                         disctime, t0, tmin,targetlabel, filesavetag, 
                         plotComponents=False):
     """Plot the best fit model from the mcmc run w/ tinyGP on """
+    import jax
+    import jax.numpy as jnp
+    from tinygp import kernels, GaussianProcess
     
-    t0, A,beta,B = best_mcmc[0][:4]
+    t0, A,beta,B = best_mcmc[:4]
     t1 = time - t0
     sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    kernel = best_mcmc[0][4] * kernels.ExpSquared(best_mcmc[0][5])
+    kernel = best_mcmc[4] * kernels.ExpSquared(best_mcmc[5])
     gp = GaussianProcess(kernel, time, mean=0.0)
     
     bg = gp.predict(intensity-sl, time, return_cov=False)
@@ -369,10 +374,10 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
                      disctime, t0, tmin,targetlabel, filesavetag)
     
+
     gp_plots(pathSave, sl, bg, model, time, intensity, error,
-                 disctime, tmin, targetlabel, filesavetag, 
-                 gpfiletag = "-MCMC-tinyGP-TriplePlotResiduals.png")
-    
+                     disctime, t0, tmin,targetlabel, filesavetag, 
+                     gpfiletag = "-MCMC-tinyGP-TriplePlotResiduals.png")
     return
 
 def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
@@ -418,7 +423,6 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
 
 def gp_plots(pathSave, sl, bg, model, time, intensity, error,
                  disctime,t0, tmin,targetlabel, filesavetag, gpfiletag):
-                 #plotComponents=False):
     """ 
     Plots the gp residual plots (3 panels, 1 model, 2 residuals)
     """

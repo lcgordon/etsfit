@@ -26,6 +26,9 @@ foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
 quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2020xyw", "2020hvq", 
+         "2020hdw", "2020bj", "2019gqv"]
+
 #cmd + 1 to comment
 t0all = []
 Aall= []
@@ -34,6 +37,11 @@ Ball = []
 for root, dirs, files in os.walk(foldersave):
     for name in files:
         if name.endswith("singlepower-output-params.txt"):
+            targ = name.split("-")[0][:-4]
+            #print(targ[:-4])
+            if targ not in gList:
+                continue
+
             filepath = root + "/" + name
             #print(filepath)
             filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
@@ -69,8 +77,9 @@ for root, dirs, files in os.walk(foldersave):
             betaall.append(beta)
             Ball.append(B)
 
-            
-sp.plot_histogram(np.asarray(betaall), 32, "beta", "/Users/lindseygordon/research/urop/plotOutput/beta-histogram-converged.png")
+          
+sp.plot_histogram(np.asarray(betaall), 32, "beta", 
+                  "/Users/lindseygordon/research/urop/plotOutput/good_histo_only.png")
 #%%
 def extract_singlepowerparams_from_file(filepath):
     

@@ -467,6 +467,218 @@ class etsMAIN(object):
         self.fitType = fitType
         return
     
+    def __custom_mask_it(self, cutIndices, saveplot = None):
+        """remove certain indices from your light curve.
+        cutIndices should be an array of size len(time), 0 = remove, 1=keep
+        
+        *****this should NOT be used if using CBVs - that's not set up yet!!
+        """
+        if hasattr(self, 'cutindexes'): #if already did a trim
+            print("*******")
+            print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
+            print("*******")
+            return
+        elif hasattr(self, 'time'): #if something loaded in and going to trim
+            #plt.scatter(self.time, self.intensity, color='red', s=2)
+                
+            self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
+            self.time = self.time[self.cutindexes]
+            self.intensity = self.intensity[self.cutindexes]
+            self.error = self.error[self.cutindexes]
+            if self.lygosbg is not None:
+                self.lygosbg = self.lygosbg[self.cutindexes]
+                
+            if hasattr(self, 'quatsIntensity'): #if cbvs, trim them
+                self.quatsIntensity = self.quatsIntensity[self.cutindexes]
+                self.CBV1 = self.CBV1[self.cutindexes]
+                self.CBV2 = self.CBV2[self.cutindexes]
+                self.CBV3 = self.CBV3[self.cutindexes]
+                self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
+                
+            #self.custommasked = True
+            #plt.scatter(self.time, self.intensity, color='blue', s=2)
+            #plt.xlabel(self.xlabel)
+            #plt.ylabel(self.ylabel)
+            #plt.show()
+            #if saveplot is not None:
+            #    plt.savefig(saveplot)
+            #plt.close()
+            return
+        else:
+            print("No data loaded in yet!! Run again once light curve is loaded")
+            return     
+   
+    def __gen_output_folder(self):
+        """
+        Internal function, sets up output folder for files
+        
+        """
+        # check for an output folder's existence, if not, put it in. 
+        if (self.folderSAVE is None or 
+            self.targetlabel is None or 
+            self.sector is None
+            or self.camera is None or 
+            self.ccd is None):
+            raise ValueError("Cannot generate output folders, one of the parameters is None")
+        
+        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
+        newfolderpath = (self.folderSAVE + internaluse)
+        if not os.path.exists(newfolderpath):
+            os.mkdir(newfolderpath)
+        # make subfolder for this run
+        #print(internaluse)
+        print("files willl be tagged: ", self.filesavetag)
+        subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
+        if not os.path.exists(subfolderpath):
+            os.mkdir(subfolderpath)
+        self.folderSAVE = subfolderpath + "/"
+        self.parameterSaveFile = self.folderSAVE + internaluse + self.filesavetag + "-output-params.txt"
+        print("saving into folder: ",self.folderSAVE)
+        return 
+   
+    def __setup_fittype_params(self, fitType, args=None, 
+                               logProbFunc = None, plotFit = None,
+                               filesavetag=None, labels=None, init_values=None,
+                               mu = 2, sigma = 1):
+        """
+        
+        Internal function to set up self.plotFit, logProbFunc, filesavetag, labels
+        filelabels, init_values array, args array
+        
+        1 = single without
+        2 = single with cbv
+        3 = doubel without
+        4 = double with
+        5 = just cbv
+        6 = single lygos bg
+        7 = gaussian prior on beta
+        0 = custom inputs
+        any other number = will exit with an error
+        
+        IF YOU ARE DOING CUSTOM PRIORS:
+            - run under fitType=0
+            - last item in args must be your priors array -- all probability functions
+            come with a positional argument priors=None that this should override
+            
+            
+        """
+        self.plotFit = fitType
+        
+        
+        if fitType == 1: # single without
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, self.disctime)
+            else:
+                self.args = args
+            self.logProbFunc = mc.log_probability_singlepower_noCBV
+            self.filesavetag = "-singlepower"
+            self.labels = ["t0", "A", "beta",  "b"]
+            self.filelabels = self.labels
+            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+            
+        elif fitType == 2: # single with
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, 
+                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                             self.disctime)
+            else:
+                self.args = args
+            self.logProbFunc = mc.log_probability_singlepower_withCBV
+            self.filesavetag = "-singlepower-CBV"
+            self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
+            self.filelabels = self.labels
+            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
+            
+        elif fitType == 3: # double without
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, self.disctime)
+            else:
+                self.args = args
+                
+            self.logProbFunc = mc.log_probability_doublepower_noCBV
+            self.filesavetag = "-doublepower"
+            self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
+            self.filelabels = self.labels
+            self.init_values = np.array((self.disctime-8, self.disctime-4, 0.1, 0.1, 1.8, 1.8, 1))
+
+        elif fitType ==4: # double with
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, 
+                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                             self.disctime)
+            else:
+                self.args = args
+            self.logProbFunc = mc.log_probability_doublepower_withCBV
+            self.filesavetag = "-doublepower-CBV"
+            self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  
+                      "cQ", "c1", "c2", "c3"]
+            self.filelabels = self.labels
+            self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 
+                                    1.8, 1.8, 0,0,0,0))
+        elif fitType == 5: # just CBVs
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, 
+                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                             self.disctime)
+            else:
+                self.args = args
+            self.logProbFunc = mc.log_probability_justCBV
+            self.filesavetag = "-CBV"
+            self.labels = ["b", "cQ", "c1", "c2", "c3"]
+            self.filelabels = self.labels
+            self.init_values = np.array((1, 0,0,0,0))
+        elif fitType == 6: # detrending lygos BG
+            if self.lygosbg is None:
+                print("NO LYGOS BG LOADED IN - CANNOT RUN THIS FIT")
+                raise AttributeError("Missing lygosbg!!")
+                return
+            else:
+                self.args = (self.time, self.intensity, self.error, self.lygosbg, 
+                             self.disctime)
+                self.logProbFunc = mc.log_probability_singlePower_LBG
+                self.filesavetag = "-singlepower-lygosBG"
+                self.labels = ["t0", "A", "beta",  "b", "LBG"]
+                self.filelabels = self.labels
+                self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
+         
+        elif fitType == 7: # gaussian beta
+            if args is None:
+                self.args = (self.time, self.intensity, self.error, self.disctime,
+                             mu, sigma)
+            else:
+                self.args = args
+            self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
+            self.filesavetag = "-singlepower-GBeta"
+            self.labels = ["t0", "A", "beta",  "b"]
+            self.filelabels = self.labels
+            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+        
+        elif fitType == 0: # diy your stuff
+            self.args = args # LAST ONE MUST BE PRIORS IF USING CUSTOMS
+            self.logProbFunc = logProbFunc
+            self.filesavetag = filesavetag
+            self.labels = labels
+            self.filelabels = self.labels
+            self.init_values = init_values 
+            #print(self.args)
+            self.plotFit = plotFit #overwrites the default fitType that was set to plotfit
+        else:
+            print("THAT IS NOT AN ALLOWED DEFAULT FIT TYPE, EXITING")
+            raise ValueError("not an allowed fit type")
+            
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
+            self.filesavetag = self.filesavetag + "-8HourBin"
+    
+        if self.fractiontrimmed:
+            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+        
+        
+        if filesavetag is not None:
+            self.filesavetag = filesavetag
+        
+        return
+   
+    
     def run_MCMC(self, n1=1000, n2=10000, thinParams = None,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
@@ -535,219 +747,7 @@ class etsMAIN(object):
             
         return (self.best, self.upperError, self.lowerError, self.bic) 
       
-    def __custom_mask_it(self, cutIndices, saveplot = None):
-        """remove certain indices from your light curve.
-        cutIndices should be an array of size len(time), 0 = remove, 1=keep
         
-        *****this should NOT be used if using CBVs - that's not set up yet!!
-        """
-        if hasattr(self, 'cutindexes'): #if already did a trim
-            print("*******")
-            print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
-            print("*******")
-            return
-        elif hasattr(self, 'time'): #if something loaded in and going to trim
-            #plt.scatter(self.time, self.intensity, color='red', s=2)
-                
-            self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
-            self.time = self.time[self.cutindexes]
-            self.intensity = self.intensity[self.cutindexes]
-            self.error = self.error[self.cutindexes]
-            if self.lygosbg is not None:
-                self.lygosbg = self.lygosbg[self.cutindexes]
-                
-            if hasattr(self, 'quatsIntensity'): #if cbvs, trim them
-                self.quatsIntensity = self.quatsIntensity[self.cutindexes]
-                self.CBV1 = self.CBV1[self.cutindexes]
-                self.CBV2 = self.CBV2[self.cutindexes]
-                self.CBV3 = self.CBV3[self.cutindexes]
-                self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
-                
-            #self.custommasked = True
-            #plt.scatter(self.time, self.intensity, color='blue', s=2)
-            #plt.xlabel(self.xlabel)
-            #plt.ylabel(self.ylabel)
-            #plt.show()
-            #if saveplot is not None:
-            #    plt.savefig(saveplot)
-            #plt.close()
-            return
-        else:
-            print("No data loaded in yet!! Run again once light curve is loaded")
-            return     
-         
-    def __gen_output_folder(self):
-        """
-        Internal function, sets up output folder for files
-        
-        """
-        # check for an output folder's existence, if not, put it in. 
-        if (self.folderSAVE is None or 
-            self.targetlabel is None or 
-            self.sector is None
-            or self.camera is None or 
-            self.ccd is None):
-            raise ValueError("Cannot generate output folders, one of the parameters is None")
-        
-        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
-        newfolderpath = (self.folderSAVE + internaluse)
-        if not os.path.exists(newfolderpath):
-            os.mkdir(newfolderpath)
-        # make subfolder for this run
-        print(internaluse)
-        print(self.filesavetag)
-        subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
-        if not os.path.exists(subfolderpath):
-            os.mkdir(subfolderpath)
-        self.folderSAVE = subfolderpath + "/"
-        self.parameterSaveFile = self.folderSAVE + internaluse + self.filesavetag + "-output-params.txt"
-        print(self.folderSAVE)
-        return
-    
-    def __setup_fittype_params(self, fitType, args=None, 
-                               logProbFunc = None, plotFit = None,
-                               filesavetag=None, labels=None, init_values=None,
-                               mu = 2, sigma = 1):
-        """
-        1 = single without
-        2 = single with cbv
-        3 = doubel without
-        4 = double with
-        5 = just cbv
-        6 = single lygos bg
-        7 = gaussian prior on beta
-        0 = custom inputs
-        any other number = will exit with an error
-        
-        IF YOU ARE DOING CUSTOM PRIORS:
-            - run under fitType=0
-            - last item in args must be your priors array -- all probability functions
-            come with a positional argument priors=None that this should override
-            
-            
-        """
-        if fitType == 1: # single without
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, self.disctime)
-            else:
-                self.args = args
-            self.logProbFunc = mc.log_probability_singlepower_noCBV
-            self.filesavetag = "-singlepower"
-            self.labels = ["t0", "A", "beta",  "b"]
-            self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
-            self.plotFit = fitType
-            
-        elif fitType == 2: # single with
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, 
-                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                             self.disctime)
-            else:
-                self.args = args
-            
-            self.logProbFunc = mc.log_probability_singlepower_withCBV
-            self.filesavetag = "-singlepower-CBV"
-            self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
-            self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
-            self.plotFit = fitType
-        elif fitType == 3: # double without
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, self.disctime)
-            else:
-                self.args = args
-                
-            self.logProbFunc = mc.log_probability_doublepower_noCBV
-            self.filesavetag = "-doublepower"
-            self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
-            self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-8, self.disctime-4, 0.1, 0.1, 1.8, 1.8, 1))
-            #print(self.init_values)
-            self.plotFit = fitType
-        elif fitType ==4: # double with
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, 
-                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                             self.disctime)
-            else:
-                self.args = args
-            self.logProbFunc = mc.log_probability_doublepower_withCBV
-            self.filesavetag = "-doublepower-CBV"
-            self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  
-                      "cQ", "c1", "c2", "c3"]
-            self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 
-                                    1.8, 1.8, 0,0,0,0))
-            self.plotFit = fitType
-        elif fitType == 5: # just CBVs
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, 
-                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                             self.disctime)
-            else:
-                self.args = args
-            self.logProbFunc = mc.log_probability_justCBV
-            self.filesavetag = "-CBV"
-            self.labels = ["b", "cQ", "c1", "c2", "c3"]
-            self.filelabels = self.labels
-            self.init_values = np.array((1, 0,0,0,0))
-            self.plotFit = fitType
-        elif fitType == 6: # detrending lygos BG
-            if self.lygosbg is None:
-                print("NO LYGOS BG LOADED IN - CANNOT RUN THIS FIT")
-                raise AttributeError("Missing lygosbg!!")
-                return
-            else:
-                self.args = (self.time, self.intensity, self.error, self.lygosbg, 
-                             self.disctime)
-                self.logProbFunc = mc.log_probability_singlePower_LBG
-                self.filesavetag = "-singlepower-lygosBG"
-                self.labels = ["t0", "A", "beta",  "b", "LBG"]
-                self.filelabels = self.labels
-                self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
-                self.plotFit = fitType
-         
-        elif fitType == 7: # gaussian beta
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, self.disctime,
-                             mu, sigma)
-            else:
-                self.args = args
-            self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
-            self.filesavetag = "-singlepower-GBeta"
-            self.labels = ["t0", "A", "beta",  "b"]
-            self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
-            self.plotFit = fitType
-        
-        elif fitType == 0: # diy your stuff
-            self.args = args # LAST ONE MUST BE PRIORS IF USING CUSTOMS
-            self.logProbFunc = logProbFunc
-            self.filesavetag = filesavetag
-            self.labels = labels
-            self.filelabels = self.labels
-            self.init_values = init_values 
-            #print(self.args)
-            self.plotFit = plotFit
-        else:
-            print("THAT IS NOT AN ALLOWED FIT TYPE, EXITING")
-            raise ValueError("not an allowed fit type")
-            
-        if self.binned: # it has to go in this order - need to load, then set args, then set this
-            self.filesavetag = self.filesavetag + "-8HourBin"
-    
-        if self.fractiontrimmed:
-            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-        
-        
-        if filesavetag is not None:
-            self.filesavetag = filesavetag
-        
-        return
-            
-            
-
     def __mcmc_outer_structure(self, n1, n2, thinParams):
         """Fitting things that are NOT GP based
         Params:
@@ -888,9 +888,11 @@ class etsMAIN(object):
             BIC = 50000
         else:
             BIC = BIC[0]
-            
+             
+        
         if self.plotFit < 10:
-            sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.targetlabel, 
+            sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.error,
+                         self.targetlabel, 
                          self.disctime, best_mcmc[0], 
                          flat_samples, self.labels, self.plotFit, self.filesavetag, 
                          self.tmin, self.lygosbg,
@@ -916,45 +918,22 @@ class etsMAIN(object):
         
         return best_mcmc, upper_error, lower_error, BIC
     
-    
-    
-    
-    def run_GP_fit_celerite(self, cutIndices, binYesNo, fraction=None, 
-                   n1=1000, n2=10000, filesavetag=None,
-                   customSigmaRho = None, thinParams=None):
-        """Run the GP fitting 
-        
-        customSigmaRho must unpack as: [sigma start, rho start, sigma lower, sigma upper,
-                                        rho lower, rho upper, sigma frozen, rho frozen]
-        the default run of this is [0.01, 1.2, 0.0001, 0.3, 1, 2, 0, 0]
-        
+    def pre_celerite_setup(self, customSigmaRho=None, filesavetag=None):
+        """ 
+        Set up celerite matern 3-2 kernel (either to default or custom params)
+        customSigmaRho must unpack as: [sigma start, rho start, 
+                                        sigma lower, sigma upper,
+                                        rho lower, rho upper, 
+                                        sigma frozen (bool), rho frozen (bool)]
+        the default run of this is [0.01, 1.2, 
+                                    0.0001, 0.3, 
+                                    1, 2, 
+                                    0, 0]
         """
         if filesavetag is None:
             self.filesavetag = "-matern32-celerite"
         else:
             self.filesavetag = filesavetag
-            
-        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
-            
-        # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=None) 
-                                                 
-        # if doing percent of max fitting
-        if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
-        #make folders to save into
-        self.__gen_output_folder()   
-
-
         #set up kernel
         # SET UP NEW MATERN-32 GP
         if customSigmaRho is None:
@@ -989,30 +968,65 @@ class etsMAIN(object):
                 self.init_values = np.concatenate((self.init_values, initrho))
             
             
-        self.gp = celerite.GP(kernel, mean=1.0)
+        self.gp = celerite.GP(kernel, mean=0.0)
         self.gp.compute(self.time, self.error)
         print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
-        
-        
         # set up arguments etc.
         self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
         self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
         
+        self.celerite_setup = True
+        
+        return
+    
+    
+    def run_GP_fit_celerite(self, cutIndices, binYesNo, fraction=None, 
+                   n1=1000, n2=10000, 
+                   customSigmaRho = None, thinParams=None):
+        """Run the GP fitting 
+        
+        *** must first run pre_celerite_setup()
+        
+        
+        """
+        if not hasattr(self, 'celerite_setup'):
+            #if you have not yet setup the run params
+            raise AttributeError("You have to run pre_celerite_setup() first!")
+            return
+        
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binYesNo: #if need to bin
+            (self.time, self.intensity, 
+             self.error, self.lygosbg,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosbg, QCBVALL=None) 
+                                                 
+        # if doing percent of max fitting
+        if fraction is not None:
+            (self.time, self.intensity, self.error, self.lygosbg, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosbg, 
+                                                   fraction, self.quatsandcbvs)
+        #make folders to save into
+        self.__gen_output_folder()   
+        
         fitType = 10
         self.plotFit = 10
         self.__mcmc_outer_structure(n1, n2, thinParams)
         return
     
-    def __run_GP_fit_tinygp(self, cutIndices, binYesNo, fraction=None, 
+    def run_GP_fit_tinygp(self, cutIndices, binYesNo, fraction=None, 
                           n1=1000, n2=10000, filesavetag=None,
                           thinParams=None):
-        """Run the GP fitting 
-        
-        customSigmaRho must unpack as: [sigma start, rho start, sigma lower, sigma upper,
-                                        rho lower, rho upper, sigma frozen, rho frozen]
-        the default run of this is [0.01, 1.2, 0.0001, 0.3, 1, 2, 0, 0]
+        """
+        GP fitting using tinygp's expsqr stuff
+        Update 10-7-22 - trying to do a GP fit every 100 or 1000 steps?
         
         """
         from tinygp import kernels, GaussianProcess
@@ -1059,7 +1073,7 @@ class etsMAIN(object):
         self.__mcmc_outer_structure(n1, n2, thinParams)
         return
     
-    def run_tinyGP_postfit(self,cutIndices, binYesNo, fraction=None, 
+    def run_postfit_tinygp_fit(self,cutIndices, binYesNo, fraction=None, 
                    n1=1000, n2=10000, filesavetag=None,
                    args=None, thinParams=None, saveBIC=False, 
                    logProbFunc = None, plotFit = None,
@@ -1097,8 +1111,20 @@ class etsMAIN(object):
             )
 
         def neg_log_likelihood(theta, X, y):
+            #this needs to have posteriors
+            
+            lp = 0
+            # if (jnp.exp(theta["log_amps"]) < -10 or 
+            #     jnp.exp(theta["log_amps"]) > 10 or
+            #     jnp.exp(theta["log_scales"]) < -10 or
+            #     jnp.exp(theta["log_scales"]) > 10):
+                
+            #     #if not allowed ->we're minimizing this func output
+            #     #so punish bad values w/ high lp?
+            #     lp = jnp.inf
+            
             gp = build_gp(theta, X)
-            return -gp.log_probability(y)
+            return -gp.log_probability(y) + lp
 
 
         theta_init = {
@@ -1111,6 +1137,8 @@ class etsMAIN(object):
         # `jax` can be used to differentiate functions, and also note that we're calling
         # `jax.jit` for the best performance.
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
+        t = self.time
+        y = residual
 
         print(f"Initial negative log likelihood: {obj(theta_init, t, y)[0]}")
         print(

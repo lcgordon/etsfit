@@ -111,9 +111,9 @@ def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder,
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 
                 filterMade = trlc.window_rms_filt(plot=False)
+                trlc.pre_celerite_setup()
                 trlc.run_GP_fit_celerite(filterMade, binYesNo=False, fraction=None, 
-                               n1=7000, n2=20000, filesavetag=None,
-                               customSigmaRho = None, thinParams=None)
+                               n1=7000, n2=20000, thinParams=None)
                 #del(loadedraw)
                 del(trlc)
                 gc.collect()
