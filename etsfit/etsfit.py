@@ -787,10 +787,12 @@ class etsMAIN(object):
                                         self.logProbFunc,args=self.args) # setup
         sampler.run_mcmc(p0, n1, progress=True) # run it
         
+        #plot burn in chain
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
                               sampler, self.labels, ndim, appendix = "-burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        
         # get intermediate best
         best_mcmc_inter = np.zeros((1,ndim))
         for i in range(ndim):
@@ -900,11 +902,6 @@ class etsMAIN(object):
         elif self.plotFit == 10:
             sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
                             self.error, best_mcmc, self.gp, self.disctime, 
-                            self.tmin,self.targetlabel, self.filesavetag, 
-                            plotComponents=False)
-        elif self.plotfit == 11:
-            sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, 
-                            self.error, best_mcmc, self.disctime, 
                             self.tmin,self.targetlabel, self.filesavetag, 
                             plotComponents=False)
         
@@ -1033,10 +1030,6 @@ class etsMAIN(object):
         import jax
         import jax.numpy as jnp
         
-        if filesavetag is None:
-            self.filesavetag = "-tinygp-expsqr"
-        else:
-            self.filesavetag = filesavetag
             
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if not hasattr(self, 'cutindexes') and cutIndices is not None:
@@ -1057,62 +1050,100 @@ class etsMAIN(object):
                                                    fraction, self.quatsandcbvs)
         #make folders to save into
         self.__gen_output_folder()   
-
-
-        # set up arguments etc.
-        self.args = (self.time,self.intensity, self.error, self.disctime)
-        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0.0, np.log(0.3), np.log(1.1)))
-   
-        self.logProbFunc = mc.log_probability_tinygp
-        self.labels = ["t0", "A", "beta",  "b", r"$\alpha$","length"] 
-        self.filelabels = ["t0", "A", "beta",  "b",  "alpha", "length"]
         
-        fitType = 11
-        self.plotFit = 11
-        print("entering mcmc outer")
-        self.__mcmc_outer_structure(n1, n2, thinParams)
+        #fitting as a type 1 -> uses default params
+        self.__setup_fittype_params(1)
+
+        self.filesavetag = "-tinygp-expsqr"
+        
+        #print("entering mcmc + gp concurrent fitting")
+        self.__mcmc_concurrent_gp(n1, n2, thinParams)
         return
     
-    def run_postfit_tinygp_fit(self,cutIndices, binYesNo, fraction=None, 
-                   n1=1000, n2=10000, filesavetag=None,
-                   args=None, thinParams=None, saveBIC=False, 
-                   logProbFunc = None, plotFit = None,
-                   labels=None, init_values=None):
+    def __mcmc_concurrent_gp(self, n1, n2, thinParams):
+        """Fitting things that are NOT GP based
+        Params:
+            - n1 is an integer number of steps for the first chain
+            - n2 is an integer number of steps for the second chain
+            - thinParams is EITHER NONE (default thinning is used, 1/4 for the first run,
+                                         15% thinning) or [int to discard, thinning percent]
         """
-        Fit a single power law, then fit the tinygp to the residual
-        """
-        self.run_MCMC(n1, n2, thinParams,
-                     saveBIC, args, logProbFunc, plotFit,
-                     filesavetag,
-                     labels, init_values, mu=None, sigma=None)
         
-        t0, A, beta, B = self.best[0]
-        t1 = self.time - t0
-        sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
-        bg = np.ones(len(self.time)) + B
+        print("***")
+        print("***")
+        print("***")
+        print("***")
+        print("Beginning MCMC + GP run")
+         
+        timeModule.sleep(3) # this keeps things running orderly
         
-        residual = self.intensity - sl - bg
+        if thinParams is None:
+            discard1 = int(n1/4)
+            thinning = 15
+        else:
+            discard1, thinning = thinParams
+                              
+
+        # ### MCMC setup
+        np.random.seed(42)
         
-        #fit  tinygp to the residual
+        nwalkers = 100
+        ndim = len(self.labels) # labels are provided when you run it
+        p0 = np.zeros((nwalkers, ndim)) # init positions
+        for n in range(len(p0)): # add a little spice
+            p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
         
+        print("Starting burn-in chain")
+        # ### Initial run
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.logProbFunc,args=self.args) # setup
+        sampler.run_mcmc(p0, n1, progress=True) # run it
+        
+        #plot burn in chain
+        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
+                              sampler, self.labels, ndim, appendix = "-burnin")
+    
+        flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        
+        # get intermediate best
+        best_mcmc_inter = np.zeros((1,ndim))
+        for i in range(ndim):
+            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+            best_mcmc_inter[0][i] = mcmc[1]
+            
+        # ### Main run
+        np.random.seed(50)
+        p0 = np.zeros((nwalkers, ndim))
+        for i in range(nwalkers): # reinitialize the walkers around prev. best
+            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, ndim)
+           
+        sampler.reset()
+        
+        # ### CORRELATION FUNCTION/GP FIT
+        index = 0 # number of checks
+        autocorr = np.empty(n2) # total possible checks
+        old_tau = np.inf
+        autoStep = 100 # how often to check
+        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
+        
+        
+        from tinygp import kernels, GaussianProcess
         import jax
         import jax.numpy as jnp
-        from tinygp import kernels, GaussianProcess
         jax.config.update("jax_enable_x64", True)
-
-
-        def build_gp(theta, X):
-            amps = jnp.exp(theta["log_amps"])
-            scales = jnp.exp(theta["log_scales"])
-
-            k1 = amps[0] * kernels.ExpSquared(scales[0])
-            return GaussianProcess(
-                k1, X, diag=jnp.exp(theta["log_diag"]), mean=theta["mean"]
-            )
-
+        
+        def make_residual(x, y, best_mcmc):
+            t0, A,beta,B = best_mcmc
+            t1 = x - t0
+            sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
+            bg = np.ones(len(x)) + B
+            return y - sl - bg
+        #set up amps, scales, initial GP
+        @jax.jit 
         def neg_log_likelihood(theta, X, y):
-            #this needs to have posteriors
-            
+            """ 
+            calc the neg. log prob. 
+            this needs to have the priors added somehow
+            """
             lp = 0
             # if (jnp.exp(theta["log_amps"]) < -10 or 
             #     jnp.exp(theta["log_amps"]) > 10 or
@@ -1125,20 +1156,32 @@ class etsMAIN(object):
             
             gp = build_gp(theta, X)
             return -gp.log_probability(y) + lp
+        
+        
+        def build_gp(theta, X):
+            """make the gp"""
+            amps = jnp.exp(theta["log_amps"])
+            scales = jnp.exp(theta["log_scales"])
 
-
+            k1 = amps[0] * kernels.ExpSquared(scales[0])
+            return GaussianProcess(
+                k1, X, mean=theta["mean"]
+            )
+        
         theta_init = {
             "mean": np.float64(0.0),
-            "log_diag": np.log(0.19),
-            "log_amps": np.log([10.0]),
-            "log_scales": np.log([5.0]),
+            "log_amps": np.log((max(self.intensity) - min(self.intensity)) * 0.1),
+            "log_scales": np.log(1.1)
         }
+        
 
         # `jax` can be used to differentiate functions, and also note that we're calling
         # `jax.jit` for the best performance.
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
         t = self.time
-        y = residual
+        
+        #calculate residual from intermediate best:
+        y = make_residual(t, self.intensity, best_mcmc_inter[0])
 
         print(f"Initial negative log likelihood: {obj(theta_init, t, y)[0]}")
         print(
@@ -1156,16 +1199,200 @@ class etsMAIN(object):
         
         
         
-        #plot the residual stuff
-        best_mcmc = [t0, A, beta, B, amps, scales]
+        # sample up to n2 steps
+        for sample in sampler.sample(p0, iterations=n2, progress=True):
+            # Only check convergence every 100 steps
+            if sampler.iteration % autoStep:
+                continue
+            # Compute the autocorrelation time so far
+            tau = sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
+            if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
+                print("autocorr is nan or inf")
+                print(tau)
+            autocorr[index] = np.mean(tau) # save mean autocorr time
+            autocorr_all[index] = tau # save all autocorr times for plotting
+            index += 1 # how many times have you saved it
+        
+            # Check convergence
+            converged = np.all((tau * 100) < sampler.iteration)
+            converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
+            if converged:
+                print("Converged, ending chain")
+                break
+            old_tau = tau
+        
+        # ######
+        #plot autocorr things
+        ########
+        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
+                              autocorr, converged, 
+                              autoStep, self.filesavetag)
+        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
+                                    autocorr_all, autoStep, self.labels,
+                                    self.filelabels, 
+                                    self.filesavetag)
+        
+            
+        #thin and burn out dump
+        tau = sampler.get_autocorr_time(tol=0)
+        if (np.max(tau) < (sampler.iteration/50)):
+            burnin = int(2 * np.max(tau))
+            thinning = int(0.5 * np.min(tau))
+        else:
+            burnin = int(n2/4)
+
+        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
+        
+        # plot chains, parameters
+        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
+                              sampler, self.labels, ndim, appendix = "-production")
+        
+        sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
+                                  self.targetlabel, self.filesavetag)
+        
+        print(len(flat_samples), "samples post second run")
+    
+        # ### BEST FIT PARAMS
+        best_mcmc = np.zeros((1,ndim))
+        upper_error = np.zeros((1,ndim))
+        lower_error = np.zeros((1,ndim))
+        for i in range(ndim):
+            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+            q = np.diff(mcmc)
+            print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
+            best_mcmc[0][i] = mcmc[1]
+            upper_error[0][i] = q[1]
+            lower_error[0][i] = q[0]
+     
+        logprob, blob = sampler.compute_log_prob(best_mcmc)
+
+        # ### BIC
+        #print(np.log(len(self.time)))
+        print("log prob:", logprob)
+        BIC = ndim * np.log(len(self.time)) - 2 * logprob
+        print("BAYESIAN INF CRIT: ", BIC)
+        if np.isnan(np.float64(BIC[0])): # if it's a nan
+            BIC = 50000
+        else:
+            BIC = BIC[0]
+             
+        
+        if self.plotFit < 10:
+            sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.error,
+                         self.targetlabel, 
+                         self.disctime, best_mcmc[0], 
+                         flat_samples, self.labels, self.plotFit, self.filesavetag, 
+                         self.tmin, self.lygosbg,
+                         self.quatsandcbvs)
+        elif self.plotFit == 10:
+            sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
+                            self.error, best_mcmc, self.gp, self.disctime, 
+                            self.tmin,self.targetlabel, self.filesavetag, 
+                            plotComponents=False)
+        
+        with open(self.parameterSaveFile, 'w') as file:
+            #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
+            file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
+                                                                   upper=upper_error[0],
+                                                                   lower=lower_error[0]))
+            file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
+                                                                conv=converged))
+        
+        return best_mcmc, upper_error, lower_error, BIC
+    
+    # def run_postfit_tinygp_fit(self,cutIndices, binYesNo, fraction=None, 
+    #                n1=1000, n2=10000, filesavetag=None,
+    #                args=None, thinParams=None, saveBIC=False, 
+    #                logProbFunc = None, plotFit = None,
+    #                labels=None, init_values=None):
+    #     """
+    #     Fit a single power law, then fit the tinygp to the residual
+    #     """
+    #     self.run_MCMC(n1, n2, thinParams,
+    #                  saveBIC, args, logProbFunc, plotFit,
+    #                  filesavetag,
+    #                  labels, init_values, mu=None, sigma=None)
+        
+    #     t0, A, beta, B = self.best[0]
+    #     t1 = self.time - t0
+    #     sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
+    #     bg = np.ones(len(self.time)) + B
+        
+    #     residual = self.intensity - sl - bg
+        
+    #     #fit  tinygp to the residual
+        
+    #     import jax
+    #     import jax.numpy as jnp
+    #     from tinygp import kernels, GaussianProcess
+    #     jax.config.update("jax_enable_x64", True)
+
+
+    #     def build_gp(theta, X):
+    #         amps = jnp.exp(theta["log_amps"])
+    #         scales = jnp.exp(theta["log_scales"])
+
+    #         k1 = amps[0] * kernels.ExpSquared(scales[0])
+    #         return GaussianProcess(
+    #             k1, X, diag=jnp.exp(theta["log_diag"]), mean=theta["mean"]
+    #         )
+
+    #     def neg_log_likelihood(theta, X, y):
+    #         #this needs to have posteriors
+            
+    #         lp = 0
+    #         # if (jnp.exp(theta["log_amps"]) < -10 or 
+    #         #     jnp.exp(theta["log_amps"]) > 10 or
+    #         #     jnp.exp(theta["log_scales"]) < -10 or
+    #         #     jnp.exp(theta["log_scales"]) > 10):
+                
+    #         #     #if not allowed ->we're minimizing this func output
+    #         #     #so punish bad values w/ high lp?
+    #         #     lp = jnp.inf
+            
+    #         gp = build_gp(theta, X)
+    #         return -gp.log_probability(y) + lp
+
+
+    #     theta_init = {
+    #         "mean": np.float64(0.0),
+    #         "log_diag": np.log(0.19),
+    #         "log_amps": np.log([10.0]),
+    #         "log_scales": np.log([5.0]),
+    #     }
+
+    #     # `jax` can be used to differentiate functions, and also note that we're calling
+    #     # `jax.jit` for the best performance.
+    #     obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
+    #     t = self.time
+    #     y = residual
+
+    #     print(f"Initial negative log likelihood: {obj(theta_init, t, y)[0]}")
+    #     print(
+    #         f"Gradient of the negative log likelihood, wrt the parameters:\n{obj(theta_init, t, y)[1]}"
+    #     )
+    #     import jaxopt
+
+    #     solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+    #     soln = solver.run(theta_init, X=t, y=y)
+    #     print(f"Final negative log likelihood: {soln.state.fun_val}")
+
+    #     print(soln.params)
+    #     amps = np.exp(soln.params["log_amps"][0])
+    #     scales = np.exp(soln.params["log_scales"][0])
         
         
-        #needs to contain the four first and then the gp params
-        sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, 
-                               self.intensity, self.error, best_mcmc,
-                                self.disctime, t0, self.tmin,
-                                self.targetlabel, self.filesavetag, 
-                                plotComponents=False)
         
-        return
+    #     #plot the residual stuff
+    #     best_mcmc = [t0, A, beta, B, amps, scales]
+        
+        
+    #     #needs to contain the four first and then the gp params
+    #     sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, 
+    #                            self.intensity, self.error, best_mcmc,
+    #                             self.disctime, t0, self.tmin,
+    #                             self.targetlabel, self.filesavetag, 
+    #                             plotComponents=False)
+        
+    #     return
         

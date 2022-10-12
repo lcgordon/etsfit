@@ -20,16 +20,42 @@ from pylab import rcParams
 import etsfit.utils.snPlotting as sp
 import etsfit.utils.utilities as ut
 
+def retrieve_disctimes(datafolder, info):
+    disctimeall = []
+    for root, dirs, files in os.walk(datafolder):
+        for name in files:
+            if name.endswith("-tessreduce"):
+                targ = name.split("-")[0][:-4]
+                #print(targ)
+                if targ not in gList:
+                    continue
+                holder = root + "/" + name
+                (time, intensity, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(holder)
+
+                #get discovery time
+                d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
+                discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
+                tmin = time[0]
+                time = time - tmin
+                disctime = discoverytime-tmin
+                disctimeall.append(disctime)
+    return disctimeall 
+
 datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
 foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
 quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 
-gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2020xyw", "2020hvq", 
-         "2020hdw", "2020bj", "2019gqv"]
+gList = ["2018exc", "2018fhw", "2018fub", 
+         "2020tld", "2020hvq", 
+         "2020hdw", "2019gqv"]
 
+info = pd.read_csv(bigInfoFile)
 #cmd + 1 to comment
+discall = retrieve_disctimes(datafolder, info)
 t0all = []
 Aall= []
 betaall = []
@@ -37,11 +63,13 @@ Ball = []
 for root, dirs, files in os.walk(foldersave):
     for name in files:
         if name.endswith("singlepower-output-params.txt"):
-            targ = name.split("-")[0][:-4]
+            targ = name.split("-")[0]
+            print(targ)
             #print(targ[:-4])
-            if targ not in gList:
+            if targ[:-4] not in gList:
                 continue
 
+            
             filepath = root + "/" + name
             #print(filepath)
             filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
@@ -79,7 +107,13 @@ for root, dirs, files in os.walk(foldersave):
 
           
 sp.plot_histogram(np.asarray(betaall), 32, "beta", 
-                  "/Users/lindseygordon/research/urop/plotOutput/good_histo_only.png")
+                  "/Users/lindseygordon/research/urop/plotOutput/good_betahisto_only.png")
+
+time_between = np.asarray(discall)-np.asarray(t0all)
+plt.scatter(np.asarray(betaall), time_between)
+#%%
+   
+
 #%%
 def extract_singlepowerparams_from_file(filepath):
     
@@ -100,68 +134,79 @@ def extract_singlepowerparams_from_file(filepath):
     return t0,A,beta,B
 
 
-#load in and plot 3 things
-rerunspartials = 
-nrows = 2
-ncols = 3
-
-fig, ax = plt.subplots(nrows, ncols, sharex=True,
-                           figsize=(8*ncols * 2, 3*nrows * 2))
-#write down the name sof the ones you want and then give it the folders to skim the actual files from
-lc_to_load = ["2020tld", "2018hkx", "2018fhw"]
+#%%
+bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-outputfolder = "/Users/lindseygordon/research/urop/plotOutput/"
-bigFile = "/Users/lindseygordon/research/urop/Ia18thmag.csv"
-info = pd.read_csv(bigFile)
+CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
+quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
+quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 
-for i in range(len(lc_to_load)):
-    for root,dirs,files in os.walk(datafolder):
-        for f in files:
-            if lc_to_load[i] in f and f.endswith("tessreduce"):
-                (time, intensity, error, 
-                 targetlabel, sector, camera, ccd) = ut.tr_load_lc(root + "/" + f)
-                d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
-                discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                tmin = time[0]
-                time -= tmin
-                discoverytime -= tmin
+gList = ["2018exc", "2018fhw", "2018fub", 
+         "2020tld", "2020hvq", 
+         "2020hdw", "2019gqv"]
+
+nrows = 4
+ncols = 2
+
+fig, ax = plt.subplots(nrows, ncols, sharex=False,
+                           figsize=(8*ncols, 3*nrows))
+
+#plotting all on gList
+info = pd.read_csv(bigInfoFile)
+i = 0
+m = 0
+n = 0
+for root, dirs, files in os.walk(datafolder):
+    for name in files:
+        if name.endswith("-tessreduce"):
+            targ = name.split("-")[0][:-4]
+            #print(targ)
+            if targ not in gList:
+                continue
+            holder = root + "/" + name
+            (time, intensity, error, targetlabel, 
+             sector, camera, ccd) = ut.tr_load_lc(holder)
+
+            #get discovery time
+            d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
+            discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
+            tmin = time[0]
+            time = time - tmin
+            disctime = discoverytime-tmin
+            #print(discoverytime)
+            #run it
+            #m row n col
+            ax[m,n].scatter(time, intensity, color='black', s=2, label="Raw")
+            ax[m,n].set_title(targetlabel, fontsize=14)
+            ax[m,n].axvline(disctime, label="Disc. time")
+            ax[m,n].set_xlabel("BJD - {timestart:.2f}".format(timestart=tmin), fontsize=10)
+            ax[m,n].set_ylabel("flux (e-/s)", fontsize=10)
+            ax[m,n].legend(loc="upper left", fontsize=8)
+            
+            if n<(ncols-1):
+                n=n+1
+            else:
+                m=m+1
+                n=0
                 
-                rms_filt = ut.window_rms(time, intensity, innerfilt = None, outerfilt = None,
-                                    plot=False)
-                
-                ax[0,i].scatter(time, intensity, s=1, color='red', label = "TR raw")
-                rms_filt_plot = np.nonzero(rms_filt)
-                ax[0,i].scatter(time[rms_filt_plot], intensity[rms_filt_plot], s=5, color='black', label = "TR filtered")
-                ax[0,i].axvline(discoverytime, color="green", linestyle="dashed", label = "disc. time")
-                ax[1,i].axvline(discoverytime, color="green", linestyle="dashed", label = "disc. time")
-                
-                #load in parameters:
-                for root1, dirs1, files1 in os.walk(outputfolder):
-                    for f1 in files1:
-                        if lc_to_load[i] in f1 and f1.endswith("singlepower-output-params.txt"):
-                            filepath = root1 + "/" + f1
-                            #print(filepath)
-                            t0,A,beta,B = extract_singlepowerparams_from_file(filepath)
-                            break   
-                        
-                #build model, plot model
-                t1 = time - t0
-                model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
-                ax[0,i].plot(time, model, color="blue", label="model")
-                ax[0,i].axvline(t0, linestyle="dashed", color="purple", label="t0")
-                ax[1,i].axvline(t0, linestyle="dashed", color="purple", label="t0")
-                ax[0,i].axhline(B, linestyle="dashed", label = "B")
-                
-                ax[1,i].scatter(time[rms_filt_plot], (intensity-model)[rms_filt_plot], color = "black", s=5, label="residuals")
-                ax[1,i].axhline(0, color='darkgreen', linestyle='dashed')
-                ax[0,i].set_ylabel("Raw TR Flux")
-                ax[1,i].set_ylabel("Residual Flux")
-                ax[0,i].set_title(targetlabel)
-                ax[1,i].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
-                
-                ax[0,i].legend(loc="upper left", fontsize=12)
-                ax[1,i].legend(loc="lower left", fontsize=12)
-                
-#fig.suptitle("Good, Average, Ugly")
-plt.tight_layout()
-#plt.savefig("/Users/lindseygordon/research/urop/plotOutput/triplePlotTest.png")
+fig.tight_layout()
+
+
+#%%
+
+class fake(object):
+    """Make one of these for the light curve you're going to fit!"""
+    
+    def __init__(self):
+        self.n = 1
+        self.args = (10,20, self.n)
+        
+    def testy(self):
+        for i in range(40):
+            if i%5 == 0:
+                self.n = self.n+1
+            print(self.args)
+            
+h = fake()
+h.testy()

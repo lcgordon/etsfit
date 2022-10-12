@@ -331,28 +331,21 @@ def log_probability_celerite(theta, x, y, yerr, disctime, gp, priors=None):
 
 @jax.jit 
 def tinygp_loglike(residual, x, amps, scales):
-    amps 
     kernel = jnp.exp(amps) * kernels.ExpSquared(jnp.exp(scales))
     gp = GaussianProcess(kernel, x, mean=0.0)
     return -1 * gp.log_probability(residual)
    
-def log_probability_tinygp(theta, x, y, yerr, disctime, priors=None):
+    
+def log_probability_tinygp(theta, x, y, yerr, disctime, n=None):
         """tinygp squared exponential log probability fxn"""
         
         #print("ENTERED PROBABILITY FUNCTION")
         t0, A, beta, b, amps, scales = theta
 
         #check priors:
-        
-        if priors is None: #if you didn't feed it something else
-            priors = [x[0], disctime, 0.001, 5, 0.5, 6]
-            
-        #check the regular priors
-        #print("checking priors")
+        priors = [x[0], disctime, 0.001, 5, 0.5, 6]
         lp = check_priors(priors, theta)
-        #check the gp priors:
-        #lp += check_priors([0.0, 1.0, 0.0, 3.0], [amps, scales])    
-        
+
         #if lp is no good   
         if not np.isfinite(lp):
             return -np.inf, -np.inf #ll, lp
@@ -361,6 +354,10 @@ def log_probability_tinygp(theta, x, y, yerr, disctime, priors=None):
         t1 = x - t0
         model = ((np.heaviside((t1), 1) * A 
                   *np.nan_to_num((t1**beta))) + 1 + b)
+        
+        if n is not None and n%1000==0: #if doing tinygp AND on one of the optimizing guys
+            
+        
         
         residual = jnp.asarray(y - model)
         #print("building gp")
