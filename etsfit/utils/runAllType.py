@@ -12,11 +12,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
-#from etsfit import etsMAIN
+
 from astropy.time import Time
 import gc
+from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
-import etsfit
+#import etsfit
 
 
 lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
@@ -156,14 +157,14 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 filterMade = trlc.window_rms_filt(plot=False)
                 trlc.pre_run_clean(1, cutIndices=filterMade, 
                                    binYesNo = False, fraction = fraction)
-                trlc.run_tinyGP_postfit(filterMade, binYesNo=False, fraction=fraction, 
+                trlc.run_GP_fit_tinygp(filterMade, binYesNo=False, fraction=fraction, 
                                n1=7000, n2=20000, filesavetag="-tinygp-post-fit",
-                               args=None, thinParams=None, saveBIC=False, 
-                               logProbFunc = None, plotFit = None,
-                               labels=None, init_values=None)
+                               thinParams=None)
+                
+                print(trlc.logamps, trlc.logscales)
                 
                 #del(loadedraw)
-                del(trlc)
+                #del(trlc)
                 gc.collect()
                 i+=1
     return

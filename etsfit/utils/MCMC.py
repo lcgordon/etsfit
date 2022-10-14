@@ -96,7 +96,7 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, disctime, priors=None):
         t0, A, beta, b = theta
         # handle log priors
         if priors is None: #if you didn't feed it something else
-            priors = [x[0], x[-1], 0.0, 10.0, 0.5, 6.0]
+            priors = [x[0], x[-1], 0.0, 30.0, 0.5, 6.0]
         lp = check_priors(priors, theta)
     
         # if not allowed values
@@ -329,44 +329,44 @@ def log_probability_celerite(theta, x, y, yerr, disctime, gp, priors=None):
         
         return ll+lp, lp
 
-@jax.jit 
-def tinygp_loglike(residual, x, amps, scales):
-    kernel = jnp.exp(amps) * kernels.ExpSquared(jnp.exp(scales))
-    gp = GaussianProcess(kernel, x, mean=0.0)
-    return -1 * gp.log_probability(residual)
+# @jax.jit 
+# def tinygp_loglike(residual, x, amps, scales):
+#     kernel = jnp.exp(amps) * kernels.ExpSquared(jnp.exp(scales))
+#     gp = GaussianProcess(kernel, x, mean=0.0)
+#     return -1 * gp.log_probability(residual)
    
     
-def log_probability_tinygp(theta, x, y, yerr, disctime, n=None):
-        """tinygp squared exponential log probability fxn"""
+# def log_probability_tinygp(theta, x, y, yerr, disctime, n=None):
+#         """tinygp squared exponential log probability fxn"""
         
-        #print("ENTERED PROBABILITY FUNCTION")
-        t0, A, beta, b, amps, scales = theta
+#         #print("ENTERED PROBABILITY FUNCTION")
+#         t0, A, beta, b, amps, scales = theta
 
-        #check priors:
-        priors = [x[0], disctime, 0.001, 5, 0.5, 6]
-        lp = check_priors(priors, theta)
+#         #check priors:
+#         priors = [x[0], disctime, 0.001, 5, 0.5, 6]
+#         lp = check_priors(priors, theta)
 
-        #if lp is no good   
-        if not np.isfinite(lp):
-            return -np.inf, -np.inf #ll, lp
+#         #if lp is no good   
+#         if not np.isfinite(lp):
+#             return -np.inf, -np.inf #ll, lp
 
-        #build model, calc likelihood
-        t1 = x - t0
-        model = ((np.heaviside((t1), 1) * A 
-                  *np.nan_to_num((t1**beta))) + 1 + b)
+#         #build model, calc likelihood
+#         t1 = x - t0
+#         model = ((np.heaviside((t1), 1) * A 
+#                   *np.nan_to_num((t1**beta))) + 1 + b)
         
-        if n is not None and n%1000==0: #if doing tinygp AND on one of the optimizing guys
+#         if n is not None and n%1000==0: #if doing tinygp AND on one of the optimizing guys
             
         
         
-        residual = jnp.asarray(y - model)
-        #print("building gp")
-        ll =  tinygp_loglike(residual, t1, amps, scales) #fit the GP to JUST the residual
+#         residual = jnp.asarray(y - model)
+#         #print("building gp")
+#         ll =  tinygp_loglike(residual, t1, amps, scales) #fit the GP to JUST the residual
         
-        yerr2 = yerr**2.0
-        ll += -0.5 * jnp.nansum((residual) ** 2 / yerr2 + jnp.log(yerr2))
-        #if ll is no good
-        if not np.isfinite(ll):
-            return lp, -np.inf
+#         yerr2 = yerr**2.0
+#         ll += -0.5 * jnp.nansum((residual) ** 2 / yerr2 + jnp.log(yerr2))
+#         #if ll is no good
+#         if not np.isfinite(ll):
+#             return lp, -np.inf
         
-        return ll+lp, lp
+#         return ll+lp, lp

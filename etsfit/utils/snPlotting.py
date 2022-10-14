@@ -353,7 +353,8 @@ def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp,
     return
 
 def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
-                        disctime, t0, tmin,targetlabel, filesavetag, 
+                        logamps, logscales, 
+                        disctime, tmin,targetlabel, filesavetag, 
                         plotComponents=False):
     """Plot the best fit model from the mcmc run w/ tinyGP on """
     import jax
@@ -364,7 +365,7 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
     t1 = time - t0
     sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    kernel = best_mcmc[4] * kernels.ExpSquared(best_mcmc[5])
+    kernel = np.exp(logamps) * kernels.ExpSquared(np.exp(logscales))
     gp = GaussianProcess(kernel, time, mean=0.0)
     
     bg = gp.predict(intensity-sl, time, return_cov=False)
@@ -447,7 +448,7 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     #bg, var = gp.predict(residual1, time, return_var=True)
     #err_bg = np.sqrt(var)
     ax[1].scatter(time, residual1, label = "Model  Residual", s = 5, color = 'black')
-    ax[1].plot(time, bg, label="GP", color="green")
+    ax[1].plot(time, bg, label="GP", color="green", alpha=0.5)
     ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
     
     
@@ -476,4 +477,18 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     plt.savefig(pathSave + targetlabel + filesavetag + gpfiletag)
     plt.show()
     plt.close()
+    return
+
+def plot_tinygp_ll(pathsave, gpll, targetlabel, filesavetag):
+    rcParams['figure.figsize'] = 10,10
+    x = np.arange(0, len(gpll), 1) * 1000 #x axis
+    plt.scatter(x, gpll)
+    plt.xlabel("Step")
+    plt.ylabel("GP Neg. Log Likelihood")
+    plt.title(targetlabel + "  GP log likelihood over MCMC steps")
+    plt.tight_layout()
+    plt.savefig(pathsave + targetlabel + filesavetag + "GP-loglike-steps.png")
+    plt.show()
+    plt.close()
+    rcParams['figure.figsize'] = 16,6
     return
