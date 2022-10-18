@@ -15,9 +15,12 @@ import os
 
 from astropy.time import Time
 import gc
-from etsfit import etsMAIN
+#from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
-#import etsfit
+import etsfit
+
+
+
 
 
 lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
@@ -26,6 +29,9 @@ bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-I
 foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
 quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+
+#trlc = etsMAIN(foldersave, bigInfoFile)
+#trlc.test(opt="six", optional=True)
 
 
 def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder, 
@@ -158,10 +164,10 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 trlc.pre_run_clean(1, cutIndices=filterMade, 
                                    binYesNo = False, fraction = fraction)
                 trlc.run_GP_fit_tinygp(filterMade, binYesNo=False, fraction=fraction, 
-                               n1=7000, n2=20000, filesavetag="-tinygp-post-fit",
+                               n1=7000, n2=20000, gpUSE="expsqr",
                                thinParams=None)
                 
-                print(trlc.logamps, trlc.logscales)
+                #print(trlc.logamps, trlc.logscales, trlc.gpmean)
                 
                 #del(loadedraw)
                 #del(trlc)

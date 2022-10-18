@@ -353,8 +353,8 @@ def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp,
     return
 
 def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
-                        logamps, logscales, 
-                        disctime, tmin,targetlabel, filesavetag, 
+                        gp,
+                        disctime, tmin, targetlabel, filesavetag, 
                         plotComponents=False):
     """Plot the best fit model from the mcmc run w/ tinyGP on """
     import jax
@@ -365,8 +365,8 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
     t1 = time - t0
     sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    kernel = np.exp(logamps) * kernels.ExpSquared(np.exp(logscales))
-    gp = GaussianProcess(kernel, time, mean=0.0)
+    #kernel = np.exp(solnparams['log_amps']) * kernels.ExpSquared(np.exp(solnparams['log_scales']))
+    #gp = GaussianProcess(kernel, time, mean=solnparams['mean'])
     
     bg = gp.predict(intensity-sl, time, return_cov=False)
 

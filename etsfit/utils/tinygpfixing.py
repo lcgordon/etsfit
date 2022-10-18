@@ -84,6 +84,8 @@ def neg_log_likelihood(theta, X, y):
     lp = 0
     #this is going to need priors somehow??
     gp = build_gp(theta, X)
+    #print(-gp.log_probability(y))
+    print(type(-gp.log_probability(y)))
     return -gp.log_probability(y) + lp
 
 
@@ -100,10 +102,7 @@ obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
 
 print(f"Initial negative log likelihood: {obj(theta_init, t, y)[0]}")
 
-print(
-    f"Gradient of the negative log likelihood, wrt the parameters:\n{obj(theta_init, t, y)[1]}"
-)
-
+#%%
 import jaxopt
 
 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)

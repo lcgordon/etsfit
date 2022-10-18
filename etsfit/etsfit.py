@@ -40,6 +40,12 @@ from celerite import terms
 import warnings
 warnings.filterwarnings("ignore")
 
+from tinygp import kernels, GaussianProcess
+import jax
+import jax.numpy as jnp
+import jaxopt
+jax.config.update("jax_enable_x64", True)
+
 
 class etsMAIN(object):
     """Make one of these for the light curve you're going to fit!"""
@@ -928,7 +934,7 @@ class etsMAIN(object):
                                     0, 0]
         """
         if filesavetag is None:
-            self.filesavetag = "-matern32-celerite"
+            self.filesavetag = "-celerite-matern32"
         else:
             self.filesavetag = filesavetag
         #set up kernel
@@ -1019,17 +1025,14 @@ class etsMAIN(object):
         return
     
     def run_GP_fit_tinygp(self, cutIndices, binYesNo, fraction=None, 
-                          n1=1000, n2=10000, filesavetag=None,
+                          n1=1000, n2=10000, gpUSE = "expsqr",
                           thinParams=None):
         """
-        GP fitting using tinygp's expsqr stuff
-        Update 10-7-22 - trying to do a GP fit every 100 or 1000 steps?
+        GP fitting using tinygp's stuff
+        Update 10-7-22 - GP fit every 1000 steps
+        Update 10-118-22 - GP for different types of fits
         
         """
-        from tinygp import kernels, GaussianProcess
-        import jax
-        import jax.numpy as jnp
-        self.filesavetag = "-tinygp-expsqr"
         
             
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
@@ -1049,17 +1052,90 @@ class etsMAIN(object):
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
                                                    self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
+       
+        #set up gpUSE settings
+        self.__gp_setup(gpUSE=gpUSE)                                          
         #make folders to save into
         self.__gen_output_folder()   
-        
-        #fitting as a type 1 -> uses default params
-        self.__setup_fittype_params(1)
-
-        #reset what got fucked fby setfittypeparams
-        self.filesavetag = "-tinygp-expsqr"
-        
         #print("entering mcmc + gp concurrent fitting")
         self.__mcmc_concurrent_gp(n1, n2, thinParams)
+        return
+   
+    def __gp_setup(self, gpUSE='expsqr'):
+        """ 
+        Internal function to set up the tinygp run
+        """
+        
+        self.plotFit = 1
+        self.fitType = 1
+        self.args = (self.time, self.intensity, self.error, self.disctime)
+        self.logProbFunc = mc.log_probability_singlepower_noCBV
+        self.labels = ["t0", "A", "beta",  "b"]
+        self.filelabels = self.labels
+        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+        
+        if gpUSE == 'expsqr':
+            self.filesavetag = "-tinygp-expsqr"
+            self.theta = {
+                "mean": np.float64(0.0),
+                "log_amps": np.log(2),
+                "log_scales": np.log(1),
+            }
+            self.build_gp = self.__build_tinygp_expsqr #no quotes on it
+            self.update_theta = self.__update_theta_ampsscale
+            
+        elif gpUSE == 'matern32':
+            self.filesavetag = "-tinygp-matern32"
+            self.theta = {
+                "mean":np.float64(0.0),
+                "log_amps": np.log(2),
+                "log_scales": np.log(1),
+            }
+            self.build_gp = self.__build_tinygp_matern32 #no quotes on it
+            self.update_theta = self.__update_theta_ampsscale
+        elif gpUSE == 'expsinsqr':
+            self.filesavetag = "-tinygp-expsinsqr"
+            self.theta = {
+                "mean":np.float64(0.0),
+                "log_amps": np.log(2),
+                "log_scales": np.log(1),
+                "log_gamma": np.log(1),
+            }
+            self.build_gp = self.__build_tinygp_expsinsqr #no quotes on it
+            self.update_theta = self.__update_theta_ampsscalegamma
+        
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
+            self.filesavetag = self.filesavetag + "-8HourBin"
+    
+        if self.fractiontrimmed:
+            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+        return
+    
+    def __build_tinygp_matern32(self, theta, X):
+        """Make the matern3-2 kernel """
+        k1 = jnp.exp(theta["log_amps"]) * kernels.Matern32(jnp.exp(theta["log_scales"]))
+        return GaussianProcess(k1, X, mean=theta["mean"])
+    
+    def __build_tinygp_expsinsqr(self, theta, X):
+        """Make the expssinqr kernel """
+        k1 = jnp.exp(theta["log_amps"]) * kernels.Matern32(jnp.exp(theta["log_scales"]),
+                                                           jnp.exp(theta["log_gamma"]))
+        return GaussianProcess(k1, X, mean=theta["mean"])
+    
+    def __build_tinygp_expsqr(self, theta, X):
+        """Make the expsqr kernel """
+        k1 = jnp.exp(theta["log_amps"]) * kernels.ExpSquared(jnp.exp(theta["log_scales"]))
+        return GaussianProcess(k1, X, mean=theta["mean"])
+    
+    def __update_theta_ampsscale(self, solnparams):
+        self.theta["log_amps"] = solnparams["log_amps"]
+        self.theta["log_scales"] = solnparams["log_scales"]
+        return
+    
+    def __update_theta_ampsscalegamma(self, solnparams):
+        self.theta["log_amps"] = solnparams["log_amps"]
+        self.theta["log_scales"] = solnparams["log_scales"]
+        self.theta['log_gamma'] = solnparams['log_gamma']
         return
     
     def __mcmc_concurrent_gp(self, n1, n2, thinParams):
@@ -1136,55 +1212,30 @@ class etsMAIN(object):
             bg = np.ones(len(x)) + B
             return y - sl - bg
         
-        t = self.time
-
         #calculate residual from intermediate best:
-        y = make_residual(t, self.intensity, best_mcmc_inter[0])
-        plt.scatter(t, y)
+        res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+        plt.scatter(self.time, res)
         plt.show()
         plt.close()
         print("created residual")
         
-        from tinygp import kernels, GaussianProcess
-        import jax
-        import jax.numpy as jnp
-        import jaxopt
-        jax.config.update("jax_enable_x64", True)
-
-        def build_gp(theta, X):
-            amps = jnp.exp(theta["log_amps"])
-            scales = jnp.exp(theta["log_scales"])
-
-            # Construct the kernel by multiplying and adding `Kernel` objects
-            k1 = amps * kernels.ExpSquared(scales)
-            
-
-            return GaussianProcess(k1, X, mean=theta["mean"])
 
         def neg_log_likelihood(theta, X, y):
             lp = 0
             #this is going to need priors somehow??
-            gp = build_gp(theta, X)
+            gp = self.build_gp(theta, X)
             return -gp.log_probability(y) + lp
 
-
-        theta_init = {
-            "mean": np.float64(0.0),
-            "log_amps": np.log(2),
-            "log_scales": np.log(1),
-        }
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
 
-        print(f"Initial negative log likelihood: {obj(theta_init, t, y)[0]}")
+        print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
         solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-        soln = solver.run(theta_init, X=t, y=y)
+        soln = solver.run(self.theta, X=self.time, y=res)
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
-        theta_init["log_amps"] = soln.params["log_amps"]
-        theta_init["log_scales"] = soln.params["log_scales"]
-        
+        self.update_theta(soln.params)
         self.GP_LL_all = [soln.state.fun_val]
         
 
@@ -1193,24 +1244,18 @@ class etsMAIN(object):
             
             #refit the GP every 1000 steps
             if sampler.iteration % 1000 == 0:
-                #print("\Refitting GP:")
                 #new residual:
                 flat_samples = sampler.get_chain(flat=True)
-                
                 # get intermediate best
                 best_mcmc_inter = np.zeros((1,ndim))
                 for i in range(ndim):
                     best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
                     
-                y = make_residual(t, self.intensity, best_mcmc_inter[0])
-                #fit
+                res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-                soln = solver.run(theta_init, X=t, y=y)
-                #print(f"Final negative log likelihood: {soln.state.fun_val}")
+                soln = solver.run(self.theta, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
-
-                theta_init["log_amps"] = soln.params["log_amps"]
-                theta_init["log_scales"] = soln.params["log_scales"]
+                self.update_theta(soln.params)
             
             # Only check convergence every 100 steps
             if sampler.iteration % autoStep:
@@ -1234,8 +1279,7 @@ class etsMAIN(object):
         
         
         #save output gp params:
-        self.logamps = soln.params["log_amps"]
-        self.logscales = soln.params["log_scales"]
+        self.gp_soln = soln.params
         
         sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
                           self.targetlabel, self.filesavetag)
@@ -1297,10 +1341,10 @@ class etsMAIN(object):
          
             
         sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, self.error,
-                               best_mcmc[0], self.logamps, self.logscales,
+                               best_mcmc[0], self.build_gp(self.theta, self.time),
                                self.disctime, self.tmin, self.targetlabel,
                                self.filesavetag, plotComponents=False)
-        
+
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
@@ -1314,4 +1358,3 @@ class etsMAIN(object):
         
         return best_mcmc, upper_error, lower_error, BIC
     
-  
