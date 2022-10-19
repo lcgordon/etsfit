@@ -164,7 +164,7 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 trlc.pre_run_clean(1, cutIndices=filterMade, 
                                    binYesNo = False, fraction = fraction)
                 trlc.run_GP_fit_tinygp(filterMade, binYesNo=False, fraction=fraction, 
-                               n1=7000, n2=20000, gpUSE="expsqr",
+                               n1=7000, n2=20000, gpUSE="expsinsqr",
                                thinParams=None)
                 
                 #print(trlc.logamps, trlc.logscales, trlc.gpmean)

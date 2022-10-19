@@ -1118,8 +1118,8 @@ class etsMAIN(object):
     
     def __build_tinygp_expsinsqr(self, theta, X):
         """Make the expssinqr kernel """
-        k1 = jnp.exp(theta["log_amps"]) * kernels.Matern32(jnp.exp(theta["log_scales"]),
-                                                           jnp.exp(theta["log_gamma"]))
+        k1 = jnp.exp(theta["log_amps"]) * kernels.ExpSineSquared(jnp.exp(theta["log_scales"]),
+                                                           gamma = jnp.exp(theta["log_gamma"]))
         return GaussianProcess(k1, X, mean=theta["mean"])
     
     def __build_tinygp_expsqr(self, theta, X):
@@ -1345,14 +1345,19 @@ class etsMAIN(object):
                                self.disctime, self.tmin, self.targetlabel,
                                self.filesavetag, plotComponents=False)
 
+         
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
             file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
                                                                    upper=upper_error[0],
                                                                    lower=lower_error[0]))
-            file.write("log amps, scales: \n {one},{two}\n".format(one=self.logamps,
-                                                                   two = self.logscales))
+            file.write("log amps, scales: \n {one},{two}\n".format(one=self.gp_soln['log_amps'],
+                                                                   two = self.gp_soln['log_scales']))
+           
+            if ('log_gamma' in soln.params.keys()):
+                file.write("log gamma: {three}\n".format(three=self.gp_soln['log_gamma']))
+            
             file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
                                                                 conv=converged))
         
