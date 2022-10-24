@@ -35,10 +35,14 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     #this determines length of chain vs autocorrelation time
     plt.plot(n, plotAutocorr)
     plt.xlim(0, n.max())
-    plt.xlabel("number of steps")
-    plt.ylabel(r"mean $\hat{\tau}$")
-    plt.title(targetlabel + ", mean autocorr. time, converged = " + str(converged))
-    plt.savefig(savepath+targetlabel+ "-" + filesavetag + "-autocorr-mean-plot.png")
+    plt.xlabel("Number of Steps")
+    plt.ylabel(r"Mean $\hat{\tau}$")
+    plt.title("{targ}: Mean Autocorr. Time. Converged = {c}".format(targ=targetlabel,
+                                                                    c = converged))
+    plt.legend(loc="Lower Right")
+    plt.savefig("{s}{t}{f}-autocorr-mean.png".format(s=savepath,
+                                                      t=targetlabel,
+                                                      f = filesavetag))
     plt.close()
     
 def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
@@ -57,18 +61,19 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
     """
     n = autoStep * np.arange(1, index + 1) #x axis - number of steps
     for i in range(len(labels)):
-        
         plotAutocorr = autocorr_all[:index,i]
         plt.plot(n, n / 100, "--k") #plots the N vs N/100=tau threshold 
         #this determines length of chain vs autocorrelation time
         plt.plot(n, plotAutocorr)
         plt.xlim(0, n.max())
-        #plt.ylim(0, plotAutocorr.max() + 0.1 * (plotAutocorr.max() - plotAutocorr.min()))
-        plt.xlabel("number of steps")
+        plt.xlabel("Number of Steps")
         plt.ylabel(r"$\hat{\tau} for $" + labels[i])
-        plt.title(targetlabel + "  autocorr time for " + labels[i])
-        plt.savefig(savepath+targetlabel+ "-" + filesavetag + 
-                    "-autocorr-" + filelabels[i] +".png")
+        plt.title("{t}: autocorr time for {l}".format(t=targetlabel,
+                                                   l = labels[i]))
+        plt.savefig("{s}{t}{f}-autocorr-{fl}.png".format(s=savepath,
+                                                          t=targetlabel,
+                                                          f = filesavetag,
+                                                          fl = filelabels[i]))
         plt.close()
 
 
@@ -84,54 +89,68 @@ def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
     fig = corner.corner(
         flat_samples, labels=labels,
         quantiles = [0.16, 0.5, 0.84],
-                       show_titles=True, title_fmt = ".4f", 
+                       show_titles=True, title_fmt = ".3f", 
                        title_kwargs={"fontsize": 18});
     plt.yticks(fontsize=6)
     plt.xticks(fontsize=6)
     plt.tight_layout()
-    fig.savefig(path + targetlabel + filesavetag + '-corner-plot-params.png')
+    fig.savefig('{p}{t}{f}-corner-plot-params.png'.format(p=path,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
     plt.show()
     plt.close()
     return
 
 def plot_paramIndividuals(flat_samples, labels, path, targetlabel, filesavetag):
-    """ Plots parameters vs p(parameter) histograms individually"""
+    """ 
+    Plots parameters vs p(parameter) histograms individually
+    Mostly not used - try plot_paramTogether instead
+    """
     
     for p in range(len(labels)):
         plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
         plt.xlabel(labels[p])
-        plt.ylabel("p("+labels[p]+")")
+        plt.ylabel("p({pl})".format(pl=labels[p]))
         plt.gca().set_yticks([]);
-        plt.savefig(path + targetlabel + "-" + filesavetag + 
-                    "-chainHisto-" + labels[p] + ".png")
+        plt.savefig('{p}{t}{f}-chainHisto-{lp}.png'.format(p=path,
+                                                          t=targetlabel,
+                                                          f=filesavetag,
+                                                          lp = labels[p]))
         plt.close()
     return
 
 def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
-    """Plot all the parameter vs p(param) histograms together """
+    """
+    Plot all the parameter vs p(param) histograms together 
+    """
     
+    
+    rcParams['figure.figsize'] = 16,16
     axN = len(labels)
     if axN % 2 != 0:
         axN+=1 #make it even (two columns)
     nrows = int(axN/2)
     ncols = 2
-    fig, ax = plt.subplots(nrows, ncols, sharex=False,
-                               figsize=(8*ncols * 2, 3*nrows * 2))
+    fig, ax = plt.subplots(nrows, ncols, sharex=False)
     p = 0
     for n in range(2):
         for m in range(nrows):
             if p < len(labels):
                 ax[m, n].hist(flat_samples[:, p], 100, color="k", histtype="step")
                 ax[m, n].set_xlabel(labels[p])
-                ax[m, n].set_ylabel("p("+labels[p]+")")
+                ax[m, n].set_ylabel("p({pl})".format(pl=labels[p]))
                 p+=1
     
     fig.suptitle("Parameter Plots")
-    plt.savefig(path + targetlabel + "-" + filesavetag + "-chainHisto-all.png.png")
+    plt.tight_layout()
+    plt.savefig('{p}{t}{f}-chainHisto-all.png'.format(p=path,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
     plt.close()
+    rcParams['figure.figsize'] = 16,6
     return
     
-def plot_log_post(path, targetlabel,filesavetag, sampler):
+def plot_log_post(path, targetlabel, filesavetag, sampler):
     '''
     plot the log posteriors
     unclear if this gets used anywhere?
@@ -144,7 +163,8 @@ def plot_log_post(path, targetlabel,filesavetag, sampler):
         plt.scatter(xaxis, logpost[:,0])
     plt.xlabel("steps")
     plt.ylabel("log posterior")
-    plt.savefig(path + "/" + targetlabel + "-" + filesavetag + "-log-post.png")
+    plt.savefig('{p}{t}{f}-log-post.png'.format(p=path,t=targetlabel,
+                                                f=filesavetag))
     plt.close()
     return
 
@@ -214,13 +234,12 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     
     return sl, bg
 
-def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, 
-                       ndim, appendix = ""):
+def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim):
     """
     plot mcmc chain by parameter AND log posterior at top 
     """
     rcParams['figure.figsize'] = 30,30
-    rcParams['ytick.labelsize'] = 10
+    rcParams['ytick.labelsize'] = 8
     fig, axes = plt.subplots(ndim+1, figsize=(10, 7), sharex=True)
     samples = sampler.get_chain()
     logprobs = sampler.get_log_prob()
@@ -241,34 +260,35 @@ def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels,
         ax.yaxis.set_label_coords(-0.1, 0.5)
     
     axes[-1].set_xlabel("step number");
-    plt.savefig(path + "/" + targetlabel + "-" + filesavetag + appendix 
-                + "-chain-logpost.png")
+    plt.savefig('{p}{t}{f}-chain-logpost.png'.format(p=path,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
     plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6
     return
 
-def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
-    """
-    Plots mcmc chains - each parameter is a subpanel stacked vertically
-    """
-    rcParams['figure.figsize'] = 30,30
-    rcParams['ytick.labelsize'] = 10
-    fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-    labels = labels
-    for i in range(ndim):
-        ax = axes[i]
-        ax.plot(samples[:, :, i], "k", alpha=0.3)
-        ax.set_xlim(0, len(samples))
-        ax.set_ylabel(labels[i])
-        ax.yaxis.set_label_coords(-0.1, 0.5)
+# def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
+#     """
+#     Plots mcmc chains - each parameter is a subpanel stacked vertically
+#     """
+#     rcParams['figure.figsize'] = 30,30
+#     rcParams['ytick.labelsize'] = 10
+#     fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
+#     labels = labels
+#     for i in range(ndim):
+#         ax = axes[i]
+#         ax.plot(samples[:, :, i], "k", alpha=0.3)
+#         ax.set_xlim(0, len(samples))
+#         ax.set_ylabel(labels[i])
+#         ax.yaxis.set_label_coords(-0.1, 0.5)
     
-    axes[-1].set_xlabel("step number");
-    plt.savefig(path + targetlabel+ plotlabel)
-    plt.show()
-    plt.close()
-    rcParams['figure.figsize'] = 16,6
-    return
+#     axes[-1].set_xlabel("step number");
+#     plt.savefig(path + targetlabel+ plotlabel)
+#     plt.show()
+#     plt.close()
+#     rcParams['figure.figsize'] = 16,6
+#     return
 
 def plot_histogram(data, bins, x_label, filename):
     """ 
@@ -282,8 +302,8 @@ def plot_histogram(data, bins, x_label, filename):
     fig, ax1 = plt.subplots()
     n_in, bins, patches = ax1.hist(data, bins)
     
-    y_range = np.abs(n_in.max() - n_in.min())
-    x_range = np.abs(data.max() - data.min())
+    #y_range = np.abs(n_in.max() - n_in.min())
+    #x_range = np.abs(data.max() - data.min())
     ax1.set_ylabel('Number of light curves')
     ax1.set_xlabel(x_label)
     
@@ -391,15 +411,12 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
     fig, ax = plt.subplots(nrows, ncols, sharex=True,
                                    figsize=(8*ncols * 2, 3*nrows * 2))
     
+    #plot model, data
     ax[0].plot(time, model, label="Best Fit Model", color = 'red')
-    #if plotComponents:
-     #   ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
-      #  ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
-        
-    ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
+    ax[0].scatter(time, intensity, label = "Data", s = 3, color = 'black')
     
     for n in range(nrows):
-        ax[n].axvline(t0, color = 'saddlebrown', linestyle = 'dashed',
+        ax[n].axvline(t0, color = 'green', linestyle = 'dotted',
                           label=r"$t_0$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
@@ -413,12 +430,14 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
     #residuals
     ax[1].set_title("Residual")
     residuals = intensity - model
-    ax[1].scatter(time,residuals, s=5, color = 'black', label='Residual, All')
-    ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
+    ax[1].scatter(time,residuals, s=3, color = 'black', label='Residual, All')
+    ax[1].axhline(0, color='orange', linestyle = 'dashed', label="Zero")
     ax[1].legend(fontsize=10)
     
     plt.tight_layout()
-    plt.savefig(pathSave + targetlabel + filesavetag + "-MCMCmodel-bestFit.png")
+    plt.savefig('{p}{t}{f}-MCMCmodel-bestFit.png'.format(p=pathSave,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
     plt.close()
     return
 
@@ -435,31 +454,29 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
                                    figsize=(8*ncols * 2, 3*nrows * 2))
     
     #top row: data, model ONLY
-    ax[0].scatter(time, intensity, label = "Data", s = 5, color = 'black')
+    ax[0].scatter(time, intensity, label = "Data", s = 3, color = 'black')
     ax[0].plot(time, sl, label="Best Fit Model", color = 'red')
     
-    # if plotComponents:
-    #     ax[0].plot(time, bg, label="Just GP", color="green", alpha=0.2)
-    #     ax[0].plot(time, sl, label="Just Model", color="blue", alpha=0.2)
     
     #middle row: residual, GP fit to residual
     residual1 = intensity - sl
     ax[1].set_title("Model Residual")
     #bg, var = gp.predict(residual1, time, return_var=True)
     #err_bg = np.sqrt(var)
-    ax[1].scatter(time, residual1, label = "Model  Residual", s = 5, color = 'black')
-    ax[1].plot(time, bg, label="GP", color="green", alpha=0.5)
-    ax[1].axhline(0,color='purple', linestyle = 'dashed', label="zero")
+    ax[1].scatter(time, residual1, label = "Model  Residual", s = 3, color = 'black')
+    ax[1].plot(time, bg, label="GP", color="blue", alpha=0.5)
+    ax[1].axhline(0, color='orange', linestyle = 'dashed', label="zero")
     
     
     #bottom row: GP residual
     residual2 = residual1 - bg
     ax[2].set_title("GP Residual")
-    ax[2].scatter(time, residual2, label = "GP Residual", s = 5, color = 'black')
+    ax[2].scatter(time, residual2, label = "GP Residual", s = 3, color = 'black')
+    ax[2].axhline(0, color='orange', linestyle = 'dashed', label="zero")
     
     #all plots: t_0, disc, rel flux label 
     for n in range(nrows):
-        ax[n].axvline(t0, color = 'saddlebrown', linestyle = 'dashed',
+        ax[n].axvline(t0, color = 'green', linestyle = 'dotted',
                           label=r"$t_0$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
@@ -474,12 +491,14 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     ax[2].legend(fontsize=10)
     
     plt.tight_layout()
-    plt.savefig(pathSave + targetlabel + filesavetag + gpfiletag)
+    plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=pathSave,t=targetlabel,
+                                             f=filesavetag,gpf=gpfiletag))
+        
     plt.show()
     plt.close()
     return
 
-def plot_tinygp_ll(pathsave, gpll, targetlabel, filesavetag):
+def plot_tinygp_ll(pathSave, gpll, targetlabel, filesavetag):
     rcParams['figure.figsize'] = 10,10
     x = np.arange(0, len(gpll), 1) * 1000 #x axis
     plt.scatter(x, gpll)
@@ -487,7 +506,9 @@ def plot_tinygp_ll(pathsave, gpll, targetlabel, filesavetag):
     plt.ylabel("GP Neg. Log Likelihood")
     plt.title(targetlabel + "  GP log likelihood over MCMC steps")
     plt.tight_layout()
-    plt.savefig(pathsave + targetlabel + filesavetag + "GP-loglike-steps.png")
+    plt.savefig('{p}{t}{f}-GP-loglike-steps.png'.format(p=pathSave,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
     plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6

@@ -73,7 +73,7 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
     else:
         innersize = innerfilt
     if outerfilt is None:
-        outersize = innersize * 20
+        outersize = innersize * 10
     else:
         outersize=outerfilt
     #print("window sizes: ", innersize, outersize)

@@ -202,14 +202,23 @@ def get_not_in_common_entries(file1, file2):
     df_ind = pd.concat((df_ind_left, df_ind_right))
     return df_ind
 
+def number_Ias(file):
+    f = pd.read_csv(file)
+    return len(f[f["Obj. Type"] == "SN Ia"])
+
 tesscut_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
-wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/WTV-matched-all.csv"
-df_ind = get_not_in_common_entries(wtv_all,tesscut_all)
-df_ind.to_csv("/Users/lindseygordon/research/urop/august2022crossmatch/uniqueToOneList.csv")
+wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all_WTV_SN_matches.csv"
 
+f = pd.read_csv(tesscut_all)
+rcParams['figure.figsize'] = 10,10
 
-compile_csvs("/Users/lindseygordon/research/urop/august2022crossmatch/cycle3/", 
-             "tesscut.csv", savefilename = "cycle3-tesscut-all")
-
-reduce_list(tesscut_all, "/Users/lindseygordon/research/urop/august2022crossmatch/Ia205mag.csv", 
-            "Ia", 20.5)
+plt.hist(f["Discovery Mag/Flux"], 10, color="black")
+plt.axvline(20.5, color="red", label="TESS Mag. Limit")
+plt.axvline(18, color="blue", label="Paper Cutoff")
+plt.ylabel('Number of SN')
+plt.xlabel("Disc Mag")
+plt.legend(loc="upper left")
+plt.savefig("/Users/lindseygordon/research/urop/august2022crossmatch/tesscut_histogram.png")
+plt.show()
+plt.close()
+rcParams['figure.figsize'] = 16,6

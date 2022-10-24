@@ -1363,3 +1363,287 @@ class etsMAIN(object):
         
         return best_mcmc, upper_error, lower_error, BIC
     
+    def run_both_matern32(self, cutIndices, binYesNo=False, fraction=None):
+        """ Pfagh! Blech! """
+        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+            self.__custom_mask_it(cutIndices, saveplot = None)
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binYesNo: #if need to bin
+            (self.time, self.intensity, 
+             self.error, self.lygosbg,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosbg, QCBVALL=None) 
+                                                 
+        # if doing percent of max fitting
+        if fraction is not None:
+            (self.time, self.intensity, self.error, self.lygosbg, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosbg, 
+                                                   fraction, self.quatsandcbvs)
+       
+        #SET UP CELERITE                                               
+        self.filesavetag1 = "-celerite-matern32"
+        sigma = 0.01 #amplitude
+        rho = 1.2 #timescale
+        sigma_bounds = (0.0001,0.3)
+        rho_bounds = (1,2)
+        bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
+        kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+                                    bounds=bounds_dict)
+        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
+
+        self.gpcelerite = celerite.GP(kernel, mean=0.0)
+        self.gpcelerite.compute(self.time, self.error)
+        print("Initial celerite log-likelihood: {0}".format(self.gpcelerite.log_likelihood(self.intensity)))
+        # set up arguments etc.
+        self.args = (self.time,self.intensity, self.error, self.disctime, self.gpcelerite)
+        self.logProbFunc = mc.log_probability_celerite
+        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
+        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
+        self.celerite_setup = True
+                                                   
+        #set up tinygp
+        
+        self.plotFit = 1
+        self.fitType = 1
+        self.filesavetag2 = "-tinygp-matern32"
+        self.theta = {
+            "mean":np.float64(0.0),
+            "log_amps": np.log(2),
+            "log_scales": np.log(1),
+        }
+        self.build_gp = self.__build_tinygp_matern32 #no quotes on it
+        self.update_theta = self.__update_theta_ampsscale
+                                               
+        #make folders to save into
+        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
+        newfolderpath = (self.folderSAVE + internaluse)
+        if not os.path.exists(newfolderpath):
+            os.mkdir(newfolderpath)
+
+        subfolderpath = newfolderpath + "/celerite-tinygp-combo"
+        if not os.path.exists(subfolderpath):
+            os.mkdir(subfolderpath)
+        self.folderSAVE = subfolderpath + "/"
+        self.parameterSaveFile = self.folderSAVE + internaluse + "-output-params.txt"
+        print("saving into folder: ",self.folderSAVE)  
+        
+        print("entering the weird scary doubled up part")
+        
+        print("***")
+        print("***")
+        print("***")
+        print("***")
+        print("Beginning MCMC + GP run")
+         
+        timeModule.sleep(3) # this keeps things running orderly
+        
+        n1 = 10000
+        n2 = 40000
+        
+        discard1 = int(n1/4)
+        thinning = 15
+       
+                              
+
+        # ### MCMC setup
+        np.random.seed(42)
+        
+        nwalkers = 100
+        ndim = len(self.labels) # labels are provided when you run it
+        p0 = np.zeros((nwalkers, ndim)) # init positions
+        for n in range(len(p0)): # add a little spice
+            p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
+        
+        print("Starting burn-in chain")
+        # ### Initial run
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.logProbFunc, args=self.args) # setup
+        sampler.run_mcmc(p0, n1, progress=True) # run it
+        
+        #plot burn in chain
+        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1, 
+                              sampler, self.labels, ndim, appendix = "-burnin")
+    
+        flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        
+        # get intermediate best
+        best_mcmc_inter = np.zeros((1,ndim))
+        for i in range(ndim):
+            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+            best_mcmc_inter[0][i] = mcmc[1]
+            
+        # ### Main run
+        np.random.seed(50)
+        p0 = np.zeros((nwalkers, ndim))
+        for i in range(nwalkers): # reinitialize the walkers around prev. best
+            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, ndim)
+           
+        sampler.reset()
+        
+        # ### CORRELATION FUNCTION/GP FIT
+        index = 0 # number of checks
+        autocorr = np.empty(n2) # total possible checks
+        old_tau = np.inf
+        autoStep = 100 # how often to check
+        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
+        
+        
+        # GP setup
+        def make_residual(x, y, best_mcmc):
+            t0, A,beta,B = best_mcmc[0:4]
+            t1 = x - t0
+            sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
+            bg = np.ones(len(x)) + B
+            return y - sl - bg
+        
+        #calculate residual from intermediate best:
+        res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+        plt.scatter(self.time, res)
+        plt.show()
+        plt.close()
+        print("created residual")
+        
+
+        def neg_log_likelihood(theta, X, y):
+            lp = 0
+            #this is going to need priors somehow??
+            tinygp = self.build_gp(theta, X)
+            return -tinygp.log_probability(y) + lp
+
+        
+        obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
+
+        print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
+
+        solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+        soln = solver.run(self.theta, X=self.time, y=res)
+        print(f"Final negative log likelihood: {soln.state.fun_val}")
+        #set theta to new values
+        self.update_theta(soln.params)
+        self.GP_LL_all = [soln.state.fun_val]
+        
+
+        # sample up to n2 steps
+        for sample in sampler.sample(p0, iterations=n2, progress=True):
+            
+            #refit the GP every 1000 steps
+            if sampler.iteration % 1000 == 0:
+                #new residual:
+                flat_samples = sampler.get_chain(flat=True)
+                # get intermediate best
+                best_mcmc_inter = np.zeros((1,ndim))
+                for i in range(ndim):
+                    best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
+                    
+                res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+                solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+                soln = solver.run(self.theta, X=self.time, y=res)
+                self.GP_LL_all.append(soln.state.fun_val)
+                self.update_theta(soln.params)
+            
+            # Only check convergence every 100 steps
+            if sampler.iteration % autoStep:
+                continue
+            # Compute the autocorrelation time so far
+            tau = sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
+            if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
+                print("autocorr is nan or inf")
+                print(tau)
+            autocorr[index] = np.mean(tau) # save mean autocorr time
+            autocorr_all[index] = tau # save all autocorr times for plotting
+            index += 1 # how many times have you saved it
+        
+            # Check convergence
+            converged = np.all((tau * 100) < sampler.iteration)
+            converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
+            if converged:
+                print("Converged, ending chain")
+                break
+            old_tau = tau
+        
+        
+        #save output gp params:
+        self.tinygp_soln = soln.params
+        
+        sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
+                          self.targetlabel, self.filesavetag2)
+        
+        # ######
+        #plot autocorr things
+        ########
+        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
+                              autocorr, converged, 
+                              autoStep, self.filesavetag1)
+        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
+                                    autocorr_all, autoStep, self.labels,
+                                    self.filelabels, 
+                                    self.filesavetag1)
+        
+            
+        #thin and burn out dump
+        tau = sampler.get_autocorr_time(tol=0)
+        if (np.max(tau) < (sampler.iteration/50)):
+            burnin = int(2 * np.max(tau))
+            thinning = int(0.5 * np.min(tau))
+        else:
+            burnin = int(n2/4)
+
+        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
+        
+        # plot chains, parameters
+        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1,
+                              sampler, self.labels, ndim, appendix = "-production")
+        
+        sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
+                                  self.targetlabel, self.filesavetag1)
+        
+        print(len(flat_samples), "samples post second run")
+    
+        # ### BEST FIT PARAMS
+        best_mcmc = np.zeros((1,ndim))
+        upper_error = np.zeros((1,ndim))
+        lower_error = np.zeros((1,ndim))
+        for i in range(ndim):
+            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+            q = np.diff(mcmc)
+            print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
+            best_mcmc[0][i] = mcmc[1]
+            upper_error[0][i] = q[1]
+            lower_error[0][i] = q[0]
+     
+        logprob, blob = sampler.compute_log_prob(best_mcmc)
+
+        # ### BIC
+        #print(np.log(len(self.time)))
+        print("log prob:", logprob)
+        BIC = ndim * np.log(len(self.time)) - 2 * logprob
+        print("BAYESIAN INF CRIT: ", BIC)
+        if np.isnan(np.float64(BIC[0])): # if it's a nan
+            BIC = 50000
+        else:
+            BIC = BIC[0]
+         
+            
+        # sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, self.error,
+        #                        best_mcmc[0], self.build_gp(self.theta, self.time),
+        #                        self.disctime, self.tmin, self.targetlabel,
+        #                        self.filesavetag, plotComponents=False)
+
+         
+        
+        # with open(self.parameterSaveFile, 'w') as file:
+        #     #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
+        #     file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
+        #                                                            upper=upper_error[0],
+        #                                                            lower=lower_error[0]))
+        #     file.write("log amps, scales: \n {one},{two}\n".format(one=self.gp_soln['log_amps'],
+        #                                                            two = self.gp_soln['log_scales']))
+           
+        #     if ('log_gamma' in soln.params.keys()):
+        #         file.write("log gamma: {three}\n".format(three=self.gp_soln['log_gamma']))
+            
+        #     file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
+        #                                                         conv=converged))
+    
