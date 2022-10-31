@@ -39,7 +39,7 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     plt.ylabel(r"Mean $\hat{\tau}$")
     plt.title("{targ}: Mean Autocorr. Time. Converged = {c}".format(targ=targetlabel,
                                                                     c = converged))
-    plt.legend(loc="Lower Right")
+    plt.legend(loc="lower right")
     plt.savefig("{s}{t}{f}-autocorr-mean.png".format(s=savepath,
                                                       t=targetlabel,
                                                       f = filesavetag))
@@ -234,7 +234,8 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     
     return sl, bg
 
-def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim):
+def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim,
+                       appendix=""):
     """
     plot mcmc chain by parameter AND log posterior at top 
     """
@@ -260,9 +261,10 @@ def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim):
         ax.yaxis.set_label_coords(-0.1, 0.5)
     
     axes[-1].set_xlabel("step number");
-    plt.savefig('{p}{t}{f}-chain-logpost.png'.format(p=path,
+    plt.savefig('{p}{t}{f}-chain-logpost-{a}.png'.format(p=path,
                                                       t=targetlabel,
-                                                      f=filesavetag))
+                                                      f=filesavetag,
+                                                      a=appendix))
     plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6
@@ -360,7 +362,7 @@ def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp,
     t1 = time - t0
     sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     gp.set_parameter_vector(best_mcmc[0][4:])
-    bg = gp.predict(intensity, time, return_cov=False)
+    bg = gp.predict(intensity-sl, time, return_cov=False)
 
     model = sl + bg
     
@@ -512,4 +514,76 @@ def plot_tinygp_ll(pathSave, gpll, targetlabel, filesavetag):
     plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6
+    return
+
+def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel, 
+                              filesavetag, best_mcmc, gpcelerite, gptinygp, 
+                              disctime, tmin):
+    """ 
+    Parameters:
+        - pathSave (str)
+        - time, intensity (arrays)
+        - targetlabel, filesavetag (str)
+        - best_mcmc (array of best values, 0-4 are base model, 5,6 are the celerite)
+        - celeritegp (self.gpcelerite)
+        - tinygp (self.build_gp(theta, time)) full formed gp! 
+        - disctime, tmin (floats)
+    """
+ 
+    from tinygp import kernels, GaussianProcess
+    
+    t0, A,beta,B = best_mcmc[0][:4]
+    t1 = time - t0
+    mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    
+    gpcelerite.set_parameter_vector(best_mcmc[0][4:])
+    celerite_bg = gpcelerite.predict(intensity-mod, time, return_cov=False)
+    
+    tinygp_bg = gptinygp.predict(intensity-mod, time, return_cov=False)
+
+    #set up
+    nrows = 2
+    ncols = 3
+    fig, ax = plt.subplots(nrows, ncols, sharex=True, sharey=True,
+                                   figsize=(8*ncols, 3*nrows))
+    
+    #fill the data into all rows, disctimes, tmin, axis labels:
+    ax[0][0].set_title("{t} {f} Model Only".format(t=targetlabel,
+                                                   f=filesavetag), fontsize=12)
+    ax[0][1].set_title("{t} {f} celerite".format(t=targetlabel,
+                                                   f=filesavetag), fontsize=12)
+    ax[0][2].set_title("{t} {f} tinygp".format(t=targetlabel,
+                                                   f=filesavetag), fontsize=12)
+    
+    
+    ax[0][0].plot(time, mod, label="Model", color = 'red')
+    ax[1][0].scatter(time, intensity-mod, label="Residual", color='black', s=3)
+    
+    ax[0][1].plot(time, mod+celerite_bg, label="Model + celerite", color='red')
+    ax[1][1].scatter(time, intensity-mod-celerite_bg, label="Residual", color='black', s=3)
+    
+    ax[0][2].plot(time, mod+tinygp_bg, label="Model + tinygp", color='red')
+    ax[1][2].scatter(time, intensity-mod-tinygp_bg, label="Residual", color='black', s=3)
+    
+    ax[0][0].set_ylabel("Flux (e-/s)", fontsize=12)
+    ax[1][0].set_ylabel("Flux (e-/s)", fontsize=12)
+    
+    for n in range(ncols):
+        ax[0][n].scatter(time, intensity, label = "Data", s = 3, color = 'black')
+        ax[1][n].axhline(0, color="orange", label="Zero", linestyle='dotted')
+        ax[nrows-1][n].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin),
+                                  fontsize=12)
+        for i in range(nrows):
+            ax[i][n].axvline(t0, color = 'green', linestyle = 'dotted',
+                              label=r"$t_0$")
+            ax[i][n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
+                          label="Ground Disc.")
+            ax[i][n].legend(fontsize=8)
+    
+    
+    plt.tight_layout()
+    plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=pathSave,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
+    plt.close()
     return

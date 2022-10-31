@@ -65,6 +65,9 @@ theta_init = {
     "log_scales": np.log([5.0]),
 }
 
+
+
+
 # `jax` can be used to differentiate functions, and also note that we're calling
 # `jax.jit` for the best performance.
 obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
@@ -80,3 +83,70 @@ soln = solver.run(theta_init, X=t, y=y)
 print(f"Final negative log likelihood: {soln.state.fun_val}")
 
 print(soln.params)
+#%%
+import scipy
+from scipy.optimize import minimize
+def build_gp(theta, X):
+    # We want most of our parameters to be positive so we take the `exp` here
+    # Note that we're using `jnp` instead of `np`
+    amps = jnp.exp(theta["log_amps"])
+    scales = jnp.exp(theta["log_scales"])
+
+    # Construct the kernel by multiplying and adding `Kernel` objects
+    k1 = amps[0] * kernels.ExpSquared(scales[0])
+    
+    kernel = k1
+
+    return GaussianProcess(
+        kernel, X, diag=jnp.exp(theta["log_diag"]), mean=theta["mean"]
+    )
+
+
+def neg_log_likelihood(theta, X, y):
+    gp = build_gp(theta, X)
+    return -gp.log_probability(y)
+
+
+solver2 = scipy.optimize.minimize(neg_log_likelihood, theta_init)
+
+
+#%%
+import scipy
+from scipy.optimize import minimize
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from astropy.time import Time
+from tinygp import kernels, GaussianProcess
+
+file = "/Users/lindseygordon/research/urop/tessreduce_lc/2020tld2311/2020tld2311-tessreduce"
+
+loadedraw = pd.read_csv(file)
+time = Time(loadedraw["time"], format='mjd').jd
+intensity = loadedraw["flux"].to_numpy()
+
+t = time - time[0]
+y = intensity
+
+#write a function NOT dependent on a dictionary
+def build_gp_nondict(theta, X):
+    logamps, logscales, mean = theta
+    k1 = np.exp(logamps) * kernels.Matern32(np.exp(logscales))
+    return GaussianProcess(k1, X, mean=mean)
+
+def fun(theta, X, y):
+    """ theta = [amps, scales, mean]"""
+    gp = build_gp_nondict(theta, X)
+    return -gp.log_probability(y)
+
+#x0 is array of initial parameters:
+x0 = [np.log(2), np.log(1), 0.0]
+
+res = scipy.optimize.minimize(fun, x0, args=(t, y))
+
+gp = build_gp_nondict(res.x, t)
+
+tinygp_bg = gp.predict(y, t, return_cov=False)
+
+plt.scatter(t, y)
+plt.scatter(t, tinygp_bg)

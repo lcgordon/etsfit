@@ -15,9 +15,9 @@ import os
 
 from astropy.time import Time
 import gc
-#from etsfit import etsMAIN
+from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
-import etsfit
+#import etsfit
 
 
 
@@ -110,7 +110,6 @@ def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder,
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                #print(discoverytime)
                 #run it
                 trlc = etsMAIN(foldersave, bigInfoFile)
                 
@@ -153,24 +152,17 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                #print(discoverytime)
                 #run it
                 trlc = etsMAIN(foldersave, bigInfoFile)
-                
                 trlc.load_single_lc(time, intensity, error, discoverytime, 
                                    targetlabel, sector, camera, ccd, lygosbg=None)
-                
                 filterMade = trlc.window_rms_filt(plot=False)
                 trlc.pre_run_clean(1, cutIndices=filterMade, 
                                    binYesNo = False, fraction = fraction)
                 trlc.run_GP_fit_tinygp(filterMade, binYesNo=False, fraction=fraction, 
                                n1=7000, n2=20000, gpUSE="expsinsqr",
                                thinParams=None)
-                
-                #print(trlc.logamps, trlc.logscales, trlc.gpmean)
-                
-                #del(loadedraw)
-                #del(trlc)
+
                 gc.collect()
                 i+=1
     return
@@ -202,7 +194,6 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                #print(discoverytime)
                 #run it
                 trlc = etsMAIN(foldersave, bigInfoFile)
                 
@@ -214,14 +205,12 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                                    binYesNo = False, fraction = fraction)
                 trlc.run_both_matern32(filterMade, binYesNo=False, fraction=None)
                 
-                #print(trlc.logamps, trlc.logscales, trlc.gpmean)
-                
-                #del(loadedraw)
-                #del(trlc)
                 gc.collect()
                 i+=1
-    return
+    return trlc
 
-run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
+trlc = run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
                   quaternion_folder_raw, 
                   quaternion_folder_txt, bigInfoFile, gList)
+
+

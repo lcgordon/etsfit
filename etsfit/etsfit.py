@@ -251,66 +251,6 @@ class etsMAIN(object):
         """
         return ut.window_rms(self.time, self.intensity, innerfilt = innerfilt, 
                         outerfilt = outerfilt,plot=plot)
-        
-    
-    
-    def load_data_lygos_single(self, fileToLoad, disctime=None, override=False):
-        """
-        Given a SPECIFIC filepath to a lygos lightcurve, load in the data
-        And I do mean SPECIFIC path.
-        
-        --------------------------------------------
-        Parameters:
-            
-            - fileToLoad (str), 
-            ie "D:/18th1aAll/SN2018eod/rflxtarg_SN2018eod_0114_30mn_n005_d4.0_of11.csv"
-            
-            - disctime (double, defaults to NONE) if no big CSV file is loaded, 
-            provide the discovery time (or custom disctime)
-            
-            - override (bool, defaults to FALSE) ignore it if loading data
-            from a sector that is NOT the discovery sector
-        
-        """
-        pieces = fileToLoad.split("_")
-        # look up sector of discovery in big file
-        self.sector = self.info[self.info["Name"].str.contains(pieces[1][2:])]["Sector"].iloc[0]
-        # load in
-        if (self.sector < 10):
-            self.sector = "0" + str(self.sector)
-        if (pieces[2].startswith(str(self.sector)) or override == True):
-            
-            time, intensity, error, lygosbg = ut.load_lygos_csv(fileToLoad)
-            if self.bigInfoFile is None and disctime is None:
-                raise Exception("No big info file given AND no disctime was provided")
-            elif disctime is None:
-                disctime = ut.get_disctime(self.bigInfoFile, pieces[1][2:])
-            
-            self.load_custom_lc(time, intensity, error, lygosbg, disctime, pieces[1],
-                        pieces[2][0:2], pieces[2][2], pieces[2][3])
-            
-        
-            print("LOADING IN:", self.targetlabel, "SECTOR: ", self.sector, "CAMERA: ",
-            self.camera, "CCD: ", self.ccd)
-            
-            (self.time, self.intensity, 
-            self.error, self.lygosbg) =  ut.normalize_sigmaclip(self.time, self.intensity, 
-                                                                self.error, self.lygosbg) 
-            self.tmin = self.time[0]
-            self.time -= self.tmin
-            self.disctime -= self.tmin
-            self.bic_all = []
-            self.params_all = []
-            self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
-            self.ylabel = "Rel. Flux"
-            self.cleaningdone = False
-            
-            return
-        else: 
-            raise ValueError("Not discovery sector data  \n" + 
-                             "If you want to load in anyways, pass override=True")
-        return
-
     
     def load_single_lc(self, time, intensity, error, discoverytime, 
                        targetlabel, sector, camera, ccd, lygosbg=None):
@@ -377,7 +317,7 @@ class etsMAIN(object):
         self.bic_all = []
         self.params_all = []
         self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
-        self.ylabel = "Rel. Flux"
+        self.ylabel = "Flux (e-/s)"
         self.cleaningdone = False
         return
     
@@ -444,7 +384,7 @@ class etsMAIN(object):
  
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
+            self.__custom_mask_it(cutIndices)
        
         # 8hr binning
         if binYesNo and self.binned == False: #if need to bin
@@ -473,7 +413,7 @@ class etsMAIN(object):
         self.fitType = fitType
         return
     
-    def __custom_mask_it(self, cutIndices, saveplot = None):
+    def __custom_mask_it(self, cutIndices):
         """remove certain indices from your light curve.
         cutIndices should be an array of size len(time), 0 = remove, 1=keep
         
@@ -485,7 +425,7 @@ class etsMAIN(object):
             print("*******")
             return
         elif hasattr(self, 'time'): #if something loaded in and going to trim
-            #plt.scatter(self.time, self.intensity, color='red', s=2)
+            plt.scatter(self.time, self.intensity, color='red', s=2, label="raw")
                 
             self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
             self.time = self.time[self.cutindexes]
@@ -501,14 +441,14 @@ class etsMAIN(object):
                 self.CBV3 = self.CBV3[self.cutindexes]
                 self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
                 
-            #self.custommasked = True
-            #plt.scatter(self.time, self.intensity, color='blue', s=2)
-            #plt.xlabel(self.xlabel)
-            #plt.ylabel(self.ylabel)
-            #plt.show()
-            #if saveplot is not None:
-            #    plt.savefig(saveplot)
-            #plt.close()
+           
+            plt.scatter(self.time, self.intensity, color='blue', s=2, label="trimmed")
+            plt.xlabel(self.xlabel)
+            plt.ylabel(self.ylabel)
+            plt.tight_layout()
+            plt.savefig('{p}{t}-wrms-trimmed.png'.format(p=self.folderSAVE,
+                                                              t=self.targetlabel))
+            plt.close()
             return
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
@@ -890,10 +830,10 @@ class etsMAIN(object):
         # ### BIC
         #print(np.log(len(self.time)))
         print("log prob:", logprob)
-        BIC = ndim * np.log(len(self.time)) - 2 * logprob
+        BIC = ndim * np.log(len(self.time)) - 2 * (logprob * -1.0)
         print("BAYESIAN INF CRIT: ", BIC)
         if np.isnan(np.float64(BIC[0])): # if it's a nan
-            BIC = 50000
+            BIC = 500000
         else:
             BIC = BIC[0]
              
@@ -1001,7 +941,7 @@ class etsMAIN(object):
         
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
+            self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
@@ -1030,14 +970,15 @@ class etsMAIN(object):
         """
         GP fitting using tinygp's stuff
         Update 10-7-22 - GP fit every 1000 steps
-        Update 10-118-22 - GP for different types of fits
+        Update 10-18-22 - GP for different types of fits
+        Update 10-29-22 - BIC now includes tinygp contribution!! 
         
         """
         
             
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
+            self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
@@ -1054,14 +995,14 @@ class etsMAIN(object):
                                                    fraction, self.quatsandcbvs)
        
         #set up gpUSE settings
-        self.__gp_setup(gpUSE=gpUSE)                                          
+        self.__tinygp_setup(gpUSE=gpUSE)                                          
         #make folders to save into
         self.__gen_output_folder()   
         #print("entering mcmc + gp concurrent fitting")
         self.__mcmc_concurrent_gp(n1, n2, thinParams)
         return
    
-    def __gp_setup(self, gpUSE='expsqr'):
+    def __tinygp_setup(self, gpUSE='expsqr'):
         """ 
         Internal function to set up the tinygp run
         """
@@ -1330,12 +1271,18 @@ class etsMAIN(object):
         logprob, blob = sampler.compute_log_prob(best_mcmc)
 
         # ### BIC
-        #print(np.log(len(self.time)))
-        print("log prob:", logprob)
+        #so have logprob from the sampler (just model)
+        # want to add the log prob from the tinygp model
+        print("negative log prob, no GP: ", logprob) #this spits out a negative value
+        negll = -1.0 * float(self.GP_LL_all[-1]) #neg ll
+        print("negative log like,  GP: ", negll)
+        logprob = -1.0 * (logprob+negll)
+        
+        
         BIC = ndim * np.log(len(self.time)) - 2 * logprob
         print("BAYESIAN INF CRIT: ", BIC)
         if np.isnan(np.float64(BIC[0])): # if it's a nan
-            BIC = 50000
+            BIC = 500000
         else:
             BIC = BIC[0]
          
@@ -1367,7 +1314,7 @@ class etsMAIN(object):
         """ Pfagh! Blech! """
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if not hasattr(self, 'cutindexes') and cutIndices is not None:
-            self.__custom_mask_it(cutIndices, saveplot = None)
+            self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
@@ -1423,14 +1370,14 @@ class etsMAIN(object):
         if not os.path.exists(newfolderpath):
             os.mkdir(newfolderpath)
 
-        subfolderpath = newfolderpath + "/celerite-tinygp-combo"
+        subfolderpath = newfolderpath + "/celerite-tinygp-matern32/"
         if not os.path.exists(subfolderpath):
             os.mkdir(subfolderpath)
         self.folderSAVE = subfolderpath + "/"
         self.parameterSaveFile = self.folderSAVE + internaluse + "-output-params.txt"
         print("saving into folder: ",self.folderSAVE)  
         
-        print("entering the weird scary doubled up part")
+        
         
         print("***")
         print("***")
@@ -1440,13 +1387,12 @@ class etsMAIN(object):
          
         timeModule.sleep(3) # this keeps things running orderly
         
+        #run parameters
         n1 = 10000
-        n2 = 40000
-        
+        n2 = 20000
         discard1 = int(n1/4)
         thinning = 15
        
-                              
 
         # ### MCMC setup
         np.random.seed(42)
@@ -1464,7 +1410,7 @@ class etsMAIN(object):
         
         #plot burn in chain
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1, 
-                              sampler, self.labels, ndim, appendix = "-burnin")
+                              sampler, self.labels, ndim, appendix = "burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
@@ -1594,7 +1540,7 @@ class etsMAIN(object):
         
         # plot chains, parameters
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1,
-                              sampler, self.labels, ndim, appendix = "-production")
+                              sampler, self.labels, ndim, appendix = "production")
         
         sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag1)
@@ -1612,38 +1558,50 @@ class etsMAIN(object):
             best_mcmc[0][i] = mcmc[1]
             upper_error[0][i] = q[1]
             lower_error[0][i] = q[0]
+            
+        self.best_mcmc = best_mcmc
+        self.upper_error = upper_error
+        self.lower_error = lower_error
      
-        logprob, blob = sampler.compute_log_prob(best_mcmc)
+        logprobcelerite, blob = sampler.compute_log_prob(best_mcmc)
+        
+        print("neg. log prob for celerite: ", logprobcelerite * -1)
+        self.BIC_celerite = ndim * np.log(len(self.time)) - 2 * (logprobcelerite * -1)
+        print("BIC (celerite) ", self.BIC_celerite)
+        
+        #print("Now need to calc prob for JUST model, and then prob for tinygp")
+        tinygpll= float(self.GP_LL_all[-1]) #neg ll
+        
+        #set up a new sampler with the plain format
+        argy = (self.time, self.intensity, self.error, self.disctime)
+        sampler2 = emcee.EnsembleSampler(nwalkers, 4, 
+                                         mc.log_probability_singlepower_noCBV, 
+                                         args=argy)
+        logprobplain, blob = sampler2.compute_log_prob(best_mcmc[:,0:4])
+        logprobplain = (-1* logprobplain) + tinygpll #positive
+        self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobplain
+        print("BIC (tinygp): ", self.BIC_tinygp)
 
-        # ### BIC
-        #print(np.log(len(self.time)))
-        print("log prob:", logprob)
-        BIC = ndim * np.log(len(self.time)) - 2 * logprob
-        print("BAYESIAN INF CRIT: ", BIC)
-        if np.isnan(np.float64(BIC[0])): # if it's a nan
-            BIC = 50000
-        else:
-            BIC = BIC[0]
          
             
-        # sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, self.error,
-        #                        best_mcmc[0], self.build_gp(self.theta, self.time),
-        #                        self.disctime, self.tmin, self.targetlabel,
-        #                        self.filesavetag, plotComponents=False)
+        sp.plot_celerite_tinygp_comp(self.folderSAVE, self.time, self.intensity, 
+                                     self.targetlabel, "-celerite-tinygp-matern32", 
+                                     self.best_mcmc, self.gpcelerite, 
+                                     self.build_gp(self.theta, self.time), 
+                                     self.disctime, self.tmin)
 
          
         
-        # with open(self.parameterSaveFile, 'w') as file:
-        #     #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-        #     file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
-        #                                                            upper=upper_error[0],
-        #                                                            lower=lower_error[0]))
-        #     file.write("log amps, scales: \n {one},{two}\n".format(one=self.gp_soln['log_amps'],
-        #                                                            two = self.gp_soln['log_scales']))
+        with open(self.parameterSaveFile, 'w') as file:
+            #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
+            file.write("\n celerite best: {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
+                                                                    upper=upper_error[0],
+                                                                    lower=lower_error[0]))
+            file.write("tinygp log amp, l: \n {one},{two}\n".format(one=self.tinygp_soln['log_amps'],
+                                                                    two = self.tinygp_soln['log_scales']))
            
-        #     if ('log_gamma' in soln.params.keys()):
-        #         file.write("log gamma: {three}\n".format(three=self.gp_soln['log_gamma']))
             
-        #     file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
-        #                                                         conv=converged))
+            file.write("BIC celerite:{bicy:.3f} \n ".format(bicy=self.BIC_celerite[0]))
+            file.write("BIC tinygp:{bics:.3f} \n".format(bics=self.BIC_tinygp[0]))
+            file.write("Converged? {c}".format(c= converged))
     
