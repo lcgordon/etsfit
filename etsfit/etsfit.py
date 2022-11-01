@@ -28,6 +28,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import emcee
+import gc
 import datetime 
 from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
@@ -383,23 +384,17 @@ class etsMAIN(object):
             self.quatsandcbvs = None # has to initiate as None or it'll freak
  
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+        if cutIndices is not None:
             self.__custom_mask_it(cutIndices)
        
         # 8hr binning
-        if binYesNo and self.binned == False: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=self.quatsandcbvs)                                    
-            self.binned = True # make sure you can't bin it more than once
+        if binYesNo: #if need to bin
+            self.__8hrbinning()
                                                  
         # percent of max fitting
         if fraction is not None and self.fractiontrimmed==False:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
+            #fractional fit code (fraction can be None)                                  
+            self.__fract_fit(fraction)
             self.fractiontrimmed=True #make sure you can't trim it more than once
             self.fract = fraction
             
@@ -452,7 +447,33 @@ class etsMAIN(object):
             return
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
-            return     
+            return   
+        
+    def __fract_fit(self, fraction):
+        """ 
+        Internal function to do a fractional fit: 
+        """
+        if fraction is not None:
+            (self.time, self.intensity, self.error, self.lygosbg, 
+             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+                                                   self.error, self.lygosbg, 
+                                                   fraction, self.quatsandcbvs)
+        return
+    
+    def __8hrbinning(self):
+        """ 
+        Internal function to do 8 hour binning
+        """
+        if self.binned: 
+            print("Data already binned! ")
+            return
+        else:     
+            (self.time, self.intensity, 
+             self.error, self.lygosbg,
+             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+                                                 self.lygosbg, QCBVALL=None) 
+            self.binned = True                                    
+            return
    
     def __gen_output_folder(self):
         """
@@ -467,12 +488,13 @@ class etsMAIN(object):
             self.ccd is None):
             raise ValueError("Cannot generate output folders, one of the parameters is None")
         
+        self.__makepath(self.filesavetag)
+        
         internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
         newfolderpath = (self.folderSAVE + internaluse)
         if not os.path.exists(newfolderpath):
             os.mkdir(newfolderpath)
-        # make subfolder for this run
-        #print(internaluse)
+
         print("files willl be tagged: ", self.filesavetag)
         subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
         if not os.path.exists(subfolderpath):
@@ -481,6 +503,20 @@ class etsMAIN(object):
         self.parameterSaveFile = self.folderSAVE + internaluse + self.filesavetag + "-output-params.txt"
         print("saving into folder: ",self.folderSAVE)
         return 
+    
+    def __makepath(self, filesavetag):
+        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
+        newfolderpath = (self.folderSAVE + internaluse)
+        if not os.path.exists(newfolderpath):
+            os.mkdir(newfolderpath)
+    
+        subfolderpath = newfolderpath + filesavetag
+        if not os.path.exists(subfolderpath):
+            os.mkdir(subfolderpath)
+        self.folderSAVE = subfolderpath + "/"
+        self.parameterSaveFile = self.folderSAVE + internaluse + filesavetag + "-output-params.txt"
+        print("saving into folder: ",self.folderSAVE) 
+        return
    
     def __setup_fittype_params(self, fitType, args=None, 
                                logProbFunc = None, plotFit = None,
@@ -939,23 +975,17 @@ class etsMAIN(object):
             raise AttributeError("You have to run pre_celerite_setup() first!")
             return
         
-        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+        ### custom masking
+        if cutIndices is not None:
             self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=None) 
+            self.__8hrbinning()
                                                  
-        # if doing percent of max fitting
-        if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
+        #fractional fit code (fraction can be None)                                  
+        self.__fract_fit(fraction)
+        
         #make folders to save into
         self.__gen_output_folder()   
         
@@ -966,43 +996,37 @@ class etsMAIN(object):
     
     def run_GP_fit_tinygp(self, cutIndices, binYesNo, fraction=None, 
                           n1=1000, n2=10000, gpUSE = "expsqr",
-                          thinParams=None):
+                          thinParams=None, bounds = True):
         """
         GP fitting using tinygp's stuff
         Update 10-7-22 - GP fit every 1000 steps
         Update 10-18-22 - GP for different types of fits
         Update 10-29-22 - BIC now includes tinygp contribution!! 
+        Update 10-31-22 - Switched to scipy.minimize to use bounds
         
         """
         
             
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+        if cutIndices is not None:
             self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binYesNo: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=None) 
+            self.__8hrbinning()
                                                  
-        # if doing percent of max fitting
-        if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
+        #fractional fit code (fraction can be None)                                  
+        self.__fract_fit(fraction)
        
         #set up gpUSE settings
-        self.__tinygp_setup(gpUSE=gpUSE)                                          
+        self.__tinygp_setup(gpUSE=gpUSE, bounds = bounds)                                          
         #make folders to save into
         self.__gen_output_folder()   
         #print("entering mcmc + gp concurrent fitting")
         self.__mcmc_concurrent_gp(n1, n2, thinParams)
         return
    
-    def __tinygp_setup(self, gpUSE='expsqr'):
+    def __tinygp_setup(self, gpUSE='expsqr', bounds=True):
         """ 
         Internal function to set up the tinygp run
         """
@@ -1018,7 +1042,6 @@ class etsMAIN(object):
         if gpUSE == 'expsqr':
             self.filesavetag = "-tinygp-expsqr"
             self.theta = {
-                "mean": np.float64(0.0),
                 "log_amps": np.log(2),
                 "log_scales": np.log(1),
             }
@@ -1028,16 +1051,20 @@ class etsMAIN(object):
         elif gpUSE == 'matern32':
             self.filesavetag = "-tinygp-matern32"
             self.theta = {
-                "mean":np.float64(0.0),
                 "log_amps": np.log(2),
                 "log_scales": np.log(1),
             }
             self.build_gp = self.__build_tinygp_matern32 #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
+            if bounds is True: 
+                self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
+                                             [np.log(21.2), np.log(3)]])
+            else: 
+                self.tinygp_bounds = None
+            
         elif gpUSE == 'expsinsqr':
             self.filesavetag = "-tinygp-expsinsqr"
             self.theta = {
-                "mean":np.float64(0.0),
                 "log_amps": np.log(2),
                 "log_scales": np.log(1),
                 "log_gamma": np.log(1),
@@ -1053,24 +1080,28 @@ class etsMAIN(object):
         return
     
     def __build_tinygp_matern32(self, theta, X):
-        """Make the matern3-2 kernel """
-        k1 = jnp.exp(theta["log_amps"]) * kernels.Matern32(jnp.exp(theta["log_scales"]))
-        return GaussianProcess(k1, X, mean=theta["mean"])
+        """
+        Make the matern3-2 kernel 
+        log amps is defined the SAME as log sigma in celerite
+        """
+        k1 = jnp.exp(theta["log_amps"]*2) * kernels.Matern32(jnp.exp(theta["log_scales"]))
+        return GaussianProcess(k1, X, mean=0.0)
     
     def __build_tinygp_expsinsqr(self, theta, X):
         """Make the expssinqr kernel """
         k1 = jnp.exp(theta["log_amps"]) * kernels.ExpSineSquared(jnp.exp(theta["log_scales"]),
                                                            gamma = jnp.exp(theta["log_gamma"]))
-        return GaussianProcess(k1, X, mean=theta["mean"])
+        return GaussianProcess(k1, X, mean=0.0)
     
     def __build_tinygp_expsqr(self, theta, X):
         """Make the expsqr kernel """
         k1 = jnp.exp(theta["log_amps"]) * kernels.ExpSquared(jnp.exp(theta["log_scales"]))
-        return GaussianProcess(k1, X, mean=theta["mean"])
+        return GaussianProcess(k1, X, mean=0.0)
     
     def __update_theta_ampsscale(self, solnparams):
         self.theta["log_amps"] = solnparams["log_amps"]
         self.theta["log_scales"] = solnparams["log_scales"]
+        #self.theta["mean"] = solnparams["mean"]
         return
     
     def __update_theta_ampsscalegamma(self, solnparams):
@@ -1078,6 +1109,7 @@ class etsMAIN(object):
         self.theta["log_scales"] = solnparams["log_scales"]
         self.theta['log_gamma'] = solnparams['log_gamma']
         return
+    
     
     def __mcmc_concurrent_gp(self, n1, n2, thinParams):
         """Fitting things that are NOT GP based
@@ -1167,13 +1199,14 @@ class etsMAIN(object):
             gp = self.build_gp(theta, X)
             return -gp.log_probability(y) + lp
 
+
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
 
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
         solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-        soln = solver.run(self.theta, X=self.time, y=res)
+        soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
         self.update_theta(soln.params)
@@ -1194,7 +1227,7 @@ class etsMAIN(object):
                     
                 res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-                soln = solver.run(self.theta, X=self.time, y=res)
+                soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
                 self.update_theta(soln.params)
             
@@ -1309,37 +1342,44 @@ class etsMAIN(object):
                                                                 conv=converged))
         
         return best_mcmc, upper_error, lower_error, BIC
+
     
-    def run_both_matern32(self, cutIndices, binYesNo=False, fraction=None):
-        """ Pfagh! Blech! """
-        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if not hasattr(self, 'cutindexes') and cutIndices is not None:
+
+    def run_both_matern32(self, cutIndices, binYesNo=False, fraction=None,
+                          bounds = True):
+        """ Pfagh! Blech! 
+        
+        concurrent tinygp and celerite fitting to residuals
+        
+        """
+        ### custom masking: 
+        if cutIndices is not None:
             self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: #if need to bin
-            (self.time, self.intensity, 
-             self.error, self.lygosbg,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=None) 
-                                                 
-        # if doing percent of max fitting
-        if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosbg, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
-                                                   fraction, self.quatsandcbvs)
+        if binYesNo: 
+            self.__8hrbinning()
+        
+        #fractional fit code (fraction can be None)                                  
+        self.__fract_fit(fraction)
+            
        
         #SET UP CELERITE                                               
         self.filesavetag1 = "-celerite-matern32"
-        sigma = 0.01 #amplitude
-        rho = 1.2 #timescale
-        sigma_bounds = (0.0001,0.3)
-        rho_bounds = (1,2)
-        bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
-        kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+        
+        #rho should be DEFINITELY > 1, probably > 2, and no more than ~10
+        rho_bounds = np.log((1, 10)) #0, 2.302
+        rho = 1 # init value
+        # sigma squared controls how big the max covariance is - more than 0, less than 20
+        sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
+        sigma = 0.5
+        bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+        kernel = terms.Matern32Term(log_sigma=np.log(sigma), 
+                                    log_rho=np.log(rho), 
                                     bounds=bounds_dict)
-        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
+        
+        
+        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, np.log(sigma), np.log(rho)))
 
         self.gpcelerite = celerite.GP(kernel, mean=0.0)
         self.gpcelerite.compute(self.time, self.error)
@@ -1357,27 +1397,20 @@ class etsMAIN(object):
         self.fitType = 1
         self.filesavetag2 = "-tinygp-matern32"
         self.theta = {
-            "mean":np.float64(0.0),
             "log_amps": np.log(2),
-            "log_scales": np.log(1),
+            "log_scales": np.log(1.5),
         }
         self.build_gp = self.__build_tinygp_matern32 #no quotes on it
         self.update_theta = self.__update_theta_ampsscale
-                                               
-        #make folders to save into
-        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
-        newfolderpath = (self.folderSAVE + internaluse)
-        if not os.path.exists(newfolderpath):
-            os.mkdir(newfolderpath)
-
-        subfolderpath = newfolderpath + "/celerite-tinygp-matern32/"
-        if not os.path.exists(subfolderpath):
-            os.mkdir(subfolderpath)
-        self.folderSAVE = subfolderpath + "/"
-        self.parameterSaveFile = self.folderSAVE + internaluse + "-output-params.txt"
-        print("saving into folder: ",self.folderSAVE)  
-        
-        
+        if bounds is True: 
+            # bounds are same as in celerite
+            self.tinygp_bounds = np.asarray([[np.log(np.sqrt(0.1)), np.log(1)], 
+                                             [np.log(np.sqrt(20)), np.log(10)]])
+        else: 
+            self.tinygp_bounds = None
+         
+        #make folder
+        self.__makepath(self, "celerite-tinygp-matern32")
         
         print("***")
         print("***")
@@ -1391,7 +1424,7 @@ class etsMAIN(object):
         n1 = 10000
         n2 = 20000
         discard1 = int(n1/4)
-        thinning = 15
+        thinning = 5
        
 
         # ### MCMC setup
@@ -1417,8 +1450,7 @@ class etsMAIN(object):
         # get intermediate best
         best_mcmc_inter = np.zeros((1,ndim))
         for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-            best_mcmc_inter[0][i] = mcmc[1]
+            best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
             
         # ### Main run
         np.random.seed(50)
@@ -1453,10 +1485,8 @@ class etsMAIN(object):
         
 
         def neg_log_likelihood(theta, X, y):
-            lp = 0
-            #this is going to need priors somehow??
             tinygp = self.build_gp(theta, X)
-            return -tinygp.log_probability(y) + lp
+            return -tinygp.log_probability(y)
 
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
@@ -1464,7 +1494,8 @@ class etsMAIN(object):
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
         solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-        soln = solver.run(self.theta, X=self.time, y=res)
+
+        soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
         self.update_theta(soln.params)
@@ -1485,7 +1516,7 @@ class etsMAIN(object):
                     
                 res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-                soln = solver.run(self.theta, X=self.time, y=res)
+                soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
                 self.update_theta(soln.params)
             

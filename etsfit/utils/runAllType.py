@@ -213,4 +213,16 @@ trlc = run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                   quaternion_folder_raw, 
                   quaternion_folder_txt, bigInfoFile, gList)
 
+#%%
+print("celerite log sigma, log rho: ", trlc.best_mcmc[0][4:])
+print("celerite sigma^2, rho: ", np.exp(trlc.best_mcmc[0][4])**2, np.exp(trlc.best_mcmc[0][5]))
 
+
+print("tinygp output params: ", trlc.tinygp_soln)
+print("tinygp output converted: ", np.exp(trlc.tinygp_soln["log_amps"]*2),
+      np.exp(trlc.tinygp_soln["log_scales"]))
+
+def convert_gp_params(best_mcmc, tinygp_soln):
+    cel_sigma_sq = np.exp(best_mcmc[0][4])**2
+    cel_rho = np.exp(trlc.best_mcmc[0][5])
+    return cel_sigma_sq, cel_rho

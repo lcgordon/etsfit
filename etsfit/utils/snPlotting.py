@@ -537,7 +537,9 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
     gpcelerite.set_parameter_vector(best_mcmc[0][4:])
-    celerite_bg = gpcelerite.predict(intensity-mod, time, return_cov=False)
+    celerite_bg, celerite_var = gpcelerite.predict(intensity-mod, time, 
+                                                   return_var=True)
+    cel_std = np.sqrt(celerite_var)
     
     tinygp_bg = gptinygp.predict(intensity-mod, time, return_cov=False)
 
@@ -560,6 +562,9 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     ax[1][0].scatter(time, intensity-mod, label="Residual", color='black', s=3)
     
     ax[0][1].plot(time, mod+celerite_bg, label="Model + celerite", color='red')
+    ax[0][1].fill_between(time, mod+celerite_bg+cel_std, 
+                          mod+celerite_bg-cel_std, color='pink', 
+                          alpha=0.3,edgecolor="none", label="1 sigma")
     ax[1][1].scatter(time, intensity-mod-celerite_bg, label="Residual", color='black', s=3)
     
     ax[0][2].plot(time, mod+tinygp_bg, label="Model + tinygp", color='red')
