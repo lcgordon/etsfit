@@ -251,7 +251,7 @@ class etsMAIN(object):
         
         """
         return ut.window_rms(self.time, self.intensity, innerfilt = innerfilt, 
-                        outerfilt = outerfilt,plot=plot)
+                        outerfilt = outerfilt, plot=plot)
     
     def load_single_lc(self, time, intensity, error, discoverytime, 
                        targetlabel, sector, camera, ccd, lygosbg=None):
@@ -395,10 +395,7 @@ class etsMAIN(object):
         if fraction is not None and self.fractiontrimmed==False:
             #fractional fit code (fraction can be None)                                  
             self.__fract_fit(fraction)
-            self.fractiontrimmed=True #make sure you can't trim it more than once
-            self.fract = fraction
             
-        
         # this is to fix the quats and cbv inputs after trimming                       
         if fitType in (2,4,5):
             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs
@@ -415,12 +412,10 @@ class etsMAIN(object):
         *****this should NOT be used if using CBVs - that's not set up yet!!
         """
         if hasattr(self, 'cutindexes'): #if already did a trim
-            print("*******")
             print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
-            print("*******")
             return
         elif hasattr(self, 'time'): #if something loaded in and going to trim
-            plt.scatter(self.time, self.intensity, color='red', s=2, label="raw")
+            #plt.scatter(self.time, self.intensity, color='red', s=2, label="raw")
                 
             self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
             self.time = self.time[self.cutindexes]
@@ -437,13 +432,16 @@ class etsMAIN(object):
                 self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
                 
            
-            plt.scatter(self.time, self.intensity, color='blue', s=2, label="trimmed")
-            plt.xlabel(self.xlabel)
-            plt.ylabel(self.ylabel)
-            plt.tight_layout()
-            plt.savefig('{p}{t}-wrms-trimmed.png'.format(p=self.folderSAVE,
-                                                              t=self.targetlabel))
-            plt.close()
+            # plt.scatter(self.time, self.intensity, color='blue', s=2, label="trimmed")
+            # plt.xlabel(self.xlabel)
+            # plt.ylabel(self.ylabel)
+            # if hasattr(self, 'disctime'):
+            #     plt.axvline(self.disctime, label = "disc. time")
+            # plt.legend()
+            # plt.tight_layout()
+            # plt.savefig('{p}{t}-wrms-trimmed.png'.format(p=self.folderSAVE,
+            #                                                   t=self.targetlabel))
+            # plt.close()
             return
         else:
             print("No data loaded in yet!! Run again once light curve is loaded")
@@ -458,6 +456,8 @@ class etsMAIN(object):
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
                                                    self.error, self.lygosbg, 
                                                    fraction, self.quatsandcbvs)
+        self.fractiontrimmed=True #make sure you can't trim it more than once
+        self.fract = fraction                                        
         return
     
     def __8hrbinning(self):
@@ -489,19 +489,7 @@ class etsMAIN(object):
             raise ValueError("Cannot generate output folders, one of the parameters is None")
         
         self.__makepath(self.filesavetag)
-        
-        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
-        newfolderpath = (self.folderSAVE + internaluse)
-        if not os.path.exists(newfolderpath):
-            os.mkdir(newfolderpath)
 
-        print("files willl be tagged: ", self.filesavetag)
-        subfolderpath = newfolderpath + "/" + self.filesavetag[1:]
-        if not os.path.exists(subfolderpath):
-            os.mkdir(subfolderpath)
-        self.folderSAVE = subfolderpath + "/"
-        self.parameterSaveFile = self.folderSAVE + internaluse + self.filesavetag + "-output-params.txt"
-        print("saving into folder: ",self.folderSAVE)
         return 
     
     def __makepath(self, filesavetag):
@@ -510,7 +498,7 @@ class etsMAIN(object):
         if not os.path.exists(newfolderpath):
             os.mkdir(newfolderpath)
     
-        subfolderpath = newfolderpath + filesavetag
+        subfolderpath = newfolderpath + "/" + filesavetag[1:]
         if not os.path.exists(subfolderpath):
             os.mkdir(subfolderpath)
         self.folderSAVE = subfolderpath + "/"
@@ -545,6 +533,7 @@ class etsMAIN(object):
             
         """
         self.plotFit = fitType
+        start_t = min(self.disctime-3, self.time[-1]-2)
         
         
         if fitType == 1: # single without
@@ -556,7 +545,8 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower"
             self.labels = ["t0", "A", "beta",  "b"]
             self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+            
+            self.init_values = np.array((start_t, 0.1, 1.8, 1))
             
         elif fitType == 2: # single with
             if args is None:
@@ -569,7 +559,7 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
             self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, 0,0,0,0))
+            self.init_values = np.array((start_t, 0.1, 1.8, 0, 0,0,0,0))
             
         elif fitType == 3: # double without
             if args is None:
@@ -581,7 +571,7 @@ class etsMAIN(object):
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
             self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-8, self.disctime-4, 0.1, 0.1, 1.8, 1.8, 1))
+            self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 1.8, 1.8, 1))
 
         elif fitType ==4: # double with
             if args is None:
@@ -595,7 +585,7 @@ class etsMAIN(object):
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  
                       "cQ", "c1", "c2", "c3"]
             self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-8, self.disctime-2, 0.1, 0.1, 
+            self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
         elif fitType == 5: # just CBVs
             if args is None:
@@ -621,7 +611,7 @@ class etsMAIN(object):
                 self.filesavetag = "-singlepower-lygosBG"
                 self.labels = ["t0", "A", "beta",  "b", "LBG"]
                 self.filelabels = self.labels
-                self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1, 1))
+                self.init_values = np.array((start_t, 0.1, 1.8, 1, 1))
          
         elif fitType == 7: # gaussian beta
             if args is None:
@@ -633,7 +623,7 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower-GBeta"
             self.labels = ["t0", "A", "beta",  "b"]
             self.filelabels = self.labels
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+            self.init_values = np.array((start_t, 0.1, 1.8, 1))
         
         elif fitType == 0: # diy your stuff
             self.args = args # LAST ONE MUST BE PRIORS IF USING CUSTOMS
@@ -672,32 +662,20 @@ class etsMAIN(object):
             1) load in CBVs/quats
             2) handle custom masking of points
             3) bin 
-            4) fractional cutoff applied to flux
-                                                                
-        
+            4) fractional cutoff applied to flux                             
         ---------------------------------------------------
         Parameters:
             
             - n1 (int def 1000) burn in first chain length
             - n2 (int def 10000) production chain length
-            
-            
             - thinParams, NONE to use defaults (1/4 first run discard, 15% trime) 
-                            or [first run discard, percent thin]
-                            
+                            or [first run discard, percent thin]  
             - saveBIC (bool) do you want to save the BIC value that comes out
-            
             - args, NONE for 1-6, use for 0 if you want it (see below)
-            
             - logProbFunc, NONE for 1-6, use for 0
-            
-            - plotFit = NONE unless doing a custom fit - needs to match up with the 
-                logprobfunc being used
-                
+            - plotFit = NONE unless doing a custom fit
             - filesavetag = NONE, custom string if you want it
-            
             - labels, NONE unless doing custom bullshit, then array of str
-            
             - init_values, NONE unless doing custom bullshit
         
         If you are doing custom priors:
@@ -705,9 +683,6 @@ class etsMAIN(object):
             - run under fitType = 0
             - last items in args must be your priors array -- all probability functions
                 come with a positional argument priors = None that this should override
-            - hopefully the tutorial level shows how to set this up right
-    
-
         """
 
         if not self.cleaningdone:
@@ -739,10 +714,7 @@ class etsMAIN(object):
                                          15% thinning) or [int to discard, thinning percent]
         """
         
-        print("***")
-        print("***")
-        print("***")
-        print("***")
+        print(" *** \n *** \n *** \n ***")
         print("Beginning MCMC run")
          
         timeModule.sleep(3) # this keeps things running orderly
@@ -889,11 +861,12 @@ class etsMAIN(object):
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
-                                                                   upper=upper_error[0],
-                                                                   lower=lower_error[0]))
-            file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
-                                                                conv=converged))
+            file.write("{best}\n".format(best=best_mcmc[0]))
+            file.write("{upper}\n".format(upper=upper_error[0]))
+            file.write("{lower}\n".format(lower=lower_error[0]))
+            file.write("BIC:{bicy:.3f}\n".format(bicy=BIC))
+            file.write("Converged:{conv}".format(conv=converged))
+                       
         
         return best_mcmc, upper_error, lower_error, BIC
     
@@ -914,6 +887,7 @@ class etsMAIN(object):
         else:
             self.filesavetag = filesavetag
         #set up kernel
+        start_t = min(self.disctime-3, self.time[-1]-2)
         # SET UP NEW MATERN-32 GP
         if customSigmaRho is None:
             sigma = 0.01 #amplitude
@@ -923,7 +897,8 @@ class etsMAIN(object):
             bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
             kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
                                         bounds=bounds_dict)
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
+            
+            self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
         else:
             sigma = customSigmaRho[0]
             rho = customSigmaRho[1]
@@ -932,7 +907,7 @@ class etsMAIN(object):
             bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
             kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
                                         bounds=bounds_dict)
-            self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0))
+            self.init_values = np.array((start_t, 0.1, 1.8, 0))
             
             if customSigmaRho[6]: #if frozen (1)
                 kernel.freeze_parameter("log sigma")
@@ -1037,7 +1012,8 @@ class etsMAIN(object):
         self.logProbFunc = mc.log_probability_singlepower_noCBV
         self.labels = ["t0", "A", "beta",  "b"]
         self.filelabels = self.labels
-        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 1))
+        start_t = min(self.time[-1]-2, self.disctime-3)
+        self.init_values = np.array((start_t, 0.1, 1.8, 1))
         
         if gpUSE == 'expsqr':
             self.filesavetag = "-tinygp-expsqr"
@@ -1120,10 +1096,7 @@ class etsMAIN(object):
                                          15% thinning) or [int to discard, thinning percent]
         """
         
-        print("***")
-        print("***")
-        print("***")
-        print("***")
+        print("*** \n *** \n *** \n ***")
         print("Beginning MCMC + GP run")
          
         timeModule.sleep(3) # this keeps things running orderly
@@ -1352,6 +1325,10 @@ class etsMAIN(object):
         concurrent tinygp and celerite fitting to residuals
         
         """
+        #make folder
+        self.__makepath("-celerite-tinygp-matern32")
+        self.quatsandcbvs = None
+        
         ### custom masking: 
         if cutIndices is not None:
             self.__custom_mask_it(cutIndices)
@@ -1378,8 +1355,8 @@ class etsMAIN(object):
                                     log_rho=np.log(rho), 
                                     bounds=bounds_dict)
         
-        
-        self.init_values = np.array((self.disctime-3, 0.1, 1.8, 0, np.log(sigma), np.log(rho)))
+        start_t = min(self.disctime-3, self.time[-1]-2)
+        self.init_values = np.array((start_t, 0.1, 1.8, 0, np.log(sigma), np.log(rho)))
 
         self.gpcelerite = celerite.GP(kernel, mean=0.0)
         self.gpcelerite.compute(self.time, self.error)
@@ -1409,13 +1386,9 @@ class etsMAIN(object):
         else: 
             self.tinygp_bounds = None
          
-        #make folder
-        self.__makepath(self, "celerite-tinygp-matern32")
         
-        print("***")
-        print("***")
-        print("***")
-        print("***")
+        
+        print("*** \n *** \n *** \n ***")
         print("Beginning MCMC + GP run")
          
         timeModule.sleep(3) # this keeps things running orderly
@@ -1520,7 +1493,7 @@ class etsMAIN(object):
                 self.GP_LL_all.append(soln.state.fun_val)
                 self.update_theta(soln.params)
             
-            # Only check convergence every 100 steps
+            # check convergence every 100 steps
             if sampler.iteration % autoStep:
                 continue
             # Compute the autocorrelation time so far
@@ -1547,18 +1520,11 @@ class etsMAIN(object):
         sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
                           self.targetlabel, self.filesavetag2)
         
-        # ######
         #plot autocorr things
-        ########
-        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
-                              autocorr, converged, 
-                              autoStep, self.filesavetag1)
-        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
-                                    autocorr_all, autoStep, self.labels,
-                                    self.filelabels, 
-                                    self.filesavetag1)
+        sp.plot_autocorr_all(self.folderSAVE, self.targetlabel, index, autocorr, 
+                              autocorr_all, converged,
+                              autoStep, self.labels, self.filelabels, self.filesavetag1)
         
-            
         #thin and burn out dump
         tau = sampler.get_autocorr_time(tol=0)
         if (np.max(tau) < (sampler.iteration/50)):
@@ -1601,7 +1567,7 @@ class etsMAIN(object):
         print("BIC (celerite) ", self.BIC_celerite)
         
         #print("Now need to calc prob for JUST model, and then prob for tinygp")
-        tinygpll= float(self.GP_LL_all[-1]) #neg ll
+        tinygpll = float(self.GP_LL_all[-1]) #final neg ll
         
         #set up a new sampler with the plain format
         argy = (self.time, self.intensity, self.error, self.disctime)
@@ -1613,26 +1579,21 @@ class etsMAIN(object):
         self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobplain
         print("BIC (tinygp): ", self.BIC_tinygp)
 
-         
-            
         sp.plot_celerite_tinygp_comp(self.folderSAVE, self.time, self.intensity, 
                                      self.targetlabel, "-celerite-tinygp-matern32", 
                                      self.best_mcmc, self.gpcelerite, 
                                      self.build_gp(self.theta, self.time), 
                                      self.disctime, self.tmin)
 
-         
-        
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("\n celerite best: {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
-                                                                    upper=upper_error[0],
-                                                                    lower=lower_error[0]))
+            file.write("{best}\n".format(best=best_mcmc[0]))
+            file.write("{upper}\n".format(upper=upper_error[0]))
+            file.write("{lower}\n".format(lower=lower_error[0]))
             file.write("tinygp log amp, l: \n {one},{two}\n".format(one=self.tinygp_soln['log_amps'],
                                                                     two = self.tinygp_soln['log_scales']))
-           
+            file.write("BIC celerite:{bicy:.3f}\n".format(bicy=self.BIC_celerite[0]))
+            file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=self.BIC_tinygp[0]))
+            file.write("Converged:{conv}".format(conv=converged))
             
-            file.write("BIC celerite:{bicy:.3f} \n ".format(bicy=self.BIC_celerite[0]))
-            file.write("BIC tinygp:{bics:.3f} \n".format(bics=self.BIC_tinygp[0]))
-            file.write("Converged? {c}".format(c= converged))
     

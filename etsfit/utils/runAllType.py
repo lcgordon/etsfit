@@ -26,7 +26,7 @@ import etsfit.utils.utilities as ut
 lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
 bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-foldersave = "/Users/lindseygordon/research/urop/plotOutput/"
+foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
 quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 
@@ -48,15 +48,16 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
             if name.endswith("-tessreduce"):
                 holder = root + "/" + name
                 #print(holder)
-                print(i)
+                #print(i)
                 (time, intensity, error, targetlabel, 
                  sector, camera, ccd) = ut.tr_load_lc(holder)
+                #print(targetlabel, sector)
                 if goodList is not None and targetlabel not in goodList:
-                        continue
+                    #print("skipping")
+                    continue
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                #print(discoverytime)
                 #run it
                 trlc = etsMAIN(foldersave, bigInfoFile)
                 
@@ -68,6 +69,10 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                                               quaternion_folder_txt)
                 
                 filterMade = trlc.window_rms_filt(plot=False)
+                
+                if "2018fhw" in targetlabel:
+                    filterMade[1040:1080] = 0.0
+                
                 trlc.pre_run_clean(fitType, cutIndices=filterMade, 
                                    binYesNo = False, fraction = fraction)
                 trlc.run_MCMC(n1=10000, n2=60000, thinParams = None,
@@ -81,8 +86,8 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
                 i+=1
     return
 
-fraction = None
-gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2020xyw", "2020hvq", 
+fraction = 0.6
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
          "2020hdw", "2020bj", "2019gqv"]
 # run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
 #                   quaternion_folder_raw, 
@@ -117,6 +122,8 @@ def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder,
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 
                 filterMade = trlc.window_rms_filt(plot=False)
+                if "2018fhw" in targetlabel:
+                    filterMade[1040:1080] = 0.0
                 trlc.pre_celerite_setup()
                 trlc.run_GP_fit_celerite(filterMade, binYesNo=False, fraction=None, 
                                n1=7000, n2=20000, thinParams=None)
@@ -157,6 +164,8 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 trlc.load_single_lc(time, intensity, error, discoverytime, 
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 filterMade = trlc.window_rms_filt(plot=False)
+                if "2018fhw" in targetlabel:
+                    filterMade[1040:1080] = 0.0
                 trlc.pre_run_clean(1, cutIndices=filterMade, 
                                    binYesNo = False, fraction = fraction)
                 trlc.run_GP_fit_tinygp(filterMade, binYesNo=False, fraction=fraction, 
@@ -183,7 +192,7 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
     i = 0
     for root, dirs, files in os.walk(lightcurveFolder):
         for name in files:
-            if name.endswith("-tessreduce") and i==0:
+            if name.endswith("-tessreduce"):
                 holder = root + "/" + name
                 print(i)
                 (time, intensity, error, targetlabel, 
@@ -201,9 +210,10 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 
                 filterMade = trlc.window_rms_filt(plot=False)
-                trlc.pre_run_clean(1, cutIndices=filterMade, 
-                                   binYesNo = False, fraction = fraction)
-                trlc.run_both_matern32(filterMade, binYesNo=False, fraction=None)
+                if "2018fhw" in targetlabel:
+                    filterMade[1040:1080] = 0.0
+                    
+                trlc.run_both_matern32(filterMade, binYesNo=False, fraction=fraction)
                 
                 gc.collect()
                 i+=1
@@ -226,3 +236,5 @@ def convert_gp_params(best_mcmc, tinygp_soln):
     cel_sigma_sq = np.exp(best_mcmc[0][4])**2
     cel_rho = np.exp(trlc.best_mcmc[0][5])
     return cel_sigma_sq, cel_rho
+
+#%%

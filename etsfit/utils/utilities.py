@@ -69,7 +69,7 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
     
     """
     if innerfilt is None:
-        innersize = int(len(time)*0.005)
+        innersize = int(len(time)*0.01)
     else:
         innersize = innerfilt
     if outerfilt is None:
@@ -128,11 +128,11 @@ def normalize_sigmaclip(time, flux,error, bg, axis=0):
         bg = np.delete(bg, clipped_inds)
         bg = bg / np.median(bg, axis = axis, keepdims=True)
         
-    origmin = min(flux)
-    origrange = max(flux) - origmin
-    newmin = 0
-    newrange = 1
-    flux = [(n - origmin) / origrange * newrange + newmin for n in flux]
+    # origmin = min(flux)
+    # origrange = max(flux) - origmin
+    # newmin = 0
+    # newrange = 1
+    # flux = [(n - origmin) / origrange * newrange + newmin for n in flux]
     return time,flux,error, bg
 
 def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
@@ -504,4 +504,7 @@ def tr_load_lc(file, printname=True):
     
     if printname:
         print(targetlabel, sector, camera, ccd)
+        
+    time, intensity, error, bg = normalize_sigmaclip(time, intensity, error, None, axis=0)
+        
     return time, intensity, error, targetlabel, sector, camera, ccd

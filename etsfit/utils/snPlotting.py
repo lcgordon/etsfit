@@ -40,6 +40,7 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     plt.title("{targ}: Mean Autocorr. Time. Converged = {c}".format(targ=targetlabel,
                                                                     c = converged))
     plt.legend(loc="lower right")
+    plt.tight_layout()
     plt.savefig("{s}{t}{f}-autocorr-mean.png".format(s=savepath,
                                                       t=targetlabel,
                                                       f = filesavetag))
@@ -70,11 +71,22 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
         plt.ylabel(r"$\hat{\tau} for $" + labels[i])
         plt.title("{t}: autocorr time for {l}".format(t=targetlabel,
                                                    l = labels[i]))
+        plt.tight_layout()
         plt.savefig("{s}{t}{f}-autocorr-{fl}.png".format(s=savepath,
                                                           t=targetlabel,
                                                           f = filesavetag,
                                                           fl = filelabels[i]))
         plt.close()
+        
+def plot_autocorr_all(savepath, targetlabel, index, autocorr, 
+                      autocorr_all, converged,
+                      autoStep, labels, filelabels, filesavetag):
+    
+    plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
+                           autoStep, filesavetag)
+    plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
+                                 autoStep, labels, filelabels, filesavetag)
+    return
 
 
 def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
@@ -150,23 +162,23 @@ def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
     rcParams['figure.figsize'] = 16,6
     return
     
-def plot_log_post(path, targetlabel, filesavetag, sampler):
-    '''
-    plot the log posteriors
-    unclear if this gets used anywhere?
-    '''
-    logprobs = sampler.get_log_prob()
-    logprior = sampler.get_blobs()
-    logpost = logprobs+logprior
-    xaxis = np.linspace(1,len(logpost), len(logpost[:,0]))
-    for h in range(len(logpost[0])):
-        plt.scatter(xaxis, logpost[:,0])
-    plt.xlabel("steps")
-    plt.ylabel("log posterior")
-    plt.savefig('{p}{t}{f}-log-post.png'.format(p=path,t=targetlabel,
-                                                f=filesavetag))
-    plt.close()
-    return
+# def plot_log_post(path, targetlabel, filesavetag, sampler):
+#     '''
+#     plot the log posteriors
+#     unclear if this gets used anywhere?
+#     '''
+#     logprobs = sampler.get_log_prob()
+#     logprior = sampler.get_blobs()
+#     logpost = logprobs+logprior
+#     xaxis = np.linspace(1,len(logpost), len(logpost[:,0]))
+#     for h in range(len(logpost[0])):
+#         plt.scatter(xaxis, logpost[:,0])
+#     plt.xlabel("steps")
+#     plt.ylabel("log posterior")
+#     plt.savefig('{p}{t}{f}-log-post.png'.format(p=path,t=targetlabel,
+#                                                 f=filesavetag))
+#     plt.close()
+#     return
 
 
 
@@ -257,10 +269,11 @@ def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim,
         ax = axes[i+1]
         ax.plot(samples[:, :, i], "k", alpha=0.3)
         ax.set_xlim(0, len(samples))
-        ax.set_ylabel(labels[i])
+        ax.set_ylabel(labels[i], fontsize=10)
         ax.yaxis.set_label_coords(-0.1, 0.5)
     
-    axes[-1].set_xlabel("step number");
+    axes[-1].set_xlabel("Step Number")
+    axes[-1].tick_params(axis='y', labelsize=10)
     plt.savefig('{p}{t}{f}-chain-logpost-{a}.png'.format(p=path,
                                                       t=targetlabel,
                                                       f=filesavetag,
