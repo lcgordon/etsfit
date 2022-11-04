@@ -890,11 +890,13 @@ class etsMAIN(object):
         start_t = min(self.disctime-3, self.time[-1]-2)
         # SET UP NEW MATERN-32 GP
         if customSigmaRho is None:
-            sigma = 0.01 #amplitude
-            rho = 1.2 #timescale
-            sigma_bounds = (0.0001,0.3)
-            rho_bounds = (1,2)
-            bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
+            
+            
+            rho = 2 # init value
+            sigma = 1
+            rho_bounds = np.log((1, 10)) #0, 2.302
+            sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
+            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
             kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
                                         bounds=bounds_dict)
             
@@ -1018,8 +1020,8 @@ class etsMAIN(object):
         if gpUSE == 'expsqr':
             self.filesavetag = "-tinygp-expsqr"
             self.theta = {
-                "log_amps": np.log(2),
-                "log_scales": np.log(1),
+                "log_sigma": np.log(2),
+                "log_rho": np.log(1),
             }
             self.build_gp = self.__build_tinygp_expsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
@@ -1027,8 +1029,8 @@ class etsMAIN(object):
         elif gpUSE == 'matern32':
             self.filesavetag = "-tinygp-matern32"
             self.theta = {
-                "log_amps": np.log(2),
-                "log_scales": np.log(1),
+                "log_sigma": np.log(2),
+                "log_rho": np.log(1),
             }
             self.build_gp = self.__build_tinygp_matern32 #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
@@ -1041,8 +1043,8 @@ class etsMAIN(object):
         elif gpUSE == 'expsinsqr':
             self.filesavetag = "-tinygp-expsinsqr"
             self.theta = {
-                "log_amps": np.log(2),
-                "log_scales": np.log(1),
+                "log_sigma": np.log(2),
+                "log_rho": np.log(1),
                 "log_gamma": np.log(1),
             }
             self.build_gp = self.__build_tinygp_expsinsqr #no quotes on it
@@ -1058,31 +1060,32 @@ class etsMAIN(object):
     def __build_tinygp_matern32(self, theta, X):
         """
         Make the matern3-2 kernel 
-        log amps is defined the SAME as log sigma in celerite
+        log_sigma is defined the SAME as log sigma in celerite
+        jnp required here for data type reasons
         """
-        k1 = jnp.exp(theta["log_amps"]*2) * kernels.Matern32(jnp.exp(theta["log_scales"]))
-        return GaussianProcess(k1, X, mean=0.0)
+        k1 = jnp.exp(theta["log_sigma"]*2) * kernels.Matern32(jnp.exp(theta["log_rho"]))
+        return GaussianProcess(k1, X, mean=0.0, diag=self.error)
     
     def __build_tinygp_expsinsqr(self, theta, X):
         """Make the expssinqr kernel """
-        k1 = jnp.exp(theta["log_amps"]) * kernels.ExpSineSquared(jnp.exp(theta["log_scales"]),
+        k1 = jnp.exp(theta["log_sigma"]) * kernels.ExpSineSquared(jnp.exp(theta["log_rho"]),
                                                            gamma = jnp.exp(theta["log_gamma"]))
-        return GaussianProcess(k1, X, mean=0.0)
+        return GaussianProcess(k1, X, mean=0.0, diag=self.error)
     
     def __build_tinygp_expsqr(self, theta, X):
         """Make the expsqr kernel """
-        k1 = jnp.exp(theta["log_amps"]) * kernels.ExpSquared(jnp.exp(theta["log_scales"]))
-        return GaussianProcess(k1, X, mean=0.0)
+        k1 = jnp.exp(theta["log_sigma"]) * kernels.ExpSquared(jnp.exp(theta["log_rho"]))
+        return GaussianProcess(k1, X, mean=0.0, diag=self.error)
     
     def __update_theta_ampsscale(self, solnparams):
-        self.theta["log_amps"] = solnparams["log_amps"]
-        self.theta["log_scales"] = solnparams["log_scales"]
+        self.theta["log_sigma"] = solnparams["log_sigma"]
+        self.theta["log_rho"] = solnparams["log_rho"]
         #self.theta["mean"] = solnparams["mean"]
         return
     
     def __update_theta_ampsscalegamma(self, solnparams):
-        self.theta["log_amps"] = solnparams["log_amps"]
-        self.theta["log_scales"] = solnparams["log_scales"]
+        self.theta["log_sigma"] = solnparams["log_sigma"]
+        self.theta["log_rho"] = solnparams["log_rho"]
         self.theta['log_gamma'] = solnparams['log_gamma']
         return
     
@@ -1095,6 +1098,15 @@ class etsMAIN(object):
             - thinParams is EITHER NONE (default thinning is used, 1/4 for the first run,
                                          15% thinning) or [int to discard, thinning percent]
         """
+        def make_residual(x, y, best_mcmc):
+            t0, A,beta,B = best_mcmc
+            t1 = x - t0
+            sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
+            return y - sl
+        
+        def neg_log_likelihood(theta, X, y):
+            gp = self.build_gp(theta, X)
+            return -gp.log_probability(y)
         
         print("*** \n *** \n *** \n ***")
         print("Beginning MCMC + GP run")
@@ -1131,8 +1143,7 @@ class etsMAIN(object):
         # get intermediate best
         best_mcmc_inter = np.zeros((1,ndim))
         for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-            best_mcmc_inter[0][i] = mcmc[1]
+            best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
             
         # ### Main run
         np.random.seed(50)
@@ -1149,33 +1160,15 @@ class etsMAIN(object):
         autoStep = 100 # how often to check
         autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
         
-        
         # GP setup
-        def make_residual(x, y, best_mcmc):
-            t0, A,beta,B = best_mcmc
-            t1 = x - t0
-            sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
-            bg = np.ones(len(x)) + B
-            return y - sl - bg
-        
         #calculate residual from intermediate best:
         res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
-        plt.scatter(self.time, res)
-        plt.show()
-        plt.close()
+        # plt.scatter(self.time, res)
+        # plt.show()
+        # plt.close()
         print("created residual")
         
-
-        def neg_log_likelihood(theta, X, y):
-            lp = 0
-            #this is going to need priors somehow??
-            gp = self.build_gp(theta, X)
-            return -gp.log_probability(y) + lp
-
-
-        
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
-
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
         solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
@@ -1185,7 +1178,6 @@ class etsMAIN(object):
         self.update_theta(soln.params)
         self.GP_LL_all = [soln.state.fun_val]
         
-
         # sample up to n2 steps
         for sample in sampler.sample(p0, iterations=n2, progress=True):
             
@@ -1193,7 +1185,6 @@ class etsMAIN(object):
             if sampler.iteration % 1000 == 0:
                 #new residual:
                 flat_samples = sampler.get_chain(flat=True)
-                # get intermediate best
                 best_mcmc_inter = np.zeros((1,ndim))
                 for i in range(ndim):
                     best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
@@ -1226,22 +1217,15 @@ class etsMAIN(object):
         
         
         #save output gp params:
-        self.gp_soln = soln.params
-        
+        self.update_theta(soln.params)
+        #plot gp log likelihood over steps
         sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
                           self.targetlabel, self.filesavetag)
         
-        # ######
         #plot autocorr things
-        ########
-        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
-                              autocorr, converged, 
-                              autoStep, self.filesavetag)
-        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
-                                    autocorr_all, autoStep, self.labels,
-                                    self.filelabels, 
-                                    self.filesavetag)
-        
+        sp.plot_autocorr_all(self.folderSAVE, self.targetlabel, index, autocorr, 
+                              autocorr_all, converged,
+                              autoStep, self.labels, self.filelabels, self.filesavetag)
             
         #thin and burn out dump
         tau = sampler.get_autocorr_time(tol=0)
@@ -1268,11 +1252,10 @@ class etsMAIN(object):
         lower_error = np.zeros((1,ndim))
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-            q = np.diff(mcmc)
-            print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
+            print(self.labels[i], mcmc[1], -1 * np.diff(mcmc)[0], np.diff(mcmc)[1] )
             best_mcmc[0][i] = mcmc[1]
-            upper_error[0][i] = q[1]
-            lower_error[0][i] = q[0]
+            upper_error[0][i] = np.diff(mcmc)[1]
+            lower_error[0][i] = np.diff(mcmc)[0]
      
         logprob, blob = sampler.compute_log_prob(best_mcmc)
 
@@ -1283,7 +1266,6 @@ class etsMAIN(object):
         negll = -1.0 * float(self.GP_LL_all[-1]) #neg ll
         print("negative log like,  GP: ", negll)
         logprob = -1.0 * (logprob+negll)
-        
         
         BIC = ndim * np.log(len(self.time)) - 2 * logprob
         print("BAYESIAN INF CRIT: ", BIC)
@@ -1298,35 +1280,43 @@ class etsMAIN(object):
                                self.disctime, self.tmin, self.targetlabel,
                                self.filesavetag, plotComponents=False)
 
-         
-        
         with open(self.parameterSaveFile, 'w') as file:
-            #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("\n {best} \n {upper} \n {lower} \n".format(best=best_mcmc[0],
-                                                                   upper=upper_error[0],
-                                                                   lower=lower_error[0]))
-            file.write("log amps, scales: \n {one},{two}\n".format(one=self.gp_soln['log_amps'],
-                                                                   two = self.gp_soln['log_scales']))
-           
-            if ('log_gamma' in soln.params.keys()):
+            file.write("{best}\n".format(best=best_mcmc[0]))
+            file.write("{upper}\n".format(upper=upper_error[0]))
+            file.write("{lower}\n".format(lower=lower_error[0]))
+            file.write("tinygp log sigma, rho: \n {one},{two}\n".format(one=self.theta['log_sigma'],
+                                                                    two = self.theta['log_rho']))
+            if ('log_gamma' in self.theta.keys()):
                 file.write("log gamma: {three}\n".format(three=self.gp_soln['log_gamma']))
-            
-            file.write("BIC:{bicy:.3f} \n Converged:{conv} \n".format(bicy=BIC, 
-                                                                conv=converged))
+            file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=self.BIC[0]))
+            file.write("Converged:{conv}".format(conv=converged))
         
         return best_mcmc, upper_error, lower_error, BIC
-
     
 
     def run_both_matern32(self, cutIndices, binYesNo=False, fraction=None,
                           bounds = True):
-        """ Pfagh! Blech! 
+        """ 
         
         concurrent tinygp and celerite fitting to residuals
+        update 11/4: why do the output plots look so damn different.
         
         """
+        def make_residual(x, y, best_mcmc):
+            t0, A,beta,B = best_mcmc[0:4]
+            t1 = x - t0
+            sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
+            return y - sl
+        
+        def neg_log_likelihood(theta, X, y):
+            tinygp = self.build_gp(theta, X)
+            return -tinygp.log_probability(y)
+        
         #make folder
-        self.__makepath("-celerite-tinygp-matern32")
+        taggy = "-celerite-tinygp-matern32"
+        if bounds is False:
+            taggy = "-celerite-tinygp-matern32-noBounds"
+        self.__makepath(taggy)
         self.quatsandcbvs = None
         
         ### custom masking: 
@@ -1345,12 +1335,25 @@ class etsMAIN(object):
         self.filesavetag1 = "-celerite-matern32"
         
         #rho should be DEFINITELY > 1, probably > 2, and no more than ~10
-        rho_bounds = np.log((1, 10)) #0, 2.302
-        rho = 1 # init value
+        
+        rho = 2 # init value
         # sigma squared controls how big the max covariance is - more than 0, less than 20
-        sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
-        sigma = 0.5
-        bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+        sigma = 1
+        if bounds is True:
+            print("Using bounds")
+            rho_bounds = np.log((1, 10)) #0, 2.302
+            sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
+            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+            self.tinygp_bounds = np.asarray([[np.log(1), np.log(np.sqrt(0.1))], #rho, sigma low
+                                             [np.log(10), np.log(np.sqrt(20))]]) #rho, sigma up
+        else:
+            print("no bounds")
+            rho_bounds = np.log((1, 1000))
+            sigma_bounds = np.log( np.sqrt((0.1, 1000)) )
+            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+            self.tinygp_bounds = np.asarray([[np.log(np.sqrt(1)), np.log(0.1)], 
+                                             [np.log(np.sqrt(1000)), np.log(1000)]])
+            
         kernel = terms.Matern32Term(log_sigma=np.log(sigma), 
                                     log_rho=np.log(rho), 
                                     bounds=bounds_dict)
@@ -1374,19 +1377,12 @@ class etsMAIN(object):
         self.fitType = 1
         self.filesavetag2 = "-tinygp-matern32"
         self.theta = {
-            "log_amps": np.log(2),
-            "log_scales": np.log(1.5),
+            "log_sigma": np.log(1),
+            "log_rho": np.log(2),
         }
         self.build_gp = self.__build_tinygp_matern32 #no quotes on it
         self.update_theta = self.__update_theta_ampsscale
-        if bounds is True: 
-            # bounds are same as in celerite
-            self.tinygp_bounds = np.asarray([[np.log(np.sqrt(0.1)), np.log(1)], 
-                                             [np.log(np.sqrt(20)), np.log(10)]])
-        else: 
-            self.tinygp_bounds = None
-         
-        
+            
         
         print("*** \n *** \n *** \n ***")
         print("Beginning MCMC + GP run")
@@ -1424,6 +1420,7 @@ class etsMAIN(object):
         best_mcmc_inter = np.zeros((1,ndim))
         for i in range(ndim):
             best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
+        print(best_mcmc_inter)
             
         # ### Main run
         np.random.seed(50)
@@ -1442,32 +1439,17 @@ class etsMAIN(object):
         
         
         # GP setup
-        def make_residual(x, y, best_mcmc):
-            t0, A,beta,B = best_mcmc[0:4]
-            t1 = x - t0
-            sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
-            bg = np.ones(len(x)) + B
-            return y - sl - bg
-        
         #calculate residual from intermediate best:
         res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
-        plt.scatter(self.time, res)
-        plt.show()
-        plt.close()
-        print("created residual")
-        
-
-        def neg_log_likelihood(theta, X, y):
-            tinygp = self.build_gp(theta, X)
-            return -tinygp.log_probability(y)
-
+        # plt.scatter(self.time, res)
+        # plt.show()
+        # plt.close()
+        # print("created residual")
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
-
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
         solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
-
         soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
@@ -1515,7 +1497,7 @@ class etsMAIN(object):
         
         
         #save output gp params:
-        self.tinygp_soln = soln.params
+        self.update_theta(soln.params)
         
         sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
                           self.targetlabel, self.filesavetag2)
@@ -1575,13 +1557,30 @@ class etsMAIN(object):
                                          mc.log_probability_singlepower_noCBV, 
                                          args=argy)
         logprobplain, blob = sampler2.compute_log_prob(best_mcmc[:,0:4])
-        logprobplain = (-1* logprobplain) + tinygpll #positive
-        self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobplain
+        logprobwgp = (-1* logprobplain) + tinygpll #positive
+        self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobwgp
         print("BIC (tinygp): ", self.BIC_tinygp)
+        
+        # print("troubleshooting gp parameters:")
+        # print("tinygp output parameters: ", self.theta)
+        # print("tinygp output sigma squared: ", jnp.exp(self.theta['log_sigma']*2))
+        # print("tinygp output rho: ", jnp.exp(self.theta['log_rho']))
+        # print("celerite fitting output: ", best_mcmc[0][4:])
+        # print("celerite sigma squared: ", np.exp(best_mcmc[0][4]*2))
+        # print("celerite rho: ", np.exp(best_mcmc[0][5]))
+
+        #re-compute the celerite kernel
+        kernel2 = terms.Matern32Term(log_sigma=best_mcmc[0][4], 
+                                    log_rho=best_mcmc[0][5], 
+                                    bounds={})
+        
+        plot_celerite = celerite.GP(kernel2, mean=0.0)
+        plot_celerite.compute(self.time, self.error)
+
 
         sp.plot_celerite_tinygp_comp(self.folderSAVE, self.time, self.intensity, 
-                                     self.targetlabel, "-celerite-tinygp-matern32", 
-                                     self.best_mcmc, self.gpcelerite, 
+                                     self.targetlabel, taggy, 
+                                     self.best_mcmc, plot_celerite,
                                      self.build_gp(self.theta, self.time), 
                                      self.disctime, self.tmin)
 
@@ -1590,8 +1589,8 @@ class etsMAIN(object):
             file.write("{best}\n".format(best=best_mcmc[0]))
             file.write("{upper}\n".format(upper=upper_error[0]))
             file.write("{lower}\n".format(lower=lower_error[0]))
-            file.write("tinygp log amp, l: \n {one},{two}\n".format(one=self.tinygp_soln['log_amps'],
-                                                                    two = self.tinygp_soln['log_scales']))
+            file.write("tinygp log sigma, rho: \n {one},{two}\n".format(one=self.theta['log_sigma'],
+                                                                    two = self.theta['log_rho']))
             file.write("BIC celerite:{bicy:.3f}\n".format(bicy=self.BIC_celerite[0]))
             file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=self.BIC_tinygp[0]))
             file.write("Converged:{conv}".format(conv=converged))

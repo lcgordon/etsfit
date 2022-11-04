@@ -20,18 +20,12 @@ import etsfit.utils.utilities as ut
 #import etsfit
 
 
-
-
-
 lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
 bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
 quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
-
-#trlc = etsMAIN(foldersave, bigInfoFile)
-#trlc.test(opt="six", optional=True)
 
 
 def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder, 
@@ -183,7 +177,7 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
 
 def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
-                 quaternion_folder_txt, bigInfoFile, 
+                 quaternion_folder_txt, bigInfoFile, fraction, bounds,
                  goodList = None):
     """ 
     run of all a certain type of fit w/ otherwise default parameters
@@ -213,7 +207,8 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                 if "2018fhw" in targetlabel:
                     filterMade[1040:1080] = 0.0
                     
-                trlc.run_both_matern32(filterMade, binYesNo=False, fraction=fraction)
+                trlc.run_both_matern32(filterMade, binYesNo=False, fraction=fraction,
+                                       bounds=bounds)
                 
                 gc.collect()
                 i+=1
@@ -221,7 +216,8 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
 
 trlc = run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
                   quaternion_folder_raw, 
-                  quaternion_folder_txt, bigInfoFile, gList)
+                  quaternion_folder_txt, bigInfoFile, fraction=fraction,
+                  bounds=True, goodList = gList)
 
 #%%
 print("celerite log sigma, log rho: ", trlc.best_mcmc[0][4:])

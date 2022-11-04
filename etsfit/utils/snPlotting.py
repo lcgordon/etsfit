@@ -605,3 +605,8 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
                                                       f=filesavetag))
     plt.close()
     return
+
+plot_celerite_tinygp_comp(trlc.folderSAVE, trlc.time, trlc.intensity,trlc.targetlabel, 
+                          "testcomp", trlc.best_mcmc, trlc.gpcelerite, 
+                          trlc.build_gp(trlc.theta, trlc.time), 
+                              trlc.disctime, trlc.tmin)

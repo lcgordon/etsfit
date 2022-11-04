@@ -10,21 +10,77 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.time import Time
+rcParams['figure.figsize'] = 8,3
 
-file = "/Users/lindseygordon/research/urop/tessreduce_lc/2020tld2311/2020tld2311-tessreduce"
+file = "/Users/lindseygordon/research/urop/tessreduce_lc/2020tld2921/2020tld2921-tessreduce"
 
 loadedraw = pd.read_csv(file)
 time = Time(loadedraw["time"], format='mjd').jd
 intensity = loadedraw["flux"].to_numpy()
+error  = loadedraw["flux_err"].to_numpy()
 
 t = time - time[0]
 y = intensity
 
 
-plt.plot(t, y, ".k")
+plt.scatter(t, y, s=2)
 plt.xlim(t.min(), t.max())
 plt.xlabel("JD")
-_ = plt.ylabel("rel flux")
+plt.ylabel("rel flux")
+
+t0 = 15.58
+A = 4.55
+beta = 1.22
+B = 6.99
+
+t1 = t - t0
+model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
+
+plt.plot(t, model)
+from celerite.modeling import Model
+import celerite
+from celerite import terms
+
+log_sigma = 1.4975
+log_rho = 0.0
+
+kernel = terms.Matern32Term(log_sigma=log_sigma, log_rho=log_rho,
+                            eps=1e-6)
+gp = celerite.GP(kernel, mean=0.0)
+gp.compute(t, error)
+cel_bg, cel_var = gp.predict(intensity-model, t, return_var = True)
+
+plt.plot(t, model+cel_bg, label="celerite")
+
+#test the output on tinygp kernel w/ same params: 
+import jax
+import jax.numpy as jnp
+from tinygp import kernels, GaussianProcess
+jax.config.update("jax_enable_x64", True)
+#import tinygp.kernels.distance.Distance
+
+k = np.exp(log_sigma)**2 * kernels.Matern32(scale=1, 
+                                            distance= kernels.distance.L2Distance())
+gptiny = GaussianProcess(k, time, mean=0.0, diag = error)
+#tinygp_bg = gptiny.predict(intensity-model, time, return_cov=False)
+cond_gp = gptiny.condition(intensity-model, time).gp
+mu, var = cond_gp.loc, cond_gp.variance
+
+plt.plot(t, model+mu, label="tinygp")
+
+plt.legend()
+
+#%%
+
+
+    
+    
+
+
+
+
+
+#%%
 
 
 import jax
@@ -87,88 +143,6 @@ soln = solver.run(theta_init, bounds, X=t, y=y)
 print(f"Final negative log likelihood: {soln.state.fun_val}")
 
 print(soln.params)
-#%%
-import scipy
-from scipy.optimize import minimize
-def build_gp(theta, X):
-    # We want most of our parameters to be positive so we take the `exp` here
-    # Note that we're using `jnp` instead of `np`
-    amps = jnp.exp(theta["log_amps"])
-    scales = jnp.exp(theta["log_scales"])
-
-    # Construct the kernel by multiplying and adding `Kernel` objects
-    k1 = amps[0] * kernels.ExpSquared(scales[0])
-    
-    kernel = k1
-
-    return GaussianProcess(
-        kernel, X, diag=jnp.exp(theta["log_diag"]), mean=theta["mean"]
-    )
-
-
-def neg_log_likelihood(theta, X, y):
-    gp = build_gp(theta, X)
-    return -gp.log_probability(y)
-
-
-solver2 = scipy.optimize.minimize(neg_log_likelihood, theta_init)
-
-
-#%%
-import scipy
-from scipy.optimize import minimize, Bounds
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-from astropy.time import Time
-from tinygp import kernels, GaussianProcess
-
-file = "/Users/lindseygordon/research/urop/tessreduce_lc/2020tld2311/2020tld2311-tessreduce"
-
-loadedraw = pd.read_csv(file)
-time = Time(loadedraw["time"], format='mjd').jd
-intensity = loadedraw["flux"].to_numpy()
-
-t = time - time[0]
-y = intensity
-
-#write a function NOT dependent on a dictionary
-def build_gp_nondict(theta, X):
-    logamps, logscales, mean = theta
-    k1 = np.exp(logamps) * kernels.Matern32(np.exp(logscales))
-    return GaussianProcess(k1, X, mean=mean)
-
-def fun(theta, X, y):
-    """ theta = [amps, scales, mean]"""
-    logamps, logscales, mean = theta
-    lp = 0
-    if mean > 20 or mean < -20:
-        lp = np.inf
-    gp = build_gp_nondict(theta, X)
-    return -gp.log_probability(y) + lp
-
-#x0 is array of initial parameters:
-x0 = [np.log(2), np.log(1), 0.0]
-#for celerite, bounds are logs of :
-    #sigma_bounds = (0.01,0.35) (amps = sigma^2)
-    # these bounds correspond to a sigma squared range of (21.2, 1.1)
-    # so amps should be on that same range
-    #rho_bounds = (1,3) (same as scales)
-#bnds = ((np.log(1.1), np.log(21.2)), (np.log(1), np.log(3)), (-20, 20))
-bounds = np.asarray([[np.log(1.1), np.log(1), -20], 
-                             [np.log(21.2), np.log(3), 20]])
-bnds = scipy.optimize.Bounds(lb=bounds[0], 
-                             ub=bounds[1])
-
-res = scipy.optimize.minimize(fun, x0, args=(t, y), bounds=bnds)
-
-gp = build_gp_nondict(res.x, t)
-
-tinygp_bg = gp.predict(y, t, return_cov=False)
-
-plt.scatter(t, y, s = 2, color='black')
-plt.plot(t, tinygp_bg, color = 'purple', alpha=0.2)
-
 
 
 #%%
