@@ -39,7 +39,7 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
     i = 0
     for root, dirs, files in os.walk(lightcurveFolder):
         for name in files:
-            if name.endswith("-tessreduce"):
+            if name.endswith("-tessreduce") and i==0:
                 holder = root + "/" + name
                 #print(holder)
                 #print(i)
@@ -83,9 +83,9 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
 fraction = 0.6
 gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
          "2020hdw", "2020bj", "2019gqv"]
-# run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
-#                   quaternion_folder_raw, 
-#                   quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
+run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
+                  quaternion_folder_raw, 
+                  quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
 
 def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
@@ -214,23 +214,8 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                 i+=1
     return trlc
 
-trlc = run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
-                  quaternion_folder_raw, 
-                  quaternion_folder_txt, bigInfoFile, fraction=fraction,
-                  bounds=True, goodList = gList)
+# trlc = run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
+#                   quaternion_folder_raw, 
+#                   quaternion_folder_txt, bigInfoFile, fraction=fraction,
+#                   bounds=True, goodList = gList)
 
-#%%
-print("celerite log sigma, log rho: ", trlc.best_mcmc[0][4:])
-print("celerite sigma^2, rho: ", np.exp(trlc.best_mcmc[0][4])**2, np.exp(trlc.best_mcmc[0][5]))
-
-
-print("tinygp output params: ", trlc.tinygp_soln)
-print("tinygp output converted: ", np.exp(trlc.tinygp_soln["log_amps"]*2),
-      np.exp(trlc.tinygp_soln["log_scales"]))
-
-def convert_gp_params(best_mcmc, tinygp_soln):
-    cel_sigma_sq = np.exp(best_mcmc[0][4])**2
-    cel_rho = np.exp(trlc.best_mcmc[0][5])
-    return cel_sigma_sq, cel_rho
-
-#%%

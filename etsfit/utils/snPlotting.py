@@ -33,13 +33,15 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     plotAutocorr = autocorr[:index]
     plt.plot(n, n / 100, "--k", label = "N/100 threshold") #plots the N vs N/100=tau threshold 
     #this determines length of chain vs autocorrelation time
-    plt.plot(n, plotAutocorr)
+    plt.plot(n, plotAutocorr, label="Autocorrelation")
     plt.xlim(0, n.max())
-    plt.xlabel("Number of Steps")
-    plt.ylabel(r"Mean $\hat{\tau}$")
-    plt.title("{targ}: Mean Autocorr. Time. Converged = {c}".format(targ=targetlabel,
+    plt.xlabel("Number of Steps", fontsize=16)
+    plt.ylabel(r"$\hat{\tau}$", fontsize=16)
+    plt.title("{targ} Mean Autocorrelation Time. Converged = {c}".format(targ=targetlabel,
                                                                     c = converged))
     plt.legend(loc="lower right")
+    plt.tick_params('x', labelsize=14)
+    plt.tick_params('y', labelsize=14)
     plt.tight_layout()
     plt.savefig("{s}{t}{f}-autocorr-mean.png".format(s=savepath,
                                                       t=targetlabel,
@@ -63,14 +65,17 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
     n = autoStep * np.arange(1, index + 1) #x axis - number of steps
     for i in range(len(labels)):
         plotAutocorr = autocorr_all[:index,i]
-        plt.plot(n, n / 100, "--k") #plots the N vs N/100=tau threshold 
+        plt.plot(n, n / 100, "--k", label="N/100 Threshold") #plots the N vs N/100=tau threshold 
         #this determines length of chain vs autocorrelation time
-        plt.plot(n, plotAutocorr)
+        plt.plot(n, plotAutocorr, label="Autocorrelation")
         plt.xlim(0, n.max())
-        plt.xlabel("Number of Steps")
-        plt.ylabel(r"$\hat{\tau} for $" + labels[i])
-        plt.title("{t}: autocorr time for {l}".format(t=targetlabel,
-                                                   l = labels[i]))
+        plt.xlabel("Number of Steps", fontsize=16)
+        plt.ylabel(r"$\hat{\tau}$ for " + labels[i], fontsize=16)
+        plt.title("{t} Autocorrelation Time for {l}".format(t=targetlabel,
+                                                   l = labels[i]), fontsize=20)
+        plt.tick_params('x', labelsize=14)
+        plt.tick_params('y', labelsize=14)
+        plt.legend()
         plt.tight_layout()
         plt.savefig("{s}{t}{f}-autocorr-{fl}.png".format(s=savepath,
                                                           t=targetlabel,
@@ -102,36 +107,38 @@ def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
         flat_samples, labels=labels,
         quantiles = [0.16, 0.5, 0.84],
                        show_titles=True, title_fmt = ".3f", 
-                       title_kwargs={"fontsize": 18});
-    plt.yticks(fontsize=6)
-    plt.xticks(fontsize=6)
+                       title_kwargs={"fontsize": 16},
+                       label_kwargs={'fontsize':14});
+    
+    fig.yticks(fontsize=14)
+    #plt.xticks(fontsize=6)
     plt.tight_layout()
     fig.savefig('{p}{t}{f}-corner-plot-params.png'.format(p=path,
                                                       t=targetlabel,
                                                       f=filesavetag))
-    plt.show()
+    #plt.show()
     plt.close()
     return
 
-def plot_paramIndividuals(flat_samples, labels, path, targetlabel, filesavetag):
-    """ 
-    Plots parameters vs p(parameter) histograms individually
-    Mostly not used - try plot_paramTogether instead
-    """
+# def plot_param_samples_individual(flat_samples, labels, path, targetlabel, filesavetag):
+#     """ 
+#     Plots parameters vs p(parameter) histograms individually
+#     Mostly not used - try plot_param_samples_all instead
+#     """
     
-    for p in range(len(labels)):
-        plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
-        plt.xlabel(labels[p])
-        plt.ylabel("p({pl})".format(pl=labels[p]))
-        plt.gca().set_yticks([]);
-        plt.savefig('{p}{t}{f}-chainHisto-{lp}.png'.format(p=path,
-                                                          t=targetlabel,
-                                                          f=filesavetag,
-                                                          lp = labels[p]))
-        plt.close()
-    return
+#     for p in range(len(labels)):
+#         plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
+#         plt.xlabel(labels[p])
+#         plt.ylabel("p({pl})".format(pl=labels[p]))
+#         plt.gca().set_yticks([]);
+#         plt.savefig('{p}{t}{f}-chainHisto-{lp}.png'.format(p=path,
+#                                                           t=targetlabel,
+#                                                           f=filesavetag,
+#                                                           lp = labels[p]))
+#         plt.close()
+#     return
 
-def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
+def plot_param_samples_all(flat_samples, labels, path, targetlabel, filesavetag):
     """
     Plot all the parameter vs p(param) histograms together 
     """
@@ -151,9 +158,11 @@ def plot_paramTogether(flat_samples, labels, path, targetlabel, filesavetag):
                 ax[m, n].hist(flat_samples[:, p], 100, color="k", histtype="step")
                 ax[m, n].set_xlabel(labels[p])
                 ax[m, n].set_ylabel("p({pl})".format(pl=labels[p]))
+                ax[m,n].tick_params('y', size=14)
+                ax[m,n].tick_params('x', size=14)
                 p+=1
     
-    fig.suptitle("Parameter Plots")
+    fig.suptitle("Chain Sampling By Parameter")
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-chainHisto-all.png'.format(p=path,
                                                       t=targetlabel,
@@ -264,21 +273,25 @@ def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim,
         ax = axes[0]
         ax.scatter(xaxis, logpost[:,0], alpha=0.3, color='black', s=2)
         ax.set_ylabel("Log \n Post.")
+        ax.set_title("MCMC Chain Traces", fontsize=20)
+        ax.tick_params('y', labelsize=12)
     
     for i in range(ndim):
         ax = axes[i+1]
         ax.plot(samples[:, :, i], "k", alpha=0.3)
         ax.set_xlim(0, len(samples))
-        ax.set_ylabel(labels[i], fontsize=10)
+        ax.set_ylabel(labels[i], fontsize=16)
         ax.yaxis.set_label_coords(-0.1, 0.5)
+        ax.tick_params('y', labelsize=12)
     
-    axes[-1].set_xlabel("Step Number")
-    axes[-1].tick_params(axis='y', labelsize=10)
+    axes[-1].set_xlabel("Step Number", fontsize=16)
+    axes[-1].tick_params(axis='x', labelsize=12)
+    plt.tight_layout()
     plt.savefig('{p}{t}{f}-chain-logpost-{a}.png'.format(p=path,
                                                       t=targetlabel,
                                                       f=filesavetag,
                                                       a=appendix))
-    plt.show()
+    #plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6
     return
@@ -325,14 +338,31 @@ def plot_histogram(data, bins, x_label, filename):
     if filename is not None:
              plt.tight_layout()
              plt.savefig(filename)
-    plt.show()
+    
+    #plt.show()
     plt.close()
     rcParams['figure.figsize'] = 16,6
     return 
 
+def plot_tinygp_ll(pathSave, gpll, targetlabel, filesavetag):
+    rcParams['figure.figsize'] = 10,10
+    x = np.arange(0, len(gpll), 1) * 1000 #x axis
+    plt.scatter(x, gpll)
+    plt.xlabel("Step")
+    plt.ylabel("GP Neg. Log Likelihood")
+    plt.title(targetlabel + "  GP log likelihood over MCMC steps")
+    plt.tight_layout()
+    plt.savefig('{p}{t}{f}-GP-loglike-steps.png'.format(p=pathSave,
+                                                      t=targetlabel,
+                                                      f=filesavetag))
+    #plt.show()
+    plt.close()
+    rcParams['figure.figsize'] = 16,6
+    return
+
 def plot_mcmc(pathSave, time, intensity, error, 
               targetlabel, disctime, best_mcmc, flat_samples,
-              labels, fitType, filesavetag, tmin, lygosBG, QCBVs = None):
+              labels, fitType, filesavetag, xlabel, tmin, lygosBG, QCBVs = None):
     ""
     """main plotting function for mcmc 
     params:
@@ -358,16 +388,21 @@ def plot_mcmc(pathSave, time, intensity, error,
     #set up model = sl + bg but can be plot separately.
     t0 = best_mcmc[0]
     sl, bg = fitTypeModel(fitType, time, best_mcmc, QCBVs, lygosBG)
-    model = sl + bg    
+    model = sl + bg   
+    #fix time axis for plotting
+    time = time + tmin - 2457000
+    disctime = disctime + tmin - 2457000
+    t0 = t0 + tmin - 2457000
+    
     plot_corner(flat_samples, labels, pathSave, targetlabel, filesavetag)
     
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
-                     disctime, t0, tmin,targetlabel, filesavetag)
+                     disctime, t0, xlabel,targetlabel, filesavetag)
     
     return
 
 def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp, 
-                          disctime, tmin, targetlabel, 
+                          disctime, xlabel, tmin, targetlabel, 
                           filesavetag, plotComponents=False):
     """Plot the best fit model from the mcmc run w/ GP on """
     
@@ -378,18 +413,19 @@ def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp,
     bg = gp.predict(intensity-sl, time, return_cov=False)
 
     model = sl + bg
-    
+    #fix time axis
+    time = time + tmin - 2457000
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
-                     disctime, t0, tmin,targetlabel, filesavetag)
+                     disctime, t0, xlabel,targetlabel, filesavetag)
     
     gp_plots(pathSave, sl, bg, model, time, intensity, error,
-                 disctime, t0, tmin, targetlabel, filesavetag, 
+                 disctime, t0, xlabel, targetlabel, filesavetag, 
                  gpfiletag = "-MCMC-celeriteGP-TriplePlotResiduals.png")
     return
 
 def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
                         gp,
-                        disctime, tmin, targetlabel, filesavetag, 
+                        disctime, xlabel, tmin, targetlabel, filesavetag, 
                         plotComponents=False):
     """Plot the best fit model from the mcmc run w/ tinyGP on """
     import jax
@@ -407,17 +443,20 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
 
     model = sl + bg
     
+    #fix time axis
+    time = time + tmin - 2457000
+    
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
-                     disctime, t0, tmin,targetlabel, filesavetag)
+                     disctime, t0, xlabel,targetlabel, filesavetag)
     
 
     gp_plots(pathSave, sl, bg, model, time, intensity, error,
-                     disctime, t0, tmin,targetlabel, filesavetag, 
+                     disctime, t0, xlabel,targetlabel, filesavetag, 
                      gpfiletag = "-MCMC-tinyGP-TriplePlotResiduals.png")
     return
 
 def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
-                 disctime, t0, tmin,targetlabel, filesavetag):
+                 disctime, t0, xlabel,targetlabel, filesavetag):
     """ 
     Plots the main 2 panel mcmc model + residual
     """
@@ -435,19 +474,21 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
                           label=r"$t_0$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
-        ax[n].set_ylabel("Flux (e-/s)", fontsize=12)
+        ax[n].set_ylabel("Flux (e-/s)", fontsize=16)
+        ax[n].tick_params('y', fontsize=14)
         
     #main
     ax[0].set_title(targetlabel + filesavetag)
-    ax[0].legend(fontsize=10, loc="upper left")
-    ax[nrows-1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
+    ax[0].legend(fontsize=14, loc="upper left")
+    ax[nrows-1].set_xlabel(xlabel)
+    ax[nrows-1].tick_params('x', fontsize=14)
     
     #residuals
     ax[1].set_title("Residual")
     residuals = intensity - model
     ax[1].scatter(time,residuals, s=3, color = 'black', label='Residual, All')
     ax[1].axhline(0, color='orange', linestyle = 'dashed', label="Zero")
-    ax[1].legend(fontsize=10)
+    ax[1].legend(fontsize=14)
     
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-MCMCmodel-bestFit.png'.format(p=pathSave,
@@ -457,7 +498,7 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
     return
 
 def gp_plots(pathSave, sl, bg, model, time, intensity, error,
-                 disctime,t0, tmin,targetlabel, filesavetag, gpfiletag):
+                 disctime,t0, xlabel,targetlabel, filesavetag, gpfiletag):
     """ 
     Plots the gp residual plots (3 panels, 1 model, 2 residuals)
     """
@@ -499,7 +540,7 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
         
     #plot labelling
     ax[0].set_title(targetlabel + filesavetag)
-    ax[nrows-1].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin))
+    ax[nrows-1].set_xlabel(xlabel)
     
     ax[0].legend(fontsize=10, loc="upper left")
     ax[1].legend(fontsize=10)
@@ -509,29 +550,15 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=pathSave,t=targetlabel,
                                              f=filesavetag,gpf=gpfiletag))
         
-    plt.show()
+    #plt.show()
     plt.close()
     return
 
-def plot_tinygp_ll(pathSave, gpll, targetlabel, filesavetag):
-    rcParams['figure.figsize'] = 10,10
-    x = np.arange(0, len(gpll), 1) * 1000 #x axis
-    plt.scatter(x, gpll)
-    plt.xlabel("Step")
-    plt.ylabel("GP Neg. Log Likelihood")
-    plt.title(targetlabel + "  GP log likelihood over MCMC steps")
-    plt.tight_layout()
-    plt.savefig('{p}{t}{f}-GP-loglike-steps.png'.format(p=pathSave,
-                                                      t=targetlabel,
-                                                      f=filesavetag))
-    plt.show()
-    plt.close()
-    rcParams['figure.figsize'] = 16,6
-    return
+
 
 def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel, 
                               filesavetag, best_mcmc, gpcelerite, gptinygp, 
-                              disctime, tmin):
+                              disctime, xlabel, tmin):
     """ 
     Parameters:
         - pathSave (str)
@@ -540,7 +567,8 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
         - best_mcmc (array of best values, 0-4 are base model, 5,6 are the celerite)
         - celeritegp (self.gpcelerite)
         - tinygp (self.build_gp(theta, time)) full formed gp! 
-        - disctime, tmin (floats)
+        - disctime, (floats)
+        - xlabel (str)
     """
  
     from tinygp import kernels, GaussianProcess
@@ -556,6 +584,9 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     
     tinygp_bg = gptinygp.predict(intensity-mod, time, return_cov=False)
 
+    #fix time axis
+    time = time + tmin - 2457000
+    
     #set up
     nrows = 2
     ncols = 3
@@ -589,8 +620,7 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     for n in range(ncols):
         ax[0][n].scatter(time, intensity, label = "Data", s = 3, color = 'black')
         ax[1][n].axhline(0, color="orange", label="Zero", linestyle='dotted')
-        ax[nrows-1][n].set_xlabel("BJD - {timestart:.3f}".format(timestart=tmin),
-                                  fontsize=12)
+        ax[nrows-1][n].set_xlabel(xlabel, fontsize=12)
         for i in range(nrows):
             ax[i][n].axvline(t0, color = 'green', linestyle = 'dotted',
                               label=r"$t_0$")
@@ -606,7 +636,7 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     plt.close()
     return
 
-plot_celerite_tinygp_comp(trlc.folderSAVE, trlc.time, trlc.intensity,trlc.targetlabel, 
-                          "testcomp", trlc.best_mcmc, trlc.gpcelerite, 
-                          trlc.build_gp(trlc.theta, trlc.time), 
-                              trlc.disctime, trlc.tmin)
+# plot_celerite_tinygp_comp(trlc.folderSAVE, trlc.time, trlc.intensity,trlc.targetlabel, 
+#                           "testcomp", trlc.best_mcmc, trlc.gpcelerite, 
+#                           trlc.build_gp(trlc.theta, trlc.time), 
+#                               trlc.disctime, trlc.tmin)

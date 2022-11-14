@@ -313,11 +313,13 @@ class etsMAIN(object):
         self.camera = camera
         self.ccd = ccd
         self.tmin = time[0]
-        self.time-=self.tmin
-        self.disctime-=self.tmin
+        self.time -= self.tmin
+        self.disctime -= self.tmin
+        #self.tplot = self.time + self.tmin - 2457000
         self.bic_all = []
         self.params_all = []
-        self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
+        #self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
+        self.xlabel = "Time [BJD - 2457000]"
         self.ylabel = "Flux (e-/s)"
         self.cleaningdone = False
         return
@@ -793,13 +795,10 @@ class etsMAIN(object):
         # ######
         #plot autocorr things
         ########
-        sp.plot_autocorr_mean(self.folderSAVE, self.targetlabel, index, 
-                              autocorr, converged, 
-                              autoStep, self.filesavetag)
-        sp.plot_autocorr_individual(self.folderSAVE, self.targetlabel, index,
-                                    autocorr_all, autoStep, self.labels,
-                                    self.filelabels, 
-                                    self.filesavetag)
+        
+        sp.plot_autocorr_all(self.folderSAVE, self.targetlabel, index, autocorr, 
+                              autocorr_all, converged,
+                              autoStep, self.labels, self.filelabels, self.filesavetag)
         
             
         #thin and burn out dump
@@ -816,7 +815,7 @@ class etsMAIN(object):
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
                               sampler, self.labels, ndim, appendix = "-production")
         
-        sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
+        sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag)
         
         print(len(flat_samples), "samples post second run")
@@ -851,12 +850,12 @@ class etsMAIN(object):
                          self.targetlabel, 
                          self.disctime, best_mcmc[0], 
                          flat_samples, self.labels, self.plotFit, self.filesavetag, 
-                         self.tmin, self.lygosbg,
+                         self.xlabel, self.tmin, self.lygosbg,
                          self.quatsandcbvs)
         elif self.plotFit == 10:
             sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
                             self.error, best_mcmc, self.gp, self.disctime, 
-                            self.tmin,self.targetlabel, self.filesavetag, 
+                            self.xlabel, self.tmin, self.targetlabel, self.filesavetag, 
                             plotComponents=False)
         
         with open(self.parameterSaveFile, 'w') as file:
@@ -1241,7 +1240,7 @@ class etsMAIN(object):
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
                               sampler, self.labels, ndim, appendix = "-production")
         
-        sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
+        sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag)
         
         print(len(flat_samples), "samples post second run")
@@ -1277,7 +1276,7 @@ class etsMAIN(object):
             
         sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, self.error,
                                best_mcmc[0], self.build_gp(self.theta, self.time),
-                               self.disctime, self.tmin, self.targetlabel,
+                               self.disctime, self.xlabel, self.tmin, self.targetlabel,
                                self.filesavetag, plotComponents=False)
 
         with open(self.parameterSaveFile, 'w') as file:
@@ -1521,7 +1520,7 @@ class etsMAIN(object):
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1,
                               sampler, self.labels, ndim, appendix = "production")
         
-        sp.plot_paramTogether(flat_samples, self.labels, self.folderSAVE, 
+        sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag1)
         
         print(len(flat_samples), "samples post second run")
@@ -1582,7 +1581,7 @@ class etsMAIN(object):
                                      self.targetlabel, taggy, 
                                      self.best_mcmc, plot_celerite,
                                      self.build_gp(self.theta, self.time), 
-                                     self.disctime, self.tmin)
+                                     self.disctime, self.xlabel, self.tmin)
 
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))

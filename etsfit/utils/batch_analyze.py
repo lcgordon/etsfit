@@ -17,6 +17,20 @@ from etsfit import etsMAIN
 from astropy.time import Time
 import etsfit.utils.utilities as ut
 
+# datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+# CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+# foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
+# quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
+# quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+# bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+
+# gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
+#          "2020zbo", "2020hvq", "2018hzh",
+#          "2020hdw", "2020bj", "2019gqv"]
+
+# filepath = "/Users/lindseygordon/research/urop/paperOutput/2018exc0111/celerite-tinygp-matern32/2018exc0111-celerite-tinygp-matern32-output-params.txt"
+
+
 def extract_singlepowerparams_from_file(filepath):
     filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
     #filerow2 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
@@ -102,15 +116,26 @@ def retrieve_all_singlepower(bigInfoFile, datafolder, foldersave, gList):
                 #print(filepath)
 
                 t0,A,beta,B, bicrow, conv = extract_singlepowerparams_from_file(filepath)
-                upper_all.append(get_upper_e_single(filepath))
-                lower_all.append(get_lower_e_single(filepath))
-                print("{t} & {t0:.2f}  &{A:.2f} & {b:.2f} & {B:.2f} \\".format(t=targ[:-4],
-                                                                t0 = t0,
-                                                                A=A,
-                                                                b=beta,
-                                                                B=B,))
+                u_all = get_upper_e_single(filepath)
+                upper_all.append(u_all)
+                l_all = get_lower_e_single(filepath)
+                lower_all.append(l_all)
+                # print("{t} & {t0:.2f}^{upper_t0:.2f}_{lower_t0:.2f}  &{A:.2f} & {b:.2f} & {B:.2f} \\".format(t=targ[:-4],
+                #                                                 t0 = t0,
+                #                                                 A=A,
+                #                                                 b=beta,
+                #                                                 B=B,
+                #                                                 upper_t0 = u_all[0],
+                #                                                 lower_t0 = l_all[0]))
     
-    
+                # print("{t} & {A:.2f}^{u_A:.2f}_{l_A:.2f}".format(t=targ[:-4],
+                #                                                        A=A,
+                #                                                        u_A = u_all[1],
+                #                                                        l_A = l_all[1]))
+                print("{t} & {beta:.3f}^+{u_A:.3f}_-{l_A:.3f}".format(t=targ[:-4],
+                                                                       beta=beta,
+                                                                       u_A = u_all[2],
+                                                                       l_A = l_all[2]))
                 t0all.append(t0)
                 Aall.append(A)
                 betaall.append(beta)
@@ -122,20 +147,9 @@ def retrieve_all_singlepower(bigInfoFile, datafolder, foldersave, gList):
                     convy.append("False")
     return t0all, Aall, betaall, Ball, upper_all, lower_all, discall, convy
 
+#t0all, Aall, betaall, Ball, upper_all, lower_all, discall, convy = retrieve_all_singlepower(bigInfoFile, datafolder, foldersave, gList)
 
-#%%
-datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
-quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
-quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
-bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 
-gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
-         "2020zbo", "2020hvq", "2018hzh",
-         "2020hdw", "2020bj", "2019gqv"]
-
-filepath = "/Users/lindseygordon/research/urop/paperOutput/2018exc0111/celerite-tinygp-matern32/2018exc0111-celerite-tinygp-matern32-output-params.txt"
 
 def extract_tgpc_all(filepath):
     
@@ -188,9 +202,6 @@ def extract_tgpc_all(filepath):
         converg = False
     return params, celerite_params, upper_e, lower_e, tinygp_params, converg
 
-#%%
-
-
 
 
 def retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList):
@@ -227,33 +238,31 @@ def retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList):
                 converged_all[targ] = converg
                 tinygp_all[targ] = tinygp_params
                 
-    
-    
                 
     return (disc_all, params_all, celerite_all, tinygp_all, 
             converged_all, upper_all, lower_all)
 
-(disc_all, params_all, 
- celerite_all, tinygp_all, 
- converged_all, upper_all, 
- lower_all) = retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList)
+# (disc_all, params_all, 
+#  celerite_all, tinygp_all, 
+#  converged_all, upper_all, 
+#  lower_all) = retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList)
 
-#%%
-for k in params_all.keys(): 
-    print("{k}&{t0:.2f}&{A:.2f}&{beta:.2f}&{B:.2f}".format(k=k[:-4],
-                                                           t0 = params_all[k][0],
-                                                           A = params_all[k][1],
-                                                           beta = params_all[k][2],
-                                                           B=params_all[k][3]))
-#%%
-for k in celerite_all.keys(): 
-    print("{h} ({sigsq:.3f},{rho:.3f})".format(h=k, 
-                                               sigsq=celerite_all[k][0], 
-                                               rho=celerite_all[k][1] ))
+# #%%
+# for k in params_all.keys(): 
+#     print("{k}&{t0:.2f}&{A:.2f}&{beta:.2f}&{B:.2f}".format(k=k[:-4],
+#                                                            t0 = params_all[k][0],
+#                                                            A = params_all[k][1],
+#                                                            beta = params_all[k][2],
+#                                                            B=params_all[k][3]))
+# #%%
+# for k in celerite_all.keys(): 
+#     print("{h} ({sigsq:.3f},{rho:.3f})".format(h=k, 
+#                                                sigsq=celerite_all[k][0], 
+#                                                rho=celerite_all[k][1] ))
     
     
     
-for k in tinygp_all.keys(): 
-    print("{h} ({sigsq:.3f},{rho:.3f})".format(h=k, 
-                                               sigsq=tinygp_all[k][0], 
-                                               rho=tinygp_all[k][1] ))
+# for k in tinygp_all.keys(): 
+#     print("{h} ({sigsq:.3f},{rho:.3f})".format(h=k, 
+#                                                sigsq=tinygp_all[k][0], 
+#                                                rho=tinygp_all[k][1] ))

@@ -85,8 +85,8 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                 discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                tmin = time[0]
-                time = time - tmin
+                # tmin = time[0]
+                # time = time - tmin
                 #disctime = discoverytime-tmin
                 
                 trlc = etsMAIN(foldersave, bigInfoFile)
@@ -113,18 +113,23 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 
                 t1 = trlc.time - t0
                 model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
+                
+                tplot = trlc.time + trlc.tmin - 2457000
+                
+                #print(trlc.tmin)
     
                 
-                ax[m,n].scatter(trlc.time, trlc.intensity, color='black', s=2, label="data")
-                ax[m,n].plot(trlc.time, model, color='red', label='model')
-                ax[m][n].set_title(trlc.targetlabel, fontsize=14)
-                ax[m][n].axvline(trlc.disctime-tmin, color="brown", linestyle = "dotted",
+                ax[m,n].scatter(tplot, trlc.intensity, color='black', s=2, label=trlc.targetlabel)
+                ax[m,n].plot(tplot, model, color='red', label='Model')
+                #ax[m][n].set_title(trlc.targetlabel, fontsize=14)
+                ax[m][n].axvline(trlc.disctime+trlc.tmin-2457000, color="brown", linestyle = "dotted",
                                  label="Disc. time")
-                ax[m][n].axvline(t0, label="t0", color="green", linestyle="dashed")
-                ax[m][n].set_xlabel("BJD - {timestart:.2f}".format(timestart=tmin), fontsize=10)
-                ax[m][n].set_ylabel("flux (e-/s)", fontsize=20)
-                ax[m][n].tick_params('x', labelsize=10)
-                ax[m][n].legend(loc="upper left", fontsize=8)
+                ax[m][n].axvline(t0+trlc.tmin - 2457000, label="t0", color="green", linestyle="dashed")
+                ax[m][n].set_xlabel("Time [BJD-2457000]", fontsize=16)
+                ax[m][0].set_ylabel("flux (e-/s)", fontsize=16)
+                ax[m][n].tick_params('x', labelsize=14)
+                ax[m][n].tick_params('y', labelsize=14)
+                ax[m][n].legend(fontsize=12)
                 
                 if n<(ncols-1):
                     n=n+1
@@ -135,4 +140,19 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
     fig.tight_layout()
     fig.show()   
     plt.savefig("{f}/collated-single-powerlaws.png".format(f=foldersave))            
-    return
+    return trlc
+
+datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
+quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
+quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
+         "2020zbo", "2020hvq", "2018hzh",
+         "2020hdw", "2020bj", "2019gqv"]
+
+trlc = big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
+                     "singlepower-0.6", 
+                     fraction = 0.6, binning=False)
