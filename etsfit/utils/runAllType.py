@@ -83,9 +83,9 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, CBV_folder,
 fraction = 0.6
 gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
          "2020hdw", "2020bj", "2019gqv"]
-run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
-                  quaternion_folder_raw, 
-                  quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
+# run_all_fits(1, lightcurveFolder, foldersave, CBV_folder, 
+#                   quaternion_folder_raw, 
+#                   quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
 
 def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
@@ -118,9 +118,10 @@ def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder,
                 filterMade = trlc.window_rms_filt(plot=False)
                 if "2018fhw" in targetlabel:
                     filterMade[1040:1080] = 0.0
-                trlc.pre_celerite_setup()
-                trlc.run_GP_fit_celerite(filterMade, binYesNo=False, fraction=None, 
-                               n1=7000, n2=20000, thinParams=None)
+                trlc.run_GP_fit(filterMade, binYesNo=False, fraction=fraction, 
+                                      n1=10000, n2=25000, gpUSE = "celerite",
+                                      thinParams=None, customSigmaRho=None, 
+                                      filesavetag=None, bounds=True)
                 #del(loadedraw)
                 del(trlc)
                 gc.collect()
@@ -142,7 +143,7 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
     i = 0
     for root, dirs, files in os.walk(lightcurveFolder):
         for name in files:
-            if name.endswith("-tessreduce"):
+            if name.endswith("-tessreduce") and i==0:
                 holder = root + "/" + name
                 print(i)
                 (time, intensity, error, targetlabel, 
@@ -160,19 +161,19 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 filterMade = trlc.window_rms_filt(plot=False)
                 if "2018fhw" in targetlabel:
                     filterMade[1040:1080] = 0.0
-                trlc.pre_run_clean(1, cutIndices=filterMade, 
-                                   binYesNo = False, fraction = fraction)
-                trlc.run_GP_fit_tinygp(filterMade, binYesNo=False, fraction=fraction, 
-                               n1=7000, n2=20000, gpUSE="expsinsqr",
+                # trlc.pre_run_clean(1, cutIndices=filterMade, 
+                #                    binYesNo = False, fraction = fraction)
+                trlc.run_GP_fit(filterMade, binYesNo=False, fraction=fraction, 
+                               n1=10000, n2=25000, gpUSE="matern32",
                                thinParams=None)
 
                 gc.collect()
                 i+=1
     return
 
-# run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder, 
-#                   quaternion_folder_raw, 
-#                   quaternion_folder_txt, bigInfoFile, gList)
+run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder, 
+                  quaternion_folder_raw, 
+                  quaternion_folder_txt, bigInfoFile, gList)
 
 
 def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 

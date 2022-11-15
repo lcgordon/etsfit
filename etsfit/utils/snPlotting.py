@@ -11,6 +11,8 @@ import numpy as np
 from pylab import rcParams
 rcParams['figure.figsize'] = 16,6
 rcParams["font.size"] = 20
+rcParams["xtick.labelsize"] = 14
+rcParams["ytick.labelsize"] = 14
 import corner
 import os
 
@@ -103,14 +105,19 @@ def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
         - targetlabel (string) name of target
         - filesavetag (string) what to label file with
     """
-    fig = corner.corner(
-        flat_samples, labels=labels,
-        quantiles = [0.16, 0.5, 0.84],
-                       show_titles=True, title_fmt = ".3f", 
-                       title_kwargs={"fontsize": 16},
-                       label_kwargs={'fontsize':14});
+    fig = corner.corner(flat_samples, 
+                        labels=labels,
+                        quantiles = [0.16, 0.5, 0.84],
+                        show_titles=True, title_fmt = ".3f", 
+                        title_kwargs={"fontsize": 16},
+                        label_kwargs={'size':16})
     
-    fig.yticks(fontsize=14)
+    #fig.subplots_adjust(right=2.5,top=2.5)
+    for ax in fig.get_axes():
+        ax.tick_params(axis='both', labelsize=14)
+        ax.yaxis.set_label_coords(-.5, .5)
+        ax.xaxis.set_label_coords(0.5, -0.5)
+    #fig.yticks(fontsize=14)
     #plt.xticks(fontsize=6)
     plt.tight_layout()
     fig.savefig('{p}{t}{f}-corner-plot-params.png'.format(p=path,
@@ -428,9 +435,9 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
                         disctime, xlabel, tmin, targetlabel, filesavetag, 
                         plotComponents=False):
     """Plot the best fit model from the mcmc run w/ tinyGP on """
-    import jax
-    import jax.numpy as jnp
-    from tinygp import kernels, GaussianProcess
+    #import jax
+    #import jax.numpy as jnp
+    #from tinygp import kernels, GaussianProcess
     
     t0, A,beta,B = best_mcmc[:4]
     t1 = time - t0
@@ -470,18 +477,19 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
     ax[0].scatter(time, intensity, label = "Data", s = 3, color = 'black')
     
     for n in range(nrows):
-        ax[n].axvline(t0, color = 'green', linestyle = 'dotted',
+        axy = ax[n]
+        axy.axvline(t0, color = 'green', linestyle = 'dotted',
                           label=r"$t_0$")
-        ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
+        axy.axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
-        ax[n].set_ylabel("Flux (e-/s)", fontsize=16)
-        ax[n].tick_params('y', fontsize=14)
+        axy.set_ylabel("Flux (e-/s)", fontsize=16)
+        axy.tick_params('y', labelsize=14)
         
     #main
     ax[0].set_title(targetlabel + filesavetag)
     ax[0].legend(fontsize=14, loc="upper left")
     ax[nrows-1].set_xlabel(xlabel)
-    ax[nrows-1].tick_params('x', fontsize=14)
+    ax[nrows-1].tick_params('x', labelsize=14)
     
     #residuals
     ax[1].set_title("Residual")

@@ -545,8 +545,8 @@ class etsMAIN(object):
                 self.args = args
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
-            self.labels = ["t0", "A", "beta",  "b"]
-            self.filelabels = self.labels
+            self.labels = [r"$t_0$", "A", r"$\beta$",  "b"]
+            self.filelabels = ["t0", "A", "beta",  "b"]
             
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
             
@@ -869,110 +869,13 @@ class etsMAIN(object):
         
         return best_mcmc, upper_error, lower_error, BIC
     
-    def pre_celerite_setup(self, customSigmaRho=None, filesavetag=None):
-        """ 
-        Set up celerite matern 3-2 kernel (either to default or custom params)
-        customSigmaRho must unpack as: [sigma start, rho start, 
-                                        sigma lower, sigma upper,
-                                        rho lower, rho upper, 
-                                        sigma frozen (bool), rho frozen (bool)]
-        the default run of this is [0.01, 1.2, 
-                                    0.0001, 0.3, 
-                                    1, 2, 
-                                    0, 0]
-        """
-        if filesavetag is None:
-            self.filesavetag = "-celerite-matern32"
-        else:
-            self.filesavetag = filesavetag
-        #set up kernel
-        start_t = min(self.disctime-3, self.time[-1]-2)
-        # SET UP NEW MATERN-32 GP
-        if customSigmaRho is None:
-            
-            
-            rho = 2 # init value
-            sigma = 1
-            rho_bounds = np.log((1, 10)) #0, 2.302
-            sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
-            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
-            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
-                                        bounds=bounds_dict)
-            
-            self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
-        else:
-            sigma = customSigmaRho[0]
-            rho = customSigmaRho[1]
-            sigma_bounds = (customSigmaRho[2], customSigmaRho[3])
-            rho_bounds = (customSigmaRho[4], customSigmaRho[5])
-            bounds_dict = dict(log_sigma=np.log(sigma_bounds), log_rho=np.log(rho_bounds))
-            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
-                                        bounds=bounds_dict)
-            self.init_values = np.array((start_t, 0.1, 1.8, 0))
-            
-            if customSigmaRho[6]: #if frozen (1)
-                kernel.freeze_parameter("log sigma")
-            else: # if not frozen (0)
-                initsigma = np.array((np.log(sigma))) # if not frozen, add to init
-                self.init_values = np.concatenate((self.init_values, initsigma))
-                
-            if customSigmaRho[7]: # if frozen true
-                kernel.freeze_parameter("log rho")
-            else:
-                initrho = np.array((np.log(rho)))
-                self.init_values = np.concatenate((self.init_values, initrho))
-            
-            
-        self.gp = celerite.GP(kernel, mean=0.0)
-        self.gp.compute(self.time, self.error)
-        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
-        # set up arguments etc.
-        self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
-        self.logProbFunc = mc.log_probability_celerite
-        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
-        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
-        
-        self.celerite_setup = True
-        
-        return
     
+   
     
-    def run_GP_fit_celerite(self, cutIndices, binYesNo, fraction=None, 
-                   n1=1000, n2=10000, 
-                   customSigmaRho = None, thinParams=None):
-        """Run the GP fitting 
-        
-        *** must first run pre_celerite_setup()
-        
-        
-        """
-        if not hasattr(self, 'celerite_setup'):
-            #if you have not yet setup the run params
-            raise AttributeError("You have to run pre_celerite_setup() first!")
-            return
-        
-        ### custom masking
-        if cutIndices is not None:
-            self.__custom_mask_it(cutIndices)
-            
-        # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: #if need to bin
-            self.__8hrbinning()
-                                                 
-        #fractional fit code (fraction can be None)                                  
-        self.__fract_fit(fraction)
-        
-        #make folders to save into
-        self.__gen_output_folder()   
-        
-        fitType = 10
-        self.plotFit = 10
-        self.__mcmc_outer_structure(n1, n2, thinParams)
-        return
-    
-    def run_GP_fit_tinygp(self, cutIndices, binYesNo, fraction=None, 
+    def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
                           n1=1000, n2=10000, gpUSE = "expsqr",
-                          thinParams=None, bounds = True):
+                          thinParams=None, customSigmaRho=None, 
+                          filesavetag=None, bounds = True):
         """
         GP fitting using tinygp's stuff
         Update 10-7-22 - GP fit every 1000 steps
@@ -981,25 +884,30 @@ class etsMAIN(object):
         Update 10-31-22 - Switched to scipy.minimize to use bounds
         
         """
+        self.quatsandcbvs = None
         
-            
-        ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if cutIndices is not None:
-            self.__custom_mask_it(cutIndices)
-            
-        # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: #if need to bin
-            self.__8hrbinning()
-                                                 
-        #fractional fit code (fraction can be None)                                  
-        self.__fract_fit(fraction)
-       
-        #set up gpUSE settings
-        self.__tinygp_setup(gpUSE=gpUSE, bounds = bounds)                                          
-        #make folders to save into
-        self.__gen_output_folder()   
-        #print("entering mcmc + gp concurrent fitting")
-        self.__mcmc_concurrent_gp(n1, n2, thinParams)
+        if gpUSE == "celerite":
+            self.__run_GP_fit_celerite(self, cutIndices, binYesNo, 
+                                       fraction, n1, n2, customSigmaRho, 
+                                       filesavetag=None,thinParams=None)
+        else: #tinygp options
+            ### THEN DO CUSTOM MASKING if both not already cut and indices are given
+            if cutIndices is not None:
+                self.__custom_mask_it(cutIndices)
+                
+            # check for 8hr bin BEFORE trimming to percentages
+            if binYesNo: #if need to bin
+                self.__8hrbinning()
+                                                     
+            #fractional fit code (fraction can be None)                                  
+            self.__fract_fit(fraction)
+           
+            #set up gpUSE settings
+            self.__tinygp_setup(gpUSE=gpUSE, bounds=bounds)                                          
+            #make folders to save into
+            self.__gen_output_folder()   
+            #print("entering mcmc + gp concurrent fitting")
+            self.__mcmc_concurrent_gp(n1, n2, thinParams)
         return
    
     def __tinygp_setup(self, gpUSE='expsqr', bounds=True):
@@ -1056,6 +964,64 @@ class etsMAIN(object):
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
         return
     
+    def __run_GP_fit_celerite(self, cutIndices, binYesNo, fraction=None, 
+                            n1=1000, n2=10000, thinParams=None):
+        """
+        Run the GP fitting w/ celerite
+        
+        customSigmaRho must unpack as: [sigma start, rho start, 
+                                        sigma lower, sigma upper,
+                                        rho lower, rho upper, 
+                                        sigma frozen (bool), rho frozen (bool)]
+        the default run of this is [1, 2, 
+                                    sqrt(0.1), sqrt(20), 
+                                    1, 10, 
+                                    0, 0]
+        
+        """
+        self.filesavetag = "-celerite-matern32"
+
+        #set up kernel
+        start_t = min(self.disctime-3, self.time[-1]-2)
+        # set up gp:
+        rho = 2 # init value
+        sigma = 1
+        rho_bounds = np.log((1, 10)) #0, 2.302
+        sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
+        bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+        kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+                                    bounds=bounds_dict)
+        
+        self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
+        self.gp = celerite.GP(kernel, mean=0.0)
+        self.gp.compute(self.time, self.error)
+        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
+        # set up arguments etc.
+        self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
+        self.logProbFunc = mc.log_probability_celerite
+        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
+        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
+        self.plotFit = 10
+
+        
+        ### custom masking
+        if cutIndices is not None:
+            self.__custom_mask_it(cutIndices)
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binYesNo: #if need to bin
+            self.__8hrbinning()
+                                                 
+        #fractional fit code (fraction can be None)                                  
+        self.__fract_fit(fraction)
+        
+        #make folders to save into
+        self.__gen_output_folder()   
+        
+        #run it
+        self.__mcmc_outer_structure(n1, n2, thinParams)
+        return
+    
     def __build_tinygp_matern32(self, theta, X):
         """
         Make the matern3-2 kernel 
@@ -1107,7 +1073,7 @@ class etsMAIN(object):
             gp = self.build_gp(theta, X)
             return -gp.log_probability(y)
         
-        print("*** \n *** \n *** \n ***")
+        print(" *** \n *** \n *** \n ***")
         print("Beginning MCMC + GP run")
          
         timeModule.sleep(3) # this keeps things running orderly
@@ -1162,10 +1128,7 @@ class etsMAIN(object):
         # GP setup
         #calculate residual from intermediate best:
         res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
-        # plt.scatter(self.time, res)
-        # plt.show()
-        # plt.close()
-        print("created residual")
+        #print("created residual")
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
@@ -1287,7 +1250,7 @@ class etsMAIN(object):
                                                                     two = self.theta['log_rho']))
             if ('log_gamma' in self.theta.keys()):
                 file.write("log gamma: {three}\n".format(three=self.gp_soln['log_gamma']))
-            file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=self.BIC[0]))
+            file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=BIC))
             file.write("Converged:{conv}".format(conv=converged))
         
         return best_mcmc, upper_error, lower_error, BIC
@@ -1368,7 +1331,6 @@ class etsMAIN(object):
         self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
-        self.celerite_setup = True
                                                    
         #set up tinygp
         
