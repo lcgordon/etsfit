@@ -28,13 +28,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import emcee
-import gc
-import datetime 
+#import gc
+#import datetime 
 from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
 rcParams["font.size"] = 20
 
-from celerite.modeling import Model
+#from celerite.modeling import Model
 import celerite
 from celerite import terms
 
@@ -51,7 +51,7 @@ jax.config.update("jax_enable_x64", True)
 class etsMAIN(object):
     """Make one of these for the light curve you're going to fit!"""
     
-    def __init__(self, folderSAVE, bigInfoFile):
+    def __init__(self, folderSAVE, TNSFile):
         """
         Initialize an etsfit object
         
@@ -65,7 +65,7 @@ class etsMAIN(object):
             - folderSAVE (str) the path to where you want everything to be saved
             should end with a /, it will self-correct if not
             
-            - bigInfoFile (str) the path to a big pandas-readable CSV file
+            - TNSFile (str) the path to a big pandas-readable TNS CSV file
             containing all the targets you could possibly care about
         
         """
@@ -80,14 +80,15 @@ class etsMAIN(object):
             self.foldersaveperm = folderSAVE #keep a copy in case
         
         
-        if os.path.exists(bigInfoFile):
-            self.info = pd.read_csv(bigInfoFile)
-        self.bigInfoFile = bigInfoFile
+        if os.path.exists(TNSFile):
+            self.info = pd.read_csv(TNSFile)
+        self.TNSFile = TNSFile
         
         
-        self.cbvsquatsActive = False #no cbvs/quats in
+        self.cbvquat_access = False #cannot currently access cbvs/quaternions
         self.fractiontrimmed = False #not trimmed
         self.binned = False #not binned
+        self.quatsandcbvs = None
         return
     
     def use_quaternions_cbvs(self, CBV_folder, quaternion_folder_raw, 
@@ -134,7 +135,7 @@ class etsMAIN(object):
                 #empty directory, make txt files
                 ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
                 
-        self.cbvsquatsActive = True
+        self.cbvquat_access = True
         return
     
     def run_tessreduce_retrieval_csvlist(self, fileToPullFrom, folderToPutIn,
@@ -360,7 +361,7 @@ class etsMAIN(object):
             percent of max. 0.4 is 40% of max, etc.
         """
         # handle CBVs+quats
-        if self.cbvsquatsActive and fitType in (2,4,5):
+        if self.cbvquat_access and fitType in (2,4,5):
             print("Loading in quaternions and CBVs")
             (self.time, 
              self.intensity, 
@@ -379,11 +380,9 @@ class etsMAIN(object):
                                                       self.CBV_folder, 
                                                       self.quaternion_folder_txt)
             self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
-        elif not self.cbvsquatsActive and fitType in (2,4,5):
-            print("You need to provide quaternion locations via use_quaternions_cbvs()")
+        elif not self.cbvquat_access and fitType in (2,4,5):
+            print("You need to provide quaternion paths via use_quaternions_cbvs()")
             raise ValueError("Cannot run the requested fit type")
-        else:
-            self.quatsandcbvs = None # has to initiate as None or it'll freak
  
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if cutIndices is not None:
@@ -495,6 +494,13 @@ class etsMAIN(object):
         return 
     
     def __makepath(self, filesavetag):
+        """ 
+        
+        Makes a target's filepath.
+        This is separate from __gen_output_folder() because it sometimes gets 
+        used elsewhere w/out self.filesavetag existing
+        
+        """
         internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
         newfolderpath = (self.folderSAVE + internaluse)
         if not os.path.exists(newfolderpath):
@@ -537,12 +543,8 @@ class etsMAIN(object):
         self.plotFit = fitType
         start_t = min(self.disctime-3, self.time[-1]-2)
         
-        
         if fitType == 1: # single without
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, self.disctime)
-            else:
-                self.args = args
+            self.args = (self.time, self.intensity, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
             self.labels = [r"$t_0$", "A", r"$\beta$",  "b"]
@@ -551,12 +553,9 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
             
         elif fitType == 2: # single with
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, 
-                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                             self.disctime)
-            else:
-                self.args = args
+            self.args = (self.time, self.intensity, self.error, 
+                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                         self.disctime)
             self.logProbFunc = mc.log_probability_singlepower_withCBV
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
@@ -564,11 +563,7 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, 0.1, 1.8, 0, 0,0,0,0))
             
         elif fitType == 3: # double without
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, self.disctime)
-            else:
-                self.args = args
-                
+            self.args = (self.time, self.intensity, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
@@ -576,12 +571,9 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 1.8, 1.8, 1))
 
         elif fitType ==4: # double with
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, 
-                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                             self.disctime)
-            else:
-                self.args = args
+            self.args = (self.time, self.intensity, self.error, 
+                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                         self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_withCBV
             self.filesavetag = "-doublepower-CBV"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  
@@ -590,12 +582,9 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
         elif fitType == 5: # just CBVs
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, 
-                             self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                             self.disctime)
-            else:
-                self.args = args
+            self.args = (self.time, self.intensity, self.error, 
+                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+                         self.disctime)
             self.logProbFunc = mc.log_probability_justCBV
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
@@ -616,11 +605,8 @@ class etsMAIN(object):
                 self.init_values = np.array((start_t, 0.1, 1.8, 1, 1))
          
         elif fitType == 7: # gaussian beta
-            if args is None:
-                self.args = (self.time, self.intensity, self.error, self.disctime,
-                             mu, sigma)
-            else:
-                self.args = args
+            self.args = (self.time, self.intensity, self.error, self.disctime,
+                         mu, sigma)
             self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
             self.filesavetag = "-singlepower-GBeta"
             self.labels = ["t0", "A", "beta",  "b"]
@@ -634,11 +620,16 @@ class etsMAIN(object):
             self.labels = labels
             self.filelabels = self.labels
             self.init_values = init_values 
-            #print(self.args)
             self.plotFit = plotFit #overwrites the default fitType that was set to plotfit
         else:
             print("THAT IS NOT AN ALLOWED DEFAULT FIT TYPE, EXITING")
             raise ValueError("not an allowed fit type")
+            
+        if args is not None: #just overwrite it at the end if custom
+            self.args = args
+            
+        if filesavetag is not None:
+            self.filesavetag = filesavetag
             
         if self.binned: # it has to go in this order - need to load, then set args, then set this
             self.filesavetag = self.filesavetag + "-8HourBin"
@@ -646,9 +637,6 @@ class etsMAIN(object):
         if self.fractiontrimmed:
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
         
-        
-        if filesavetag is not None:
-            self.filesavetag = filesavetag
         
         return
    
@@ -874,8 +862,7 @@ class etsMAIN(object):
     
     def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
                           n1=1000, n2=10000, gpUSE = "expsqr",
-                          thinParams=None, customSigmaRho=None, 
-                          filesavetag=None, bounds = True):
+                          thinParams=None, bounds = True):
         """
         GP fitting using tinygp's stuff
         Update 10-7-22 - GP fit every 1000 steps
@@ -884,12 +871,12 @@ class etsMAIN(object):
         Update 10-31-22 - Switched to scipy.minimize to use bounds
         
         """
-        self.quatsandcbvs = None
+        
         
         if gpUSE == "celerite":
-            self.__run_GP_fit_celerite(self, cutIndices, binYesNo, 
-                                       fraction, n1, n2, customSigmaRho, 
-                                       filesavetag=None,thinParams=None)
+            self.__run_GP_fit_celerite(cutIndices, binYesNo, 
+                                       fraction, n1, n2, thinParams)
+            
         else: #tinygp options
             ### THEN DO CUSTOM MASKING if both not already cut and indices are given
             if cutIndices is not None:
@@ -905,6 +892,14 @@ class etsMAIN(object):
             #set up gpUSE settings
             self.__tinygp_setup(gpUSE=gpUSE, bounds=bounds)                                          
             #make folders to save into
+            
+            if self.binned: # it has to go in this order - need to load, then set args, then set this
+                self.filesavetag = self.filesavetag + "-8HourBin"
+        
+            if self.fractiontrimmed:
+                self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+            
+            
             self.__gen_output_folder()   
             #print("entering mcmc + gp concurrent fitting")
             self.__mcmc_concurrent_gp(n1, n2, thinParams)
@@ -980,7 +975,28 @@ class etsMAIN(object):
         
         """
         self.filesavetag = "-celerite-matern32"
-
+        
+        ### custom masking
+        if cutIndices is not None:
+            self.__custom_mask_it(cutIndices)
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binYesNo: #if need to bin
+            self.__8hrbinning()
+                                                 
+        #fractional fit code (fraction can be None)                                  
+        self.__fract_fit(fraction)
+        
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
+            self.filesavetag = self.filesavetag + "-8HourBin"
+    
+        if self.fractiontrimmed:
+            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+        
+        
+        #make folders to save into
+        self.__gen_output_folder()  
+        
         #set up kernel
         start_t = min(self.disctime-3, self.time[-1]-2)
         # set up gp:
@@ -1002,21 +1018,7 @@ class etsMAIN(object):
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
         self.plotFit = 10
-
         
-        ### custom masking
-        if cutIndices is not None:
-            self.__custom_mask_it(cutIndices)
-            
-        # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: #if need to bin
-            self.__8hrbinning()
-                                                 
-        #fractional fit code (fraction can be None)                                  
-        self.__fract_fit(fraction)
-        
-        #make folders to save into
-        self.__gen_output_folder()   
         
         #run it
         self.__mcmc_outer_structure(n1, n2, thinParams)
@@ -1279,7 +1281,6 @@ class etsMAIN(object):
         if bounds is False:
             taggy = "-celerite-tinygp-matern32-noBounds"
         self.__makepath(taggy)
-        self.quatsandcbvs = None
         
         ### custom masking: 
         if cutIndices is not None:

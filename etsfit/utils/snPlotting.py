@@ -417,11 +417,16 @@ def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp,
     t1 = time - t0
     sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     gp.set_parameter_vector(best_mcmc[0][4:])
+    #print(len(time))
+    #print(len(intensity-sl))
     bg = gp.predict(intensity-sl, time, return_cov=False)
 
     model = sl + bg
     #fix time axis
     time = time + tmin - 2457000
+    disctime = disctime + tmin - 2457000
+    t0 = t0 + tmin - 2457000
+    
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
     
@@ -452,6 +457,8 @@ def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
     
     #fix time axis
     time = time + tmin - 2457000
+    disctime = disctime + tmin - 2457000
+    t0 = t0 + tmin - 2457000
     
     plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
@@ -544,15 +551,17 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
                           label=r"$t_0$")
         ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                       label="Ground Disc.")
-        ax[n].set_ylabel("Flux (e-/s)", fontsize=12)
+        ax[n].set_ylabel("Flux (e-/s)", fontsize=18)
+        ax[n].tick_params('y', labelsize=14)
         
     #plot labelling
     ax[0].set_title(targetlabel + filesavetag)
-    ax[nrows-1].set_xlabel(xlabel)
+    ax[nrows-1].set_xlabel(xlabel, fontsize=18)
+    ax[nrows-1].tick_params('x', labelsize=14)
     
-    ax[0].legend(fontsize=10, loc="upper left")
-    ax[1].legend(fontsize=10)
-    ax[2].legend(fontsize=10)
+    ax[0].legend(fontsize=14, loc="upper left")
+    ax[1].legend(fontsize=14)
+    ax[2].legend(fontsize=14)
     
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=pathSave,t=targetlabel,
@@ -622,29 +631,26 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     ax[0][2].plot(time, mod+tinygp_bg, label="Model + tinygp", color='red')
     ax[1][2].scatter(time, intensity-mod-tinygp_bg, label="Residual", color='black', s=3)
     
-    ax[0][0].set_ylabel("Flux (e-/s)", fontsize=12)
-    ax[1][0].set_ylabel("Flux (e-/s)", fontsize=12)
+    ax[0][0].set_ylabel("Flux (e-/s)", fontsize=18)
+    ax[1][0].set_ylabel("Flux (e-/s)", fontsize=18)
     
     for n in range(ncols):
         ax[0][n].scatter(time, intensity, label = "Data", s = 3, color = 'black')
         ax[1][n].axhline(0, color="orange", label="Zero", linestyle='dotted')
-        ax[nrows-1][n].set_xlabel(xlabel, fontsize=12)
+        ax[nrows-1][n].set_xlabel(xlabel, fontsize=18)
+        
         for i in range(nrows):
             ax[i][n].axvline(t0, color = 'green', linestyle = 'dotted',
                               label=r"$t_0$")
             ax[i][n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
                           label="Ground Disc.")
-            ax[i][n].legend(fontsize=8)
+            ax[i][n].legend(fontsize=14)
+            ax[i][n].tick_params('y', labelsize=14)
     
-    
+    ax[nrows-1].tick_params('x', labelsize=14)
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=pathSave,
                                                       t=targetlabel,
                                                       f=filesavetag))
     plt.close()
     return
-
-# plot_celerite_tinygp_comp(trlc.folderSAVE, trlc.time, trlc.intensity,trlc.targetlabel, 
-#                           "testcomp", trlc.best_mcmc, trlc.gpcelerite, 
-#                           trlc.build_gp(trlc.theta, trlc.time), 
-#                               trlc.disctime, trlc.tmin)

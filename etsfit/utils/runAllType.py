@@ -87,54 +87,10 @@ gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020
 #                   quaternion_folder_raw, 
 #                   quaternion_folder_txt, bigInfoFile, fraction=fraction, goodList = gList)
 
-def run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder, 
+
+def run_allGP(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
-                 quaternion_folder_txt, bigInfoFile, 
-                 goodList = None):
-    """ 
-    run of all a certain type of fit w/ otherwise default parameters
-    """
-    info = pd.read_csv(bigInfoFile)
-    i = 0
-    for root, dirs, files in os.walk(lightcurveFolder):
-        for name in files:
-            if name.endswith("-tessreduce"):
-                holder = root + "/" + name
-                print(i)
-                (time, intensity, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(holder)
-
-                if goodList is not None and targetlabel not in goodList:
-                        continue
-                #get discovery time
-                d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
-                discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
-                #run it
-                trlc = etsMAIN(foldersave, bigInfoFile)
-                
-                trlc.load_single_lc(time, intensity, error, discoverytime, 
-                                   targetlabel, sector, camera, ccd, lygosbg=None)
-                
-                filterMade = trlc.window_rms_filt(plot=False)
-                if "2018fhw" in targetlabel:
-                    filterMade[1040:1080] = 0.0
-                trlc.run_GP_fit(filterMade, binYesNo=False, fraction=fraction, 
-                                      n1=10000, n2=25000, gpUSE = "celerite",
-                                      thinParams=None, customSigmaRho=None, 
-                                      filesavetag=None, bounds=True)
-                #del(loadedraw)
-                del(trlc)
-                gc.collect()
-                i+=1
-    return
-
-# run_allGP_celerite(lightcurveFolder, foldersave, CBV_folder, 
-#                   quaternion_folder_raw, 
-#                   quaternion_folder_txt, bigInfoFile, gList)
-
-def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder, 
-                 quaternion_folder_raw, 
-                 quaternion_folder_txt, bigInfoFile, 
+                 quaternion_folder_txt, bigInfoFile, GP="matern32",
                  goodList = None):
     """ 
     run of all a certain type of fit w/ otherwise default parameters
@@ -161,22 +117,20 @@ def run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder,
                 filterMade = trlc.window_rms_filt(plot=False)
                 if "2018fhw" in targetlabel:
                     filterMade[1040:1080] = 0.0
-                # trlc.pre_run_clean(1, cutIndices=filterMade, 
-                #                    binYesNo = False, fraction = fraction)
                 trlc.run_GP_fit(filterMade, binYesNo=False, fraction=fraction, 
-                               n1=10000, n2=25000, gpUSE="matern32",
+                               n1=10000, n2=25000, gpUSE=GP,
                                thinParams=None)
 
                 gc.collect()
                 i+=1
     return
 
-run_allGP_tinygp(lightcurveFolder, foldersave, CBV_folder, 
+run_allGP(lightcurveFolder, foldersave, CBV_folder, 
                   quaternion_folder_raw, 
-                  quaternion_folder_txt, bigInfoFile, gList)
+                  quaternion_folder_txt, bigInfoFile, GP="celerite", goodList=gList)
 
 
-def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
+def run_all_matern32comp(lightcurveFolder, foldersave, CBV_folder, 
                  quaternion_folder_raw, 
                  quaternion_folder_txt, bigInfoFile, fraction, bounds,
                  goodList = None):
@@ -215,7 +169,7 @@ def run_all_materncomp(lightcurveFolder, foldersave, CBV_folder,
                 i+=1
     return trlc
 
-# trlc = run_all_materncomp(lightcurveFolder, foldersave, CBV_folder, 
+# trlc = run_all_matern32comp(lightcurveFolder, foldersave, CBV_folder, 
 #                   quaternion_folder_raw, 
 #                   quaternion_folder_txt, bigInfoFile, fraction=fraction,
 #                   bounds=True, goodList = gList)
