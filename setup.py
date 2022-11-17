@@ -84,4 +84,4 @@ setup(
     author_email="gordo840@umn.edu",
     url="https://github.com/lcgordon/etsfit",
     packages=["etsfit"]
-      )
+    )
