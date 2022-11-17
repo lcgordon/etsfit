@@ -11,6 +11,8 @@ python:
       extra_requirements:
         - docs
         - all
+  install:
+   - requirements: docs/requirements.txt
 
 formats: []
 
@@ -21,8 +23,4 @@ sphinx:
 formats:
   - pdf
   - epub
-
-python:
-   install:
-   - requirements: docs/requirements.txt
 
