@@ -6,7 +6,7 @@
 #
 alabaster==0.7.12
     # via sphinx
-astropy==5.1.1
+astropy==5.1
 babel==2.10.3
     # via sphinx
 certifi==2022.6.15
