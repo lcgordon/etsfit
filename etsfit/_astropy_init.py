@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import os
+import astropy.tests.runner
 
 __all__ = ['__version__', 'test']
 
