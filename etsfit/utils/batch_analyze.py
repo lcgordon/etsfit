@@ -42,6 +42,11 @@ def extract_singlepowerparams_from_file(filepath):
         A=float(filerow1[2])
         beta=float(filerow1[3])
         B=float(filerow1[4][:-1])
+    elif filerow1[0][0] == "[":
+        t0= float(filerow1[0][1:])
+        A=float(filerow1[1])
+        beta=float(filerow1[2])
+        B=float(filerow1[3][:-1])
     else: #first string contains [
         #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
         t0=float(filerow1[0])

@@ -480,7 +480,7 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
                                    figsize=(8*ncols * 2, 3*nrows * 2))
     
     #plot model, data
-    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
+    ax[0].plot(time, model, label="Best Fit Model", lw=2, color = 'red')
     ax[0].scatter(time, intensity, label = "Data", s = 3, color = 'black')
     
     for n in range(nrows):
@@ -526,7 +526,7 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     
     #top row: data, model ONLY
     ax[0].scatter(time, intensity, label = "Data", s = 3, color = 'black')
-    ax[0].plot(time, sl, label="Best Fit Model", color = 'red')
+    ax[0].plot(time, sl, label="Best Fit Model", lw=2, color = 'red')
     
     
     #middle row: residual, GP fit to residual
@@ -535,7 +535,7 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     #bg, var = gp.predict(residual1, time, return_var=True)
     #err_bg = np.sqrt(var)
     ax[1].scatter(time, residual1, label = "Model  Residual", s = 3, color = 'black')
-    ax[1].plot(time, bg, label="GP", color="blue", alpha=0.5)
+    ax[1].plot(time, bg, lw=2, label="GP", color="blue")
     ax[1].axhline(0, color='orange', linestyle = 'dashed', label="zero")
     
     
@@ -619,7 +619,7 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
                                                    f=filesavetag), fontsize=12)
     
     
-    ax[0][0].plot(time, mod, label="Model", color = 'red')
+    ax[0][0].plot(time, mod, lw=2, label="Model", color = 'red')
     ax[1][0].scatter(time, intensity-mod, label="Residual", color='black', s=3)
     
     ax[0][1].plot(time, mod+celerite_bg, label="Model + celerite", color='red')
