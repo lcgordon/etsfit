@@ -16,6 +16,9 @@ python:
 
 formats: []
 
+submodules:
+  include: all
+
 sphinx:
   configuration: docs/conf.py
   fail_on_warning: true
@@ -23,4 +26,3 @@ sphinx:
 formats:
   - pdf
   - epub
-

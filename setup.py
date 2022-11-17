@@ -13,6 +13,7 @@ from setuptools import setup
 from extension_helpers import get_extensions
 
 
+
 # First provide helpful messages if contributors try and run legacy commands
 # for tests or docs.
 
@@ -78,12 +79,12 @@ except Exception:
 """.lstrip()
 
 setup(
-      name="etsfit",
-      use_scm_version={'write_to': os.path.join('etsfit', 'version.py'),
+    use_scm_version={'write_to': os.path.join('etsfit', 'version.py'),
                        'write_to_template': VERSION_TEMPLATE},
-      ext_modules=get_extensions(),
-      author='Lindsey Gordon',
-      author_email="gordo840@umn.edu",
-      url="https://github.com/lcgordon/etsfit",
-      packages=["etsfit"]
-      )
+    ext_modules=get_extensions(),
+    author='Lindsey Gordon',
+    author_email="gordo840@umn.edu",
+    url="https://github.com/lcgordon/etsfit",
+    packages=["etsfit"]
+    )
+
