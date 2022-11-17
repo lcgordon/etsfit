@@ -210,13 +210,16 @@ tesscut_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tessc
 wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all_WTV_SN_matches.csv"
 
 f = pd.read_csv(tesscut_all)
-rcParams['figure.figsize'] = 10,10
+f1 = f[f["Obj. Type"].str.contains("Ia")]
+#rcParams['figure.figsize'] = 10,10
 
-plt.hist(f["Discovery Mag/Flux"], 10, color="black")
-plt.axvline(20.5, color="red", label="TESS Mag. Limit")
-plt.axvline(18, color="blue", label="Paper Cutoff")
-plt.ylabel('Number of SN')
-plt.xlabel("Disc Mag")
+plt.hist(f1["Discovery Mag/Flux"], 10, color="black")
+plt.axvline(20, color="red", label="20th Mag.")
+#plt.axvline(18, color="blue", label="Paper Cutoff")
+plt.ylabel('Number of SN', fontsize=16)
+plt.xticks(size=14)
+plt.yticks(size=14)
+plt.xlabel("Discovery Magnitude (Reported)", fontsize=16)
 plt.legend(loc="upper left")
 plt.savefig("/Users/lindseygordon/research/urop/august2022crossmatch/tesscut_histogram.png")
 plt.show()

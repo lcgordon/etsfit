@@ -6,6 +6,7 @@
 
 import os
 import sys
+import astropy
 
 from setuptools import setup
 
@@ -86,3 +87,4 @@ setup(
     url="https://github.com/lcgordon/etsfit",
     packages=["etsfit"]
     )
+

@@ -115,18 +115,20 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
                 
                 tplot = trlc.time + trlc.tmin - 2457000
+                disctime = trlc.disctime+trlc.tmin-2457000
                 
                 #print(trlc.tmin)
     
                 
                 ax[m,n].scatter(tplot, trlc.intensity, color='black', s=2, label=trlc.targetlabel)
-                ax[m,n].plot(tplot, model, color='red', label='Model')
+                ax[m,n].plot(tplot, model, color='red', lw=2, label='Model')
                 #ax[m][n].set_title(trlc.targetlabel, fontsize=14)
-                ax[m][n].axvline(trlc.disctime+trlc.tmin-2457000, color="brown", linestyle = "dotted",
-                                 label="Disc. time")
-                ax[m][n].axvline(t0+trlc.tmin - 2457000, label="t0", color="green", linestyle="dashed")
-                ax[m][n].set_xlabel("Time [BJD-2457000]", fontsize=16)
-                ax[m][0].set_ylabel("flux (e-/s)", fontsize=16)
+                ax[m][n].axvline(disctime, color="brown",linestyle='dashed',
+                                 label="Disc. Time")
+                ax[m][n].axvline(t0+trlc.tmin - 2457000, label="t0", 
+                                 color="green", linestyle="dashed")
+                
+                ax[m][0].set_ylabel("Flux (e-/s)", fontsize=16)
                 ax[m][n].tick_params('x', labelsize=14)
                 ax[m][n].tick_params('y', labelsize=14)
                 ax[m][n].legend(fontsize=12)
@@ -136,7 +138,9 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 else:
                     m=m+1
                     n=0
-    fig.suptitle("Collated Power Law Fits")
+    #fig.suptitle("Collated Power Law Fits")
+    ax[4][0].set_xlabel("Time [BJD-2457000]", fontsize=16)
+    ax[4][1].set_xlabel("Time [BJD-2457000]", fontsize=16)
     fig.tight_layout()
     fig.show()   
     plt.savefig("{f}/collated-single-powerlaws.png".format(f=foldersave))            
@@ -153,6 +157,6 @@ gList = ["2018exc", "2018fhw", "2018fub", "2020tld",
          "2020zbo", "2020hvq", "2018hzh",
          "2020hdw", "2020bj", "2019gqv"]
 
-trlc = big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
-                     "singlepower-0.6", 
-                     fraction = 0.6, binning=False)
+# trlc = big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
+#                      "singlepower-0.6", 
+#                      fraction = 0.6, binning=False)
