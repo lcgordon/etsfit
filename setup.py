@@ -76,6 +76,12 @@ except Exception:
     version = '{version}'
 """.lstrip()
 
-setup(use_scm_version={'write_to': os.path.join('etsfit', 'version.py'),
+setup(
+    use_scm_version={'write_to': os.path.join('etsfit', 'version.py'),
                        'write_to_template': VERSION_TEMPLATE},
-      ext_modules=get_extensions())
+    ext_modules=get_extensions(),
+    author='Lindsey Gordon',
+    author_email="gordo840@umn.edu",
+    url="https://github.com/lcgordon/etsfit",
+    packages=["etsfit"]
+      )

@@ -4,12 +4,22 @@ build:
   image: latest
 
 python:
-  version: 3.7
+  version: 3.8
   install:
     - method: pip
       path: .
       extra_requirements:
         - docs
         - all
+  install:
+   - requirements: docs/requirements.txt
 
 formats: []
+
+sphinx:
+  configuration: docs/conf.py
+  fail_on_warning: true
+  
+formats:
+  - pdf
+  - epub

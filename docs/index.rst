@@ -1,14 +1,21 @@
-Documentation
-=============
+.. include:: ../README.rst
 
-This is the documentation for etsfit.
+Welcome to etsfit's documentation!
+===================================
+
+
+Check out the :doc:`usage` section for further information, including
+how to :ref:`installation` the project.
+
+.. note::
+
+   This project is under active development.
+
+Contents
+--------
 
 .. toctree::
-  :maxdepth: 2
 
-  etsfit/index.rst
-
-.. note:: The layout of this directory is simply a suggestion.  To follow
-          traditional practice, do *not* edit this page, but instead place
-          all documentation for the package inside ``etsfit/``.
-          You can follow this practice or choose your own layout.
+   Home <self>
+   usage
+   api
