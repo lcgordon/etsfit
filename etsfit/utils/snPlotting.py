@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sat Mar 20 12:47:01 2021
+Updated: Nov 21 2022
 
-@author: conta
+@author: Lindsey Gordon
 
-SN Plotting
+Plotting functions for use in etsfit
+
+Access docstrings by help(fxn_name)
+
 """
 import matplotlib.pyplot as plt
 import numpy as np

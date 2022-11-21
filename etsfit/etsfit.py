@@ -255,7 +255,7 @@ class etsMAIN(object):
                         outerfilt = outerfilt, plot=plot)
     
     def load_single_lc(self, time, intensity, error, discoverytime, 
-                       targetlabel, sector, camera, ccd, lygosbg=None):
+                       targetlabel, sector, camera, ccd, BGdata=None):
         """ 
         Load in one light curve from information you supply
         
@@ -281,7 +281,7 @@ class etsMAIN(object):
             
             - ccd (str) needs to be a 1 char string
             
-            - lygosbg (defaults to NONE) can put in lygos background array if 
+            - BGdata (defaults to NONE) can put in background array if 
             doing that one specific fit. should also work to float other 
             background arrays.
         """
@@ -307,7 +307,7 @@ class etsMAIN(object):
         self.time = time
         self.intensity = intensity
         self.error = error
-        self.lygosbg = lygosbg
+        self.BGdata = BGdata
         self.disctime = discoverytime
         self.targetlabel = targetlabel
         self.sector = sector
@@ -422,8 +422,8 @@ class etsMAIN(object):
             self.time = self.time[self.cutindexes]
             self.intensity = self.intensity[self.cutindexes]
             self.error = self.error[self.cutindexes]
-            if self.lygosbg is not None:
-                self.lygosbg = self.lygosbg[self.cutindexes]
+            if self.BGdata is not None:
+                self.BGdata = self.BGdata[self.cutindexes]
                 
             if hasattr(self, 'quatsIntensity'): #if cbvs, trim them
                 self.quatsIntensity = self.quatsIntensity[self.cutindexes]
@@ -453,9 +453,9 @@ class etsMAIN(object):
         Internal function to do a fractional fit: 
         """
         if fraction is not None:
-            (self.time, self.intensity, self.error, self.lygosbg, 
+            (self.time, self.intensity, self.error, self.BGdata, 
              self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
-                                                   self.error, self.lygosbg, 
+                                                   self.error, self.BGdata, 
                                                    fraction, self.quatsandcbvs)
         self.fractiontrimmed=True #make sure you can't trim it more than once
         self.fract = fraction                                        
@@ -470,9 +470,9 @@ class etsMAIN(object):
             return
         else:     
             (self.time, self.intensity, 
-             self.error, self.lygosbg,
+             self.error, self.BGdata,
              self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
-                                                 self.lygosbg, QCBVALL=None) 
+                                                 self.BGdata, QCBVALL=None) 
             self.binned = True                                    
             return
    
@@ -544,7 +544,7 @@ class etsMAIN(object):
         start_t = min(self.disctime-3, self.time[-1]-2)
         
         if fitType == 1: # single without
-            self.args = (self.time, self.intensity, self.error, self.disctime)
+            self.args = (self.time, self.intensity, self.error)
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
             self.labels = [r"$t_0$", "A", r"$\beta$",  "b"]
@@ -554,8 +554,7 @@ class etsMAIN(object):
             
         elif fitType == 2: # single with
             self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                         self.disctime)
+                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3)
             self.logProbFunc = mc.log_probability_singlepower_withCBV
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
@@ -583,30 +582,26 @@ class etsMAIN(object):
                                     1.8, 1.8, 0,0,0,0))
         elif fitType == 5: # just CBVs
             self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
-                         self.disctime)
+                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3)
             self.logProbFunc = mc.log_probability_justCBV
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
             self.filelabels = self.labels
             self.init_values = np.array((1, 0,0,0,0))
         elif fitType == 6: # detrending lygos BG
-            if self.lygosbg is None:
-                print("NO LYGOS BG LOADED IN - CANNOT RUN THIS FIT")
-                raise AttributeError("Missing lygosbg!!")
+            if self.BGdata is None:
+                raise AttributeError("NO BG LOADED IN - CANNOT RUN THIS FIT")
                 return
             else:
-                self.args = (self.time, self.intensity, self.error, self.lygosbg, 
-                             self.disctime)
-                self.logProbFunc = mc.log_probability_singlePower_LBG
-                self.filesavetag = "-singlepower-lygosBG"
+                self.args = (self.time, self.intensity, self.error, self.BGdata)
+                self.logProbFunc = mc.log_probability_singlePower_BG
+                self.filesavetag = "-singlepower-BGdata"
                 self.labels = ["t0", "A", "beta",  "b", "LBG"]
                 self.filelabels = self.labels
                 self.init_values = np.array((start_t, 0.1, 1.8, 1, 1))
          
         elif fitType == 7: # gaussian beta
-            self.args = (self.time, self.intensity, self.error, self.disctime,
-                         mu, sigma)
+            self.args = (self.time, self.intensity, self.error, mu, sigma)
             self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
             self.filesavetag = "-singlepower-GBeta"
             self.labels = ["t0", "A", "beta",  "b"]
@@ -841,7 +836,7 @@ class etsMAIN(object):
                          self.targetlabel, 
                          self.disctime, best_mcmc[0], 
                          flat_samples, self.labels, self.plotFit, self.filesavetag, 
-                         self.xlabel, self.tmin, self.lygosbg,
+                         self.xlabel, self.tmin, self.BGdata,
                          self.quatsandcbvs)
         elif self.plotFit == 10:
             sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
@@ -915,7 +910,7 @@ class etsMAIN(object):
         
         self.plotFit = 1
         self.fitType = 1
-        self.args = (self.time, self.intensity, self.error, self.disctime)
+        self.args = (self.time, self.intensity, self.error)
         self.logProbFunc = mc.log_probability_singlepower_noCBV
         self.labels = ["t0", "A", "beta",  "b"]
         self.filelabels = self.labels
@@ -1016,7 +1011,7 @@ class etsMAIN(object):
         self.gp.compute(self.time, self.error)
         print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
         # set up arguments etc.
-        self.args = (self.time,self.intensity, self.error, self.disctime, self.gp)
+        self.args = (self.time,self.intensity, self.error, self.gp)
         self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
@@ -1331,7 +1326,7 @@ class etsMAIN(object):
         self.gpcelerite.compute(self.time, self.error)
         print("Initial celerite log-likelihood: {0}".format(self.gpcelerite.log_likelihood(self.intensity)))
         # set up arguments etc.
-        self.args = (self.time,self.intensity, self.error, self.disctime, self.gpcelerite)
+        self.args = (self.time,self.intensity, self.error, self.gpcelerite)
         self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
@@ -1406,10 +1401,6 @@ class etsMAIN(object):
         # GP setup
         #calculate residual from intermediate best:
         res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
-        # plt.scatter(self.time, res)
-        # plt.show()
-        # plt.close()
-        # print("created residual")
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
@@ -1517,7 +1508,7 @@ class etsMAIN(object):
         tinygpll = float(self.GP_LL_all[-1]) #final neg ll
         
         #set up a new sampler with the plain format
-        argy = (self.time, self.intensity, self.error, self.disctime)
+        argy = (self.time, self.intensity, self.error)
         sampler2 = emcee.EnsembleSampler(nwalkers, 4, 
                                          mc.log_probability_singlepower_noCBV, 
                                          args=argy)
@@ -1526,13 +1517,6 @@ class etsMAIN(object):
         self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobwgp
         print("BIC (tinygp): ", self.BIC_tinygp)
         
-        # print("troubleshooting gp parameters:")
-        # print("tinygp output parameters: ", self.theta)
-        # print("tinygp output sigma squared: ", jnp.exp(self.theta['log_sigma']*2))
-        # print("tinygp output rho: ", jnp.exp(self.theta['log_rho']))
-        # print("celerite fitting output: ", best_mcmc[0][4:])
-        # print("celerite sigma squared: ", np.exp(best_mcmc[0][4]*2))
-        # print("celerite rho: ", np.exp(best_mcmc[0][5]))
 
         #re-compute the celerite kernel
         kernel2 = terms.Matern32Term(log_sigma=best_mcmc[0][4], 
