@@ -644,7 +644,7 @@ class etsMAIN(object):
     def run_MCMC(self, n1=1000, n2=10000, thinParams = None,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
-                 labels=None, init_values=None, mu=2, sigma=1):
+                 labels=None, init_values=None, mu=2, sigma=1, local_dir=False):
         """
         Run one MCMC instance - non GP fits
         
@@ -667,6 +667,8 @@ class etsMAIN(object):
             - filesavetag = NONE, custom string if you want it
             - labels, NONE unless doing custom bullshit, then array of str
             - init_values, NONE unless doing custom bullshit
+            - local_dir (FALSE) - saves into the local folderSave location, rather 
+                than producing a new folder
         
         If you are doing custom priors:
             - don't
@@ -681,8 +683,9 @@ class etsMAIN(object):
         self.__setup_fittype_params(self.fitType, args,
                                     logProbFunc, plotFit, filesavetag, 
                                     labels, init_values, mu, sigma)
-        # set up the output folder
-        self.__gen_output_folder() 
+        if not local_dir:
+            # set up the output folder
+            self.__gen_output_folder() 
                                                         
         # run it
         (self.best, self.upperError, 
@@ -733,7 +736,7 @@ class etsMAIN(object):
         
         #plot burn in chain
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
-                              sampler, self.labels, ndim, appendix = "-burnin")
+                              sampler, self.labels, ndim, appendix = "burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
@@ -801,7 +804,7 @@ class etsMAIN(object):
         
         # plot chains, parameters
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
-                              sampler, self.labels, ndim, appendix = "-production")
+                              sampler, self.labels, ndim, appendix = "production")
         
         sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag)
@@ -860,7 +863,7 @@ class etsMAIN(object):
     
    
     
-    def run_GP_fit(self, cutIndices, binYesNo, fraction=None, 
+    def run_GP_fit(self, cutIndices=None, binYesNo=False, fraction=None, 
                           n1=1000, n2=10000, gpUSE = "expsqr",
                           thinParams=None, bounds = True):
         """
@@ -896,7 +899,7 @@ class etsMAIN(object):
             if self.binned: # it has to go in this order - need to load, then set args, then set this
                 self.filesavetag = self.filesavetag + "-8HourBin"
         
-            if self.fractiontrimmed:
+            if fraction is not None:
                 self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
             
             
@@ -1103,7 +1106,7 @@ class etsMAIN(object):
         
         #plot burn in chain
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
-                              sampler, self.labels, ndim, appendix = "-burnin")
+                              sampler, self.labels, ndim, appendix = "burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
@@ -1203,7 +1206,7 @@ class etsMAIN(object):
         
         # plot chains, parameters
         sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
-                              sampler, self.labels, ndim, appendix = "-production")
+                              sampler, self.labels, ndim, appendix = "production")
         
         sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
                                   self.targetlabel, self.filesavetag)

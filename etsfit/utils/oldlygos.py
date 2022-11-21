@@ -128,3 +128,39 @@ def load_data_lygos_single(self, fileToLoad, disctime=None, override=False):
  #     self.plotFit = 10
      
  #     return
+ 
+ # def plot_param_samples_individual(flat_samples, labels, path, targetlabel, filesavetag):
+ #     """ 
+ #     Plots parameters vs p(parameter) histograms individually
+ #     Mostly not used - try plot_param_samples_all instead
+ #     """
+     
+ #     for p in range(len(labels)):
+ #         plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
+ #         plt.xlabel(labels[p])
+ #         plt.ylabel("p({pl})".format(pl=labels[p]))
+ #         plt.gca().set_yticks([]);
+ #         plt.savefig('{p}{t}{f}-chainHisto-{lp}.png'.format(p=path,
+ #                                                           t=targetlabel,
+ #                                                           f=filesavetag,
+ #                                                           lp = labels[p]))
+ #         plt.close()
+ #     return
+ 
+ # def plot_log_post(path, targetlabel, filesavetag, sampler):
+ #     '''
+ #     plot the log posteriors
+ #     unclear if this gets used anywhere?
+ #     '''
+ #     logprobs = sampler.get_log_prob()
+ #     logprior = sampler.get_blobs()
+ #     logpost = logprobs+logprior
+ #     xaxis = np.linspace(1,len(logpost), len(logpost[:,0]))
+ #     for h in range(len(logpost[0])):
+ #         plt.scatter(xaxis, logpost[:,0])
+ #     plt.xlabel("steps")
+ #     plt.ylabel("log posterior")
+ #     plt.savefig('{p}{t}{f}-log-post.png'.format(p=path,t=targetlabel,
+ #                                                 f=filesavetag))
+ #     plt.close()
+ #     return

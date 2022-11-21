@@ -8,27 +8,29 @@ SN Plotting
 """
 import matplotlib.pyplot as plt
 import numpy as np
+import corner
 from pylab import rcParams
 rcParams['figure.figsize'] = 16,6
 rcParams["font.size"] = 20
 rcParams["xtick.labelsize"] = 14
 rcParams["ytick.labelsize"] = 14
-import corner
-import os
 
 
 
 def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
                        autoStep, filesavetag):
-    """ Plot autocorrelation time vs number of steps
+    """ 
+    Plots the mean autocorrelation time versus the number of steps
+    Convergence threshold N/100 line is also plotted.
+    ----------------------------------
     Params:
-        - path (str) to save into
-        - targetlabel (str) name of target
-        - index (int) number of autocorr tests
-        - autocorr (array) autocorr test mean output
-        - converged (bool) did the chain converge in the end or not
-        - autoStep (int) how many steps
-        - filesavetag (str) name for file
+        - savepath (str) folder to save plot into
+        - targetlabel (str) target ID
+        - index (int) number of autocorreleation checks that the chain performed
+        - autocorr (array) mean autocorrelation at each autoStep convergence check
+        - converged (bool) if the chain converged
+        - autoStep (int) number of chain steps between convergence checks
+        - filesavetag (str) filename used for this fit
         
     """
     n = autoStep * np.arange(1, index + 1) #x axis = total number of steps
@@ -52,17 +54,19 @@ def plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
     
 def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
                              autoStep, labels, filelabels, filesavetag):
-    """Plot each autocorrleation time function from an array of all of them 
+    """
+    Plot each parameter's autocorrelation time per step in an individual file
+    -------------------------------------
     Params:
-        - savepath (str) to put files into
-        - targetlabel (str) name of target
-        - index (int) number of autocorr tests
-        - autocorr_all (array of size (params,index)) with all 
-            parameter autocorrelation times
-        - autoStep (int) how many steps
-        - labels (array of strings) what each param is called
-        - filelabels (array of strings) what each is called formatted for filenames
-        - filesavetag (string) to name file with
+        - savepath (str) folder to save plot into
+        - targetlabel (str) target ID
+        - index (int) number of autocorreleation checks that the chain performed
+        - autocorr_all (array of size (params,index)) contains all 
+            parameters' autocorrelation times
+        - autoStep (int) number of chain steps between convergence checks
+        - labels (array of strings) param names, may use latex formatting
+        - filelabels (array of strings) param names, formatted for use in file naming
+        - filesavetag (string) filename used for this fit
     """
     n = autoStep * np.arange(1, index + 1) #x axis - number of steps
     for i in range(len(labels)):
@@ -88,7 +92,26 @@ def plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
 def plot_autocorr_all(savepath, targetlabel, index, autocorr, 
                       autocorr_all, converged,
                       autoStep, labels, filelabels, filesavetag):
+    """ 
+    Produces two batches of autocorrelation plots by calling 
+    plot_autocorr_individual()
+    and 
+    plot_autocorr_mean()
+    -----------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - targetlabel (str) target ID
+        - index (int) number of autocorreleation checks that the chain performed
+        - autocorr (array) mean autocorrelation at each autoStep convergence check
+        - autocorr_all (array of size (params,index)) contains all 
+            parameters' autocorrelation times
+        - converged (bool) if the chain converged
+        - autoStep (int) number of chain steps between convergence checks
+        - labels (array of strings) param names, may use latex formatting
+        - filelabels (array of strings) param names, formatted for use in file naming
+        - filesavetag (string) filename used for this fit
     
+    """
     plot_autocorr_mean(savepath, targetlabel, index, autocorr, converged,
                            autoStep, filesavetag)
     plot_autocorr_individual(savepath, targetlabel, index, autocorr_all,
@@ -96,14 +119,16 @@ def plot_autocorr_all(savepath, targetlabel, index, autocorr,
     return
 
 
-def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
-    """ Produces corner plot of all parameters against one another
+def plot_corner(flat_samples, labels, savepath, targetlabel, filesavetag):
+    """ 
+    Produces corner plot using corner.py 
+    --------------------------------------
     Params:
-        - flat_samples (array) returned from emcee
-        - labels (array of strings) what each parameter is called
-        - path (string) to save into
-        - targetlabel (string) name of target
-        - filesavetag (string) what to label file with
+        - flat_samples (array) returned from emcee sampler
+        - labels (array of strings) param names, may use latex formatting
+        - savepath (str) folder to save plot into
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit
     """
     fig = corner.corner(flat_samples, 
                         labels=labels,
@@ -111,53 +136,41 @@ def plot_corner(flat_samples, labels, path, targetlabel, filesavetag):
                         show_titles=True, title_fmt = ".3f", 
                         title_kwargs={"fontsize": 16},
                         label_kwargs={'size':16})
-    
-    #fig.subplots_adjust(right=2.5,top=2.5)
+
     for ax in fig.get_axes():
         ax.tick_params(axis='both', labelsize=14)
         ax.yaxis.set_label_coords(-.5, .5)
         ax.xaxis.set_label_coords(0.5, -0.5)
-    #fig.yticks(fontsize=14)
-    #plt.xticks(fontsize=6)
+
     plt.tight_layout()
-    fig.savefig('{p}{t}{f}-corner-plot-params.png'.format(p=path,
+    fig.savefig('{s}{t}{f}-corner-plot-params.png'.format(s=savepath,
                                                       t=targetlabel,
                                                       f=filesavetag))
     #plt.show()
     plt.close()
     return
 
-# def plot_param_samples_individual(flat_samples, labels, path, targetlabel, filesavetag):
-#     """ 
-#     Plots parameters vs p(parameter) histograms individually
-#     Mostly not used - try plot_param_samples_all instead
-#     """
-    
-#     for p in range(len(labels)):
-#         plt.hist(flat_samples[:, p], 100, color="k", histtype="step")
-#         plt.xlabel(labels[p])
-#         plt.ylabel("p({pl})".format(pl=labels[p]))
-#         plt.gca().set_yticks([]);
-#         plt.savefig('{p}{t}{f}-chainHisto-{lp}.png'.format(p=path,
-#                                                           t=targetlabel,
-#                                                           f=filesavetag,
-#                                                           lp = labels[p]))
-#         plt.close()
-#     return
 
-def plot_param_samples_all(flat_samples, labels, path, targetlabel, filesavetag):
+
+def plot_param_samples_all(flat_samples, labels, savepath, targetlabel, filesavetag):
     """
-    Plot all the parameter vs p(param) histograms together 
+    Plot all the parameter sampling per parameter from the chains in one big plot
+    --------------------------------------
+    Params:
+        - flat_samples (array) returned from emcee sampler
+        - labels (array of strings) param names, may use latex formatting
+        - savepath (str) folder to save plot into
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit
     """
     
-    
-    rcParams['figure.figsize'] = 16,16
     axN = len(labels)
     if axN % 2 != 0:
         axN+=1 #make it even (two columns)
     nrows = int(axN/2)
     ncols = 2
-    fig, ax = plt.subplots(nrows, ncols, sharex=False)
+    fig, ax = plt.subplots(nrows, ncols, sharex=False,
+                           figsize=(ncols*4, nrows*4))
     p = 0
     for n in range(2):
         for m in range(nrows):
@@ -171,56 +184,44 @@ def plot_param_samples_all(flat_samples, labels, path, targetlabel, filesavetag)
     
     fig.suptitle("Chain Sampling By Parameter")
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-chainHisto-all.png'.format(p=path,
+    plt.savefig('{s}{t}{f}-chainHisto-all.png'.format(s=savepath,
                                                       t=targetlabel,
                                                       f=filesavetag))
     plt.close()
-    rcParams['figure.figsize'] = 16,6
     return
     
-# def plot_log_post(path, targetlabel, filesavetag, sampler):
-#     '''
-#     plot the log posteriors
-#     unclear if this gets used anywhere?
-#     '''
-#     logprobs = sampler.get_log_prob()
-#     logprior = sampler.get_blobs()
-#     logpost = logprobs+logprior
-#     xaxis = np.linspace(1,len(logpost), len(logpost[:,0]))
-#     for h in range(len(logpost[0])):
-#         plt.scatter(xaxis, logpost[:,0])
-#     plt.xlabel("steps")
-#     plt.ylabel("log posterior")
-#     plt.savefig('{p}{t}{f}-log-post.png'.format(p=path,t=targetlabel,
-#                                                 f=filesavetag))
-#     plt.close()
-#     return
-
 
 
 def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     """
-    Produce plotting model for a given fit type (1-6) 
+    Produces the plotting model for a given fit type (1-7) 
+    ------------------------------------------
     Params:
-        - fitType (int, which fit are you doing)
-        - x (array, x-axis that starts at 0)
-        - best_mcmc (array, params for best fit model)
+        - fitType (int) 1-7, which fit is being produced
+        - x (array) x-axis, should start at 0
+        - best_mcmc (array) params for best fit model
         - QCBVs (either an array [Qall, CBV1, CBV2, CBV3] or just None)
+                only for fit types 2,4,5
+        - lygosBG (array of size x, or None) 
+                only for fit type 6
+    ------------------------------------------
     Returns:
-        - sl (actual model)
-        - bg (background part, either a single run of B or the complex linear combo)
+        - mod (power law model)
+        - bg (background model)
     """
-    print("starting model creation time axis at: ", x[0])
-    if fitType == 1 or fitType == 7:
+    if fitType in (2,4,5) and QCBVs is None:
+        return ValueError("QCBVs must be loaded in for fit types 2,4,5!")
+    
+    if fitType in (1,7):
         t0, A,beta,B = best_mcmc
         t1 = x - t0
-        sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
+        mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
         bg = np.ones(len(x)) + B
     elif fitType == 2: 
         t0, A, beta, B, cQ, cbv1, cbv2, cbv3 = best_mcmc
         t1 = x - t0
         Qall, CBV1, CBV2, CBV3 = QCBVs
-        sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta))
+        mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta))
         bg = cQ * Qall + cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3 + 1 + B
         
     elif fitType == 3:
@@ -229,7 +230,7 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
         def func2(x, t0, t1, A1, A2, beta1, beta2):
             return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
         t0, t1, A1, A2, beta1, beta2, B = best_mcmc
-        sl = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
+        mod = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
                              t0, t1, A1, A2, beta1, beta2) 
         bg = np.ones(len(x)) + B
@@ -241,7 +242,7 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
         
         Qall, CBV1, CBV2, CBV3 = QCBVs
         t0, t1, A1, A2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = best_mcmc#[0]
-        sl = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
+        mod = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
                              t0, t1, A1, A2, beta1, beta2)
         bg = cQ * Qall + cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3 + 1
@@ -249,7 +250,7 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     elif fitType ==5:
         Qall, CBV1, CBV2, CBV3 = QCBVs
         b, cQ, cbv1, cbv2, cbv3 = best_mcmc#[0]
-        sl = np.zeros(len(x))
+        mod = np.zeros(len(x))
         bg = (b + np.ones(len(x)) + cQ * Qall + 
               cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3)
         print("background starts with", bg[0:5])
@@ -257,18 +258,27 @@ def fitTypeModel(fitType, x, best_mcmc, QCBVs = None, lygosBG = None):
     elif fitType == 6:
         t0, A,beta,B, LBG = best_mcmc
         t1 = x - t0
-        sl = (np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta)))
+        mod = (np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta)))
         bg = 1 + B + lygosBG * LBG
     
-    return sl, bg
+    return mod, bg
 
-def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim,
+def plot_chain_logpost(savepath, targetlabel, filesavetag, sampler, labels, ndim,
                        appendix=""):
     """
-    plot mcmc chain by parameter AND log posterior at top 
+    Plots MCMC chain trace plots for all parameters and the log posterior
+    --------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit
+        - sampler (emcee obj) the sampler object produced by emcee
+        - labels (array of strings) param names, may use latex formatting
+        - ndim (int) number of parameters
+        - appendix (str) tail end string for the filename - usually "burnin" 
+                or "production"
+    
     """
-    rcParams['figure.figsize'] = 30,30
-    rcParams['ytick.labelsize'] = 8
     fig, axes = plt.subplots(ndim+1, figsize=(10, 7), sharex=True)
     samples = sampler.get_chain()
     logprobs = sampler.get_log_prob()
@@ -294,96 +304,86 @@ def plot_chain_logpost(path, targetlabel, filesavetag, sampler, labels, ndim,
     axes[-1].set_xlabel("Step Number", fontsize=16)
     axes[-1].tick_params(axis='x', labelsize=12)
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-chain-logpost-{a}.png'.format(p=path,
+    plt.savefig('{s}{t}{f}-chain-logpost-{a}.png'.format(s=savepath,
                                                       t=targetlabel,
                                                       f=filesavetag,
                                                       a=appendix))
     #plt.show()
     plt.close()
-    rcParams['figure.figsize'] = 16,6
     return
 
-# def plot_chain(path, targetlabel, plotlabel, samples, labels, ndim):
-#     """
-#     Plots mcmc chains - each parameter is a subpanel stacked vertically
-#     """
-#     rcParams['figure.figsize'] = 30,30
-#     rcParams['ytick.labelsize'] = 10
-#     fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-#     labels = labels
-#     for i in range(ndim):
-#         ax = axes[i]
-#         ax.plot(samples[:, :, i], "k", alpha=0.3)
-#         ax.set_xlim(0, len(samples))
-#         ax.set_ylabel(labels[i])
-#         ax.yaxis.set_label_coords(-0.1, 0.5)
-    
-#     axes[-1].set_xlabel("step number");
-#     plt.savefig(path + targetlabel+ plotlabel)
-#     plt.show()
-#     plt.close()
-#     rcParams['figure.figsize'] = 16,6
-#     return
 
-def plot_histogram(data, bins, x_label, filename):
+def plot_histogram(data, bins, x_label, y_label, filename):
     """ 
-    Plot a histogram with one light curve from each bin plotted on top
-    * Data is the histogram data
-    * Bins is bins for the histogram
-    * x_label for the x-axis of the histogram
-    * filename is the exact place you want it saved
+    Plot a simple histogram
+    ----------------------------------------------
+    Params:
+        - data (array) histogram info
+        - bins (int) how many bins
+        - x_label (str)
+        - y_label (str)
+        - filename (str or None) full path to save into
     """
-    rcParams['figure.figsize'] = 10,10
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize=(10,10))
     n_in, bins, patches = ax1.hist(data, bins)
-    
-    #y_range = np.abs(n_in.max() - n_in.min())
-    #x_range = np.abs(data.max() - data.min())
-    ax1.set_ylabel('Number of light curves')
+    ax1.set_ylabel(y_label)
     ax1.set_xlabel(x_label)
     
     if filename is not None:
-             plt.tight_layout()
-             plt.savefig(filename)
-    
-    #plt.show()
+        plt.tight_layout()
+        plt.savefig(filename)
+
     plt.close()
-    rcParams['figure.figsize'] = 16,6
     return 
 
-def plot_tinygp_ll(pathSave, gpll, targetlabel, filesavetag):
-    rcParams['figure.figsize'] = 10,10
+def plot_tinygp_ll(savepath, gpll, targetlabel, filesavetag):
+    """ 
+    Plot the tinygp log likelihood per re-calculation as run concurrently 
+    with the MCMC modelling
+    ----------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - gpll (array) each log likelihood estimate in time
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit
+    """
+    fig, ax1 = plt.subplots(figsize=(10,10))
     x = np.arange(0, len(gpll), 1) * 1000 #x axis
-    plt.scatter(x, gpll)
-    plt.xlabel("Step")
-    plt.ylabel("GP Neg. Log Likelihood")
-    plt.title(targetlabel + "  GP log likelihood over MCMC steps")
+    ax1.scatter(x, gpll)
+    ax1.xlabel("Step")
+    ax1.ylabel("GP Neg. Log Likelihood")
+    ax1.title(targetlabel + "  GP log likelihood over MCMC steps")
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-GP-loglike-steps.png'.format(p=pathSave,
+    plt.savefig('{s}{t}{f}-GP-loglike-steps.png'.format(s=savepath,
                                                       t=targetlabel,
                                                       f=filesavetag))
-    #plt.show()
+
     plt.close()
-    rcParams['figure.figsize'] = 16,6
     return
 
-def plot_mcmc(pathSave, time, intensity, error, 
+def plot_mcmc(savepath, time, intensity, error, 
               targetlabel, disctime, best_mcmc, flat_samples,
               labels, fitType, filesavetag, xlabel, tmin, lygosBG, QCBVs = None):
-    ""
-    """main plotting function for mcmc 
-    params:
-        - path (string, to save into)
-        - x  (array, time axis STARTING AT 0)
-        - y  (array, actual intensity data)
-        - targetlabel (string, SN name for various things. no spaces.)
-        - disctime (float, start date from target, should be from 0 to 30!)
-        - best_mcmc (array of best fit parameters)
-        - flat_samples (??) idk this comes out of emcee sampler
-        - labels (array of str) what parameters were floated
-        - fitType (int) indicates which of the models you're using
-        - filesavetag (str) label for output
-        - tmin (float) start time for sector, rounded 
+    """
+    Main plotting function: produces the corner plot and MCMC best fit model
+    plot for a given fitting run
+    ----------------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - x  (array) time axis of data, starts at 0
+        - y  (array) relative flux data
+        - targetlabel (str) target ID
+        - disctime (float) ground discovery time, with the sector start time
+                subtracted off
+        - best_mcmc (array) best fit output parameters
+        - flat_samples (array) returned from emcee sampler
+        - labels (array of strings) param names, may use latex formatting
+        - fitType (int) 1-7, which fit is being produced
+        - filesavetag (str) filename used for this fit
+        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
+        - tmin (float) start time for sector
+        - lygosBG (array or None) used in fit type 6
+        - QCBVs (arrays or None) used in fit types 2,4,5
         
     fitType options:
         - 1 = single no
@@ -391,6 +391,8 @@ def plot_mcmc(pathSave, time, intensity, error,
         - 3 = double no
         - 4 = double with
         - 5 = flat
+        - 6 = lygos bg
+        - 7 = gaussian beta (same as 1)
     """
     #set up model = sl + bg but can be plot separately.
     t0 = best_mcmc[0]
@@ -401,78 +403,117 @@ def plot_mcmc(pathSave, time, intensity, error,
     disctime = disctime + tmin - 2457000
     t0 = t0 + tmin - 2457000
     
-    plot_corner(flat_samples, labels, pathSave, targetlabel, filesavetag)
+    plot_corner(flat_samples, labels, savepath, targetlabel, filesavetag)
     
-    plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+    plot_mcmc_model(savepath, model, time, intensity, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
     
     return
 
-def plot_mcmc_GP_celerite(pathSave, time, intensity, error, best_mcmc, gp, 
+def plot_mcmc_GP_celerite(savepath, time, intensity, error, best_mcmc, gp, 
                           disctime, xlabel, tmin, targetlabel, 
-                          filesavetag, plotComponents=False):
-    """Plot the best fit model from the mcmc run w/ GP on """
+                          filesavetag):
+    """
+    Plots the best fit model from MCMC with a celerite background
+    Calls plot_mcmc_model() and gp_plots()
+    ---------------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - time (array) time axis of data, starts at 0
+        - intensity (array) relative flux data
+        - error (array) error on the flux data
+        - best_mcmc (array) best fit output parameters
+        - gp (celerite object)
+        - disctime (float) ground discovery time, with the sector start time
+                subtracted off
+        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
+        - tmin (float) start time for sector
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit
+    """
     
     t0, A,beta,B = best_mcmc[0][:4]
     t1 = time - t0
-    sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    
     gp.set_parameter_vector(best_mcmc[0][4:])
-    #print(len(time))
-    #print(len(intensity-sl))
-    bg = gp.predict(intensity-sl, time, return_cov=False)
+    bg = gp.predict(intensity-mod, time, return_cov=False)
 
-    model = sl + bg
+    model = mod + bg
     #fix time axis
     time = time + tmin - 2457000
     disctime = disctime + tmin - 2457000
     t0 = t0 + tmin - 2457000
     
-    plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+    plot_mcmc_model(savepath, model, time, intensity, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
     
-    gp_plots(pathSave, sl, bg, model, time, intensity, error,
+    gp_plots(savepath, mod, bg, time, intensity, error,
                  disctime, t0, xlabel, targetlabel, filesavetag, 
-                 gpfiletag = "-MCMC-celeriteGP-TriplePlotResiduals.png")
+                 gpfiletag = "-MCMC-celeriteGP-TriplePlotResiduals")
     return
 
-def plot_mcmc_GP_tinygp(pathSave, time, intensity, error, best_mcmc,
-                        gp,
-                        disctime, xlabel, tmin, targetlabel, filesavetag, 
-                        plotComponents=False):
-    """Plot the best fit model from the mcmc run w/ tinyGP on """
-    #import jax
-    #import jax.numpy as jnp
-    #from tinygp import kernels, GaussianProcess
-    
+def plot_mcmc_GP_tinygp(savepath, time, intensity, error, best_mcmc,
+                        gp, disctime, xlabel, tmin, 
+                        targetlabel, filesavetag):
+    """
+    Plots the best fit model from MCMC with a tinygp background
+    Calls plot_mcmc_model() and gp_plots()
+    ---------------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - time (array) time axis of data, starts at 0
+        - intensity (array) relative flux data
+        - error (array) error on the flux data
+        - best_mcmc (array) best fit output parameters
+        - gp (tinygp object)
+        - disctime (float) ground discovery time, with the sector start time
+                subtracted off
+        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
+        - tmin (float) start time for sector
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit 
+    """
+
     t0, A,beta,B = best_mcmc[:4]
     t1 = time - t0
-    sl = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
-    
-    #kernel = np.exp(solnparams['log_amps']) * kernels.ExpSquared(np.exp(solnparams['log_scales']))
-    #gp = GaussianProcess(kernel, time, mean=solnparams['mean'])
-    
-    bg = gp.predict(intensity-sl, time, return_cov=False)
+    mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
 
-    model = sl + bg
+    bg = gp.predict(intensity-mod, time, return_cov=False)
+
+    model = mod + bg
     
     #fix time axis
     time = time + tmin - 2457000
     disctime = disctime + tmin - 2457000
     t0 = t0 + tmin - 2457000
     
-    plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
+    plot_mcmc_model(savepath, model, time, intensity, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
     
 
-    gp_plots(pathSave, sl, bg, model, time, intensity, error,
+    gp_plots(savepath, mod, bg, time, intensity, error,
                      disctime, t0, xlabel,targetlabel, filesavetag, 
-                     gpfiletag = "-MCMC-tinyGP-TriplePlotResiduals.png")
+                     gpfiletag = "MCMC-tinyGP-TriplePlotResiduals")
     return
 
-def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
-                 disctime, t0, xlabel,targetlabel, filesavetag):
+def plot_mcmc_model(savepath, model, time, intensity, error,
+                    disctime, t0, xlabel, targetlabel, filesavetag):
     """ 
-    Plots the main 2 panel mcmc model + residual
+    Produces two panel plot of output model. 
+    Top panel gives the data + model, bottom panel gives the residual. 
+    ---------------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - model (array) best fit model for data
+        - time (array) time axis of data, starts at 0
+        - intensity (array) relative flux data
+        - error (array) error on the flux data
+        - disctime (float) ground discovery time, time axis corrected
+        - t0 (float) the t0 output parameter
+        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit 
     """
     nrows = 2
     ncols = 1
@@ -506,16 +547,33 @@ def plot_mcmc_model(pathSave, sl, bg, model, time, intensity, error,
     ax[1].legend(fontsize=14)
     
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-MCMCmodel-bestFit.png'.format(p=pathSave,
+    plt.savefig('{p}{t}{f}-MCMCmodel-bestFit.png'.format(p=savepath,
                                                       t=targetlabel,
                                                       f=filesavetag))
     plt.close()
     return
 
-def gp_plots(pathSave, sl, bg, model, time, intensity, error,
-                 disctime,t0, xlabel,targetlabel, filesavetag, gpfiletag):
+def gp_plots(savepath, model, bg, time, intensity, error,
+             disctime, t0, xlabel, targetlabel, filesavetag, gpfiletag):
     """ 
-    Plots the gp residual plots (3 panels, 1 model, 2 residuals)
+    Produces three panel plot of output model including GP
+    Top panel gives the data + power law, middle panel gives power law residual,
+    bottom panel gives GP residual. 
+    ---------------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - model (array) best fit power law model for data
+        - bg (array) best fit gp background model for residual
+        - time (array) time axis of data, starts at 0
+        - intensity (array) relative flux data
+        - error (array) error on the flux data
+        - disctime (float) ground discovery time, time axis corrected
+        - t0 (float) the t0 output parameter
+        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit 
+        - gpfiletag (str) tag added on to the end to indicate which gp model
+            was used (ie, "MCMC-tinyGP-TriplePlotResiduals")
     """
     
     #second plot: 
@@ -526,11 +584,11 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     
     #top row: data, model ONLY
     ax[0].scatter(time, intensity, label = "Data", s = 3, color = 'black')
-    ax[0].plot(time, sl, label="Best Fit Model", color = 'red')
+    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
     
     
     #middle row: residual, GP fit to residual
-    residual1 = intensity - sl
+    residual1 = intensity - model
     ax[1].set_title("Model Residual")
     #bg, var = gp.predict(residual1, time, return_var=True)
     #err_bg = np.sqrt(var)
@@ -564,31 +622,34 @@ def gp_plots(pathSave, sl, bg, model, time, intensity, error,
     ax[2].legend(fontsize=14)
     
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=pathSave,t=targetlabel,
-                                             f=filesavetag,gpf=gpfiletag))
-        
-    #plt.show()
+    plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=savepath,t=targetlabel,
+                                             f=filesavetag,
+                                             gpf=gpfiletag))
+
     plt.close()
     return
 
 
-
-def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel, 
+def plot_celerite_tinygp_comp(savepath, time, intensity, targetlabel, 
                               filesavetag, best_mcmc, gpcelerite, gptinygp, 
                               disctime, xlabel, tmin):
     """ 
-    Parameters:
-        - pathSave (str)
-        - time, intensity (arrays)
-        - targetlabel, filesavetag (str)
-        - best_mcmc (array of best values, 0-4 are base model, 5,6 are the celerite)
-        - celeritegp (self.gpcelerite)
-        - tinygp (self.build_gp(theta, time)) full formed gp! 
-        - disctime, (floats)
-        - xlabel (str)
+    Produces 2x3 plot comparing the no-GP, tinygp, and celerite fittings + 
+    their residuals
+    ---------------------------------------------
+    Params:
+        - savepath (str) folder to save plot into
+        - time (array) time axis of data, starts at 0
+        - intensity (array) relative flux data
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit 
+        - best_mcmc (array) best fit output parameters
+        - gpcelerite (celerite gp object)
+        - gptinygp (tinygp gp object)
+        - disctime (float) ground discovery time
+        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
+        - tmin (float) start time for sector
     """
- 
-    from tinygp import kernels, GaussianProcess
     
     t0, A,beta,B = best_mcmc[0][:4]
     t1 = time - t0
@@ -601,8 +662,10 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     
     tinygp_bg = gptinygp.predict(intensity-mod, time, return_cov=False)
 
-    #fix time axis
+    #fix time axis stuff
     time = time + tmin - 2457000
+    disctime = disctime + tmin - 2457000
+    t0 = t0 + tmin - 2457000
     
     #set up
     nrows = 2
@@ -649,7 +712,7 @@ def plot_celerite_tinygp_comp(pathSave, time, intensity,targetlabel,
     
     ax[nrows-1].tick_params('x', labelsize=14)
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=pathSave,
+    plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=savepath,
                                                       t=targetlabel,
                                                       f=filesavetag))
     plt.close()
