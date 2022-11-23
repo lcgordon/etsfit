@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Dec  2 10:59:01 2021
+Updated Nov 21 2022
 
-@author: conta
+@author: Lindsey Gordon
+
+Utility functions, mostly to do with data manipulation
 """
-##utility functions that are actually useful at this point in the work
 
 import pandas as pd
 import numpy as np
@@ -15,30 +17,38 @@ import tessreduce as tr
 import time
 
 def load_lygos_csv(file):
-     """
-     load from lygos csv file assuming 3 columns of time/intensity/error
-     Params:
-         - file (str, path to the lygos file you're opening. almost CERTAINLY
-                 this is a rflxtarg file!! )
-     """
-     data = pd.read_csv(file, sep = ',', header = 0)
-     t = np.asarray(data[data.columns[0]])
-     ints = np.asarray(data[data.columns[1]])
-     error = np.asarray(data[data.columns[2]])
-     
-     data = pd.read_csv(file.replace("rflxtarg", "rflx"), sep = ',', header = 0)
-     bg = np.asarray(data[data.columns[-2]])
-     
-     return t, ints, error, bg
+    """
+    Load data from a lygos rflxtarg csv file 
+    Assumes 3 columns time/intensity/error AND that there is an rflx file
+    in the same folder containing the background data
+    ---------------------------------------
+    Params:
+        - file (str) path to an rflxtarg file to be loaded
+    ---------------------------------------
+    Returns:
+        - time, intensity, error, background (arrays)
+        
+    """
+    data = pd.read_csv(file, sep = ',', header = 0)
+    t = np.asarray(data[data.columns[0]])
+    ints = np.asarray(data[data.columns[1]])
+    error = np.asarray(data[data.columns[2]])
+    
+    data = pd.read_csv(file.replace("rflxtarg", "rflx"), sep = ',', header = 0)
+    bg = np.asarray(data[data.columns[-2]])
+    
+    return t, ints, error, bg
  
 def get_disctime(file, name):
     """
-    Handy little guy to pull the discovery time out of the big file
+    Helper function to retrieve discovery time from a big TNS file
+    ---------------------------------------
     Params:
-        - file (str, path to the big info file with all the info on the SN. 
-                must be pandas readable altho idk why it wouldn't be)
-        - name (str, what the hell this SN is called - must start with year,
-                ie 2020abc and not SN2020abc)
+        - file (str) path to the TNS file
+        - name (str) SN to retrieve, ie, '2020abc'
+    ---------------------------------------
+    Returns:
+        - discovery time in JD
     """
     f = pd.read_csv(file)
     d = f[f["Name"].str.contains(name)]["Discovery Date (UT)"]
@@ -54,9 +64,8 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
     
     This DOES NOT save the filter output inside the object. 
     
-    Defaults the inner window as len(self.time)*0.005 and the outer as
-    inner*20. Custom arguments are on the to-do list, nudge Lindsey if 
-    you need them.
+    Defaults the inner window as len(self.time)*0.01 and the outer as
+    inner*10.
     
     -------------------------------
     Parameters:
@@ -109,15 +118,19 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
     return rms_filt
 
 
-def normalize_sigmaclip(time, flux,error, bg, axis=0):
-    '''
-    Tidy up that data! Currently a 4 sigma clip.
-    Parameters:
-        - time (array of time indexes)
-        - flux (array flux values)
-        - error (array error values)
-        - axis = 0 for 1D data, =1 if you want to clip multiple things stacked
-    '''
+def sigmaclip(time, flux,error, bg, axis=0):
+    """ 
+    5 sigma clip data
+    ---------------------------------------
+    Params:
+        - time, flux, error, bg (arrays)
+        - axis = 0 for individual 1D arrays
+    ---------------------------------------
+    Returns:
+        - sigma clipped time, flux, error, bg
+    
+    """
+
     from astropy.stats import SigmaClip
     sigclip = SigmaClip(sigma=5, maxiters=None, cenfunc='median')
     clipped_inds = np.nonzero(np.ma.getmask(sigclip(flux)))
@@ -128,17 +141,22 @@ def normalize_sigmaclip(time, flux,error, bg, axis=0):
         bg = np.delete(bg, clipped_inds)
         bg = bg / np.median(bg, axis = axis, keepdims=True)
         
-    # origmin = min(flux)
-    # origrange = max(flux) - origmin
-    # newmin = 0
-    # newrange = 1
-    # flux = [(n - origmin) / origrange * newrange + newmin for n in flux]
     return time,flux,error, bg
 
 def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
-    """Trims light curve to chosen % of peak flux as in olling et al 2015. 
-    Need 10 indices in a row all brighter than the fraction in order to consider
-    it brighter"""
+    """
+    Trims light curve to a chosen fraction of the peak flux
+    Considers "above" to be when 10 indices in a row are all brighter
+    (Actually looks from the top)
+    ---------------------------------------
+    Params:
+        - time, flux, error, bg (arrays)
+        - fraction (0 to 1.0)
+        - QCBVALL (array of arrays or None) containing the qcbvs
+    ---------------------------------------
+    Returns:
+        - time, flux, error, bg, QCBVALL
+    """
     #fractionalBright = ((flux.max()-1) * fraction) + 1
     #find range, take percent of range, add to min
     fractionalBright = flux.max() - (((flux.max() - flux.min())) * (1-fraction))
@@ -162,8 +180,6 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
         CBV3 = CBV3[:cutoffindex]
         QCBVALL = [Qall, CBV1, CBV2, CBV3]
         print('quall', len(Qall))
-        #QCBVALL = [np.asarray(Qall[:cutoffindex]), np.asarray(CBV1[:cutoffindex]), 
-         #          np.asarray(CBV2[:cutoffindex]), np.asarray(CBV3[:cutoffindex])]
     if bg is not None:
         bg = bg[:cutoffindex]
 
@@ -171,10 +187,18 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
             error[:cutoffindex], bg, QCBVALL)
 
 def bin_8_hours(time, flux, error, bg, QCBVALL=None):
-    """Bin all light curves to 8 hours as in Fausnaugh 2020 
-    QCBVALL should unpack as Qall, CBV1, CBV2, CBV3 OR be None """
-    
-    
+    """
+    Bin light curve to 8 hours
+    QCBVALL should unpack as Qall, CBV1, CBV2, CBV3 OR be None 
+    ---------------------------------------
+    Params:
+        - time, flux, error, bg (arrays)
+        - QCBVALL (array of arrays or None) containing the qcbvs
+    ---------------------------------------
+    Returns:
+        - time, flux, error, bg, QCBVALL
+    """
+
     n_points = 16
     binned_time = []
     binned_flux = []
@@ -221,9 +245,10 @@ def quat_txtfile_production(file, fileoutput):
     Produce Quaternion files for easy opening/handling and smaller storage size
     This only needs to be run once for each sector at the start of ALL 
     the work, thank god. 
-    Parameters:
-        - file = str, input quaternion fits file that needs to be compressed into txt
-        - fileoutput = str, filename of output txt file
+    ------------------------------
+    Params:
+        - file (str) input quaternion fits file that needs to be compressed into txt
+        - fileoutput (str) filename of output txt file
     """
     from astropy.io import fits
     if os.path.exists(fileoutput):
@@ -245,9 +270,10 @@ def quat_txtfile_production(file, fileoutput):
 def make_quat_txtfiles(inFolder, outFolder):
     """
     Produces ALL quaternion text files for a given folder of quaternion fits files
+    --------------------------------
     Params:
-        - inFolder = str, where all the fits files currently are
-        - outFolder = str, where all the txt files should go
+        - inFolder (str) where all the fits files currently are
+        - outFolder (str) where all the txt files should go
     """
     for root, dirs, files in os.walk(inFolder):
         for name in files:
@@ -259,7 +285,8 @@ def make_quat_txtfiles(inFolder, outFolder):
 
 def quaternion_binning(quaternion_t, quat_data, tmin):
     """
-    Bin the bastards up 
+    Bin the quaternions
+    ---------------------------
     Params:
         - quaternion_t (array, quat time axis)
         - quat_data (array, actual quat y axis)
@@ -270,9 +297,6 @@ def quaternion_binning(quaternion_t, quat_data, tmin):
         array = np.asarray(array)
         idx = (np.abs(array - value)).argmin()
         return idx
-    
-    # print("quat t[0]", quaternion_t[0])
-    # print("main axis 0", maintimeaxis[0])
     
     binning_start = find_nearest_values_index(quaternion_t, tmin)
     n = binning_start
@@ -288,7 +312,6 @@ def quaternion_binning(quaternion_t, quat_data, tmin):
         n += 900
         m += 900
             
-        
     standard_dev = np.std(np.asarray(binned_Q))
     mean_Q = np.mean(binned_Q)
     outlier_indexes = []
@@ -302,6 +325,15 @@ def quaternion_binning(quaternion_t, quat_data, tmin):
     return np.asarray(binned_t), np.asarray(binned_Q), outlier_indexes
   
 def speed_load_quats_from_fastloadfile(file):
+    """ 
+    Load in quaternions from text file
+    --------------------
+    Params:
+        - file (str) path to file to load
+    ----------------------
+    Returns:
+        - tQ, Q1, Q2, Q3
+    """
     c = np.genfromtxt(file) #
     tQ = c[0]
     Q1 = c[1]
@@ -311,11 +343,12 @@ def speed_load_quats_from_fastloadfile(file):
           
 def metafile_load_smooth_quaternions(sector, tmin,
                                      quaternion_folder):
-    """Helper function to get quaternions out of their text files 
-    and turn them into nicely binned guys. Has option to save into a faster loading
+    """
+    Helper function to get quaternions out of their text files 
+    and bin them. Has option to save into a faster loading
     pre-binned file.
-    
-    params:
+    --------------------------------------
+    Params:
         - sector (str, yes i know it's a string and that's weird, okay? it is 
                   what it is and is how the file path gets opened)
         - tmin (float, time[0] of original sector time axis)
@@ -370,6 +403,7 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
                              CBV_folder, quaternion_folder):
     """
     Load in cbv and quaternions and match them up to the x values given 
+    ---------------------------------
     Params:
         - sector (str, for generating file name)
         - x (array, axis)
@@ -411,19 +445,26 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
 def tr_downloader(fileOfTargets, fileSavePath, cdir):
     """ 
     Download the tessreduce lc for your list
+    --------------------------
+    Params:
+        - fileOftargets (str) directory link to a pandas readable csv file of 
+            all targets to retrieve data for
+        - fileSavePath (str) directory link to where to save the data
+        - cdir (str) directory link to where tesscut downloads. 
+            *** Lindsey your cdir is "/Users/lindseygordon/.lightkurve-cache/tesscut/"
     """
     info = pd.read_csv(fileOfTargets)
     failures = []
-    for i in range(20,len(info)):
-    
+    for i in range(0,len(info)):
+        sec = int(info["Sector"].iloc[i])
         print(i)
         time.sleep(40)
         print(info['Name'].iloc[i][3:])
         targ = info['Name'].iloc[i][3:]
         try:
             obs = tr.sn_lookup(targ)
-            #cdir = "/Users/lindseygordon/.lightkurve-cache/tesscut/"
-            tess = tr.tessreduce(obs_list=obs,plot=False,reduce=True)
+            lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]
+            tess = tr.tessreduce(obs_list=lookup,plot=False,reduce=True)
             
         except ValueError:   
             print("value error - something is wrong with vizier or no target in pixels")
@@ -485,7 +526,12 @@ def tr_downloader(fileOfTargets, fileSavePath, cdir):
 
 def tr_load_lc(file, printname=True):
     """
-    Given a filename, load in the data. Assumes filenames formatted as in tr_downloader()
+    Given a filename, load in the data. 
+    Assumes filenames formatted as in tr_downloader()
+    ---------------------
+    Params:
+        - file (str) link to file to load
+        - printname (default True) print the target's name 
     """
     loadedraw = pd.read_csv(file)
     time = Time(loadedraw["time"], format='mjd').jd
