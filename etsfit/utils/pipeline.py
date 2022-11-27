@@ -13,20 +13,20 @@ from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
 
 
-# lightcurveFolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+# cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
 # TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-# foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
-# quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
-# quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+# save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
+# quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
+# quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
 # gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
 #          "2020hdw", "2020bj", "2019gqv"]
 
 
-def run_all_fits(fitType, lightcurveFolder, foldersave, TNSFile,
+def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                  filekey = "-tessreduce",
-                 goodList=None, CBV_folder=None, quaternion_folder_raw=None,
-                 quaternion_folder_txt=None, 
+                 goodList=None, cbv_dir=None, quaternion_raw_dir=None,
+                 quaternion_txt_dir=None, 
                  fraction=None, binning=False, n1=10000, n2=40000):
     """ 
     Run a certain fit type on all light curves in a given folder
@@ -34,9 +34,9 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, TNSFile,
     ----------------------------
     Params:
         - fitType (int, 1-7) ID of fit to be run
-        - lightcurveFolder (str) path to directory holding all data
+        - data_dir (str) path to directory holding all data
             *** assumes files are formatted in the given tessreduce manner
-        - foldersave (str) path to directory to put all outputs into
+        - save_dir (str) path to directory to put all outputs into
         - TNSfile (str) path to file containing TNS target information
         - filekey (str) end-of-file identifier for which data to use
             program will not attempt to open files without this appendix
@@ -44,22 +44,22 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, TNSFile,
         *
         - goodList (array, optional) names of just the files to be run on
             (targets in folder not on list will be skipped)
-        - CBV_folder (str, optional) folder of CBV files if needed
-        - quaternion_folder_raw (str, optional) folder of quat raw files
-        - quaternion_folder_txt (str, optional) folder of quat txt files
+        - cbv_dir (str, optional) folder of CBV files if needed
+        - quaternion_raw_dir (str, optional) folder of quat raw files
+        - quaternion_txt_dir (str, optional) folder of quat txt files
         - fraction (float 0-1, optional) percent to crop data to
         - binning (bool) whether or not to bin to 8 hours
         - n1 (int) steps for burn in (default 10k)
         - n2 (int) steps for production (default 40k)
 
     """
-    for root, dirs, files in os.walk(lightcurveFolder):
+    for root, dirs, files in os.walk(data_dir):
         for name in files:
             if name.endswith(filekey):
-                holder = root + "/" + name
+                fname = root + "/" + name
                 #load
-                (time, intensity, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(holder)
+                (time, flux, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(fname)
                 if goodList is not None and targetlabel not in goodList:
                     continue
                 
@@ -67,21 +67,21 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, TNSFile,
                 discoverytime = ut.get_disctime(TNSFile, targetlabel)
                 
                 #run it
-                trlc = etsMAIN(foldersave, TNSFile)
+                trlc = etsMAIN(save_dir, TNSFile)
                 
-                trlc.load_single_lc(time, intensity, error, discoverytime, 
+                trlc.load_single_lc(time, flux, error, discoverytime, 
                                    targetlabel, sector, camera, ccd)
                 
                 if fitType in (2,4,5):
-                    trlc.use_quaternions_cbvs(CBV_folder, quaternion_folder_raw, 
-                                              quaternion_folder_txt)
+                    trlc.use_quaternions_cbvs(cbv_dir, quaternion_raw_dir, 
+                                              quaternion_txt_dir)
                 
-                filterMade = trlc.window_rms_filt(plot=False)
+                winfilter = trlc.window_rms_filt(plot=False)
                 
                 if "2018fhw" in targetlabel:
-                    filterMade[1040:1080] = 0.0
+                    winfilter[1040:1080] = 0.0
                 
-                trlc.pre_run_clean(fitType, cutIndices=filterMade, 
+                trlc.pre_run_clean(fitType, flux_mask=winfilter, 
                                    binning = binning, fraction = fraction)
                 
                 trlc.run_MCMC(n1, n2)
@@ -90,17 +90,17 @@ def run_all_fits(fitType, lightcurveFolder, foldersave, TNSFile,
     return
 
 
-def run_all_GP(GPtype, lightcurveFolder, foldersave, TNSFile,
+def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                filekey = "-tessreduce", goodList=None, fraction=None, 
-               binning=False, n1=10000, n2=40000):
+               binning=False, n1=10000, n2=40000, bounds=True):
     """ 
     Run a certain GP fit all light curves in a given folder
     ----------------------------
     Params:
         - fitType (str) ie, 'matern32', 'expsinsqr', 'expsqr', 'celerite'
-        - lightcurveFolder (str) path to directory holding all data
+        - data_dir (str) path to directory holding all data
             *** assumes files are formatted in the given tessreduce manner
-        - foldersave (str) path to directory to put all outputs into
+        - save_dir (str) path to directory to put all outputs into
         - TNSfile (str) path to file containing TNS target information
         - filekey (str) end-of-file identifier for which data to use
             program will not attempt to open files without this appendix
@@ -113,13 +113,13 @@ def run_all_GP(GPtype, lightcurveFolder, foldersave, TNSFile,
         - n1 (int) steps for burn in (default 10k)
         - n2 (int) steps for production (default 40k)
     """
-    for root, dirs, files in os.walk(lightcurveFolder):
+    for root, dirs, files in os.walk(data_dir):
         for name in files:
             if name.endswith(filekey):
-                holder = root + "/" + name
+                fname = root + "/" + name
                 #get stuff
-                (time, intensity, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(holder)
+                (time, flux, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(fname)
 
                 if goodList is not None and targetlabel not in goodList:
                         continue
@@ -127,23 +127,23 @@ def run_all_GP(GPtype, lightcurveFolder, foldersave, TNSFile,
                 #get discovery time
                 discoverytime = ut.get_disctime(TNSFile, targetlabel)
                 #run it
-                trlc = etsMAIN(foldersave, TNSFile)
-                trlc.load_single_lc(time, intensity, error, discoverytime, 
+                trlc = etsMAIN(save_dir, TNSFile)
+                trlc.load_single_lc(time, flux, error, discoverytime, 
                                    targetlabel, sector, camera, ccd)
                 
-                filterMade = trlc.window_rms_filt(plot=False)
+                winfilter = trlc.window_rms_filt(plot=False)
                 
                 if "2018fhw" in targetlabel:
-                    filterMade[1040:1080] = 0.0
+                    winfilter[1040:1080] = 0.0
                     
-                trlc.run_GP_fit(filterMade, binning=binning, fraction=fraction, 
-                               n1=n1, n2=n2, gpUSE=GPtype)
+                trlc.run_GP_fit(winfilter, binning=binning, fraction=fraction, 
+                               n1=n1, n2=n2, gpUSE=GPtype, bounds=bounds)
 
                 gc.collect()
 
     return
 
-def run_all_matern32comp(lightcurveFolder, foldersave, TNSFile,
+def run_all_matern32comp(data_dir, save_dir, TNSFile,
                          filekey = "-tessreduce", goodList=None, fraction=None, 
                          binning=False, n1=10000, n2=40000, bounds=True):
     """ 
@@ -151,9 +151,9 @@ def run_all_matern32comp(lightcurveFolder, foldersave, TNSFile,
     ----------------------------
     Params:
         - fitType (str) ie, 'matern32', 'expsinsqr', 'expsqr', 'celerite'
-        - lightcurveFolder (str) path to directory holding all data
+        - data_dir (str) path to directory holding all data
             *** assumes files are formatted in the given tessreduce manner
-        - foldersave (str) path to directory to put all outputs into
+        - save_dir (str) path to directory to put all outputs into
         - TNSfile (str) path to file containing TNS target information
         - filekey (str) end-of-file identifier for which data to use
             program will not attempt to open files without this appendix
@@ -168,30 +168,30 @@ def run_all_matern32comp(lightcurveFolder, foldersave, TNSFile,
         - bounds (bool) whether or not to bound the GP values
     """
 
-    for root, dirs, files in os.walk(lightcurveFolder):
+    for root, dirs, files in os.walk(data_dir):
         for name in files:
             if name.endswith(filekey):
-                holder = root + "/" + name
+                fname = root + "/" + name
 
-                (time, intensity, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(holder)
+                (time, flux, error, targetlabel, 
+                 sector, camera, ccd) = ut.tr_load_lc(fname)
 
                 if goodList is not None and targetlabel not in goodList:
                         continue
                 #get discovery time
                 discoverytime = ut.get_disctime(TNSFile, targetlabel)
                 #run it
-                trlc = etsMAIN(foldersave, TNSFile)
+                trlc = etsMAIN(save_dir, TNSFile)
                 
-                trlc.load_single_lc(time, intensity, error, discoverytime, 
+                trlc.load_single_lc(time, flux, error, discoverytime, 
                                    targetlabel, sector, camera, ccd, lygosbg=None)
                 
-                filterMade = trlc.window_rms_filt(plot=False)
+                winfilter = trlc.window_rms_filt(plot=False)
                 
                 if "2018fhw" in targetlabel:
-                    filterMade[1040:1080] = 0.0
+                    winfilter[1040:1080] = 0.0
                     
-                trlc.run_both_matern32(filterMade, binning=binning, fraction=fraction,
+                trlc.run_both_matern32(winfilter, binning=binning, fraction=fraction,
                                        bounds=bounds)
                 
                 gc.collect()

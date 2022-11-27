@@ -19,14 +19,14 @@ import time
 def load_lygos_csv(file):
     """
     Load data from a lygos rflxtarg csv file 
-    Assumes 3 columns time/intensity/error AND that there is an rflx file
+    Assumes 3 columns time/flux/error AND that there is an rflx file
     in the same folder containing the background data
     ---------------------------------------
     Params:
         - file (str) path to an rflxtarg file to be loaded
     ---------------------------------------
     Returns:
-        - time, intensity, error, background (arrays)
+        - time, flux, error, background (arrays)
         
     """
     data = pd.read_csv(file, sep = ',', header = 0)
@@ -55,8 +55,8 @@ def get_disctime(file, name):
     d = Time(d.iloc[0], format = 'iso', scale='utc')
     return d.jd
     
-def window_rms(time, intensity, innerfilt = None, outerfilt = None,
-                    plot=True):
+def window_rms(time, flux, innerfilt = None, outerfilt = None,
+               plot=True):
     """ 
     Runs an RMS filter over the light curve and returns an array of 
     0's (bad) and 1's (good) that can be used in the custom masking
@@ -94,8 +94,8 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
         inner_lower = max(0, i-innersize) #inner window, lower bound
         inner_upper = min(n, i+innersize) #inner window, upper bound
         
-        outer_window = intensity[outer_lower:outer_upper]
-        inner_window = intensity[inner_lower:inner_upper]
+        outer_window = flux[outer_lower:outer_upper]
+        inner_window = flux[inner_lower:inner_upper]
         
         std_outer = np.std(outer_window)
         
@@ -109,8 +109,8 @@ def window_rms(time, intensity, innerfilt = None, outerfilt = None,
     
     if plot:
         rms_filt_plot = np.nonzero(rms_filt)
-        plt.scatter(time, intensity, color='green', label='bad', s=2)
-        plt.scatter(time[rms_filt_plot], intensity[rms_filt_plot], 
+        plt.scatter(time, flux, color='green', label='bad', s=2)
+        plt.scatter(time[rms_filt_plot], flux[rms_filt_plot], 
                     color='blue', s=2, label='good')
         plt.legend()
         plt.show()
@@ -407,7 +407,7 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
     Params:
         - sector (str, for generating file name)
         - x (array, axis)
-        - y (array, intensity)
+        - y (array, flux)
         - yerr (array)
         - camera (str)
         - ccd (str)
@@ -442,18 +442,18 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
     CBV3 = CBV3[:length_corr]
     return x,y,yerr, tQ, Qall, CBV1, CBV2, CBV3
 
-def tr_downloader(fileOfTargets, fileSavePath, cdir):
+def tr_downloader(file, data_dir, cdir):
     """ 
     Download the tessreduce lc for your list
     --------------------------
     Params:
-        - fileOftargets (str) directory link to a pandas readable csv file of 
+        - file (str) directory link to a pandas readable csv file of 
             all targets to retrieve data for
-        - fileSavePath (str) directory link to where to save the data
+        - data_dir (str) directory link to where to save the data
         - cdir (str) directory link to where tesscut downloads. 
             *** Lindsey your cdir is "/Users/lindseygordon/.lightkurve-cache/tesscut/"
     """
-    info = pd.read_csv(fileOfTargets)
+    info = pd.read_csv(file)
     failures = []
     for i in range(0,len(info)):
         sec = int(info["Sector"].iloc[i])
@@ -508,7 +508,7 @@ def tr_downloader(fileOfTargets, fileSavePath, cdir):
         
         #make subfolder to save into 
         targlabel = targ + sector + camera + ccd 
-        newfolder = fileSavePath + targlabel + "/"
+        newfolder = data_dir + targlabel + "/"
         if not os.path.exists(newfolder):
             os.mkdir(newfolder)
             filesave = newfolder + targlabel + "-tessreduce.csv"
@@ -535,7 +535,7 @@ def tr_load_lc(file, printname=True):
     """
     loadedraw = pd.read_csv(file)
     time = Time(loadedraw["time"], format='mjd').jd
-    intensity = loadedraw["flux"].to_numpy()
+    flux = loadedraw["flux"].to_numpy()
     error = loadedraw["flux_err"].to_numpy()
     #
     fulllabel = file.split("/")[-1].split("-")[0]
@@ -551,6 +551,6 @@ def tr_load_lc(file, printname=True):
     if printname:
         print(targetlabel, sector, camera, ccd)
         
-    time, intensity, error, bg = sigmaclip(time, intensity, error, None, axis=0)
+    time, flux, error, bg = sigmaclip(time, flux, error, None, axis=0)
         
-    return time, intensity, error, targetlabel, sector, camera, ccd
+    return time, flux, error, targetlabel, sector, camera, ccd

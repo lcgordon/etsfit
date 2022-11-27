@@ -28,8 +28,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import emcee
-#import gc
-#import datetime 
 from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
 rcParams["font.size"] = 20
@@ -51,7 +49,7 @@ jax.config.update("jax_enable_x64", True)
 class etsMAIN(object):
     """Make one of these for the light curve you're going to fit!"""
     
-    def __init__(self, folderSAVE, TNSFile):
+    def __init__(self, save_dir, TNSFile):
         """
         Initialize an etsfit object
         
@@ -62,7 +60,7 @@ class etsMAIN(object):
         -----------------------------------------------
         Parameters:
             
-            - folderSAVE (str) the path to where you want everything to be saved
+            - save_dir (str) the path to where you want everything to be saved
             should end with a /, it will self-correct if not
             
             - TNSFile (str) the path to a big pandas-readable TNS CSV file
@@ -70,14 +68,14 @@ class etsMAIN(object):
         
         """
         
-        if not os.path.exists(folderSAVE): #if the folder that the subfolders are going into
+        if not os.path.exists(save_dir): #if the folder that the subfolders are going into
         #is not real
             raise ValueError("Outermost folder to save into must be a real path!")
         else:
-            if folderSAVE[-1] != "/": #if not ending with /, 
-                folderSAVE += "/"
-            self.folderSAVE = folderSAVE
-            self.foldersaveperm = folderSAVE #keep a copy in case
+            if save_dir[-1] != "/": #if not ending with /, 
+                save_dir += "/"
+            self.save_dir = save_dir
+            self.save_dir_perm = save_dir #keep a copy in case
         
         
         if os.path.exists(TNSFile):
@@ -88,11 +86,11 @@ class etsMAIN(object):
         self.cbvquat_access = False #cannot currently access cbvs/quaternions
         self.fractiontrimmed = False #not trimmed
         self.binned = False #not binned
-        self.quatsandcbvs = None
+        self.quats_cbvs = None
         return
     
-    def use_quaternions_cbvs(self, CBV_folder, quaternion_folder_raw, 
-                             quaternion_folder_txt):
+    def use_quaternions_cbvs(self, cbv_dir, quaternion_raw_dir, 
+                             quaternion_txt_dir):
         """ 
         Function to set up access to CBVs and quaternions. 
         If you do not have text file versions of the quaternions, they will
@@ -101,131 +99,42 @@ class etsMAIN(object):
         ----------------------------------------------------
         Parameters: 
             
-            - CBV_folder (str) a path to the folder holding all CBVs. 
+            - cbv_dir (str) a path to the folder holding all CBVs. 
             this is probably within the eleanor directory
             the directory structure should be such that there are files like
             folder/s001/cbv_components_s0001_0001_0001.txt
             
-            - quaternion_folder_raw (str) is the path to the folder holding
+            - quaternion_raw_dir (str) is the path to the folder holding
             all of the .fits file versions of the quaternions. this can be
             some random path if you already have produced the txt versions
             
-            - quaternion_folder_txt (str) is the path to the folder either
+            - quaternion_txt_dir (str) is the path to the folder either
             HOLDING the .txt file versions of the quaternions OR the path to
             the EMPTY folder that all the txt versions are about 
             to be generated into
         """
         
-        if not os.path.exists(CBV_folder):
+        if not os.path.exists(cbv_dir):
             raise ValueError("Not a valid CBV path")
         else:
-            self.CBV_folder = CBV_folder
+            self.cbv_dir = cbv_dir
             
-        if not os.path.exists(quaternion_folder_raw):
+        if not os.path.exists(quaternion_raw_dir):
             raise ValueError("Not  a valid raw quat path")
         else:
-            self.quaternion_folder_raw = quaternion_folder_raw
+            self.quaternion_raw_dir = quaternion_raw_dir
         
-        if not os.path.exists(quaternion_folder_txt):
+        if not os.path.exists(quaternion_txt_dir):
             raise ValueError("Not a valid txt quat path")
         else:
-            self.quaternion_folder_txt = quaternion_folder_txt
-            if (len(os.listdir(self.quaternion_folder_txt))==0 and
-                len(os.listdir(self.quaternion_folder_raw))!=0):
+            self.quaternion_txt_dir = quaternion_txt_dir
+            if (len(os.listdir(self.quaternion_txt_dir))==0 and
+                len(os.listdir(self.quaternion_raw_dir))!=0):
                 #empty directory, make txt files
-                ut.make_quat_txtfiles(self.quaternion_folder_raw, self.quaternion_folder_txt)
+                ut.make_quat_txtfiles(self.quaternion_raw_dir, self.quaternion_txt_dir)
                 
         self.cbvquat_access = True
         return
-    
-    def run_tessreduce_retrieval_csvlist(self, fileToPullFrom, folderToPutIn,
-                                         cdir, failurererun=None):
-        """
-        Given a file with a column of names to pull, retrieve all tessreduce lc
-        returns indices of the light curves that should exist but vizier crapped out on
-        
-        -------------------------------
-        Parameters:
-            - fileToPullFrom is a csv file containing a column labeled "Name"
-            - folderToPut in is a path to the top level folder to save all retreived data into
-            - cdir is the local cache directory that tessreduce saves you into. 
-        
-        """
-        import tessreduce as tr
-        import gc
-        
-        biglist = pd.read_csv(fileToPullFrom)
-        failures = []
-        
-        for i in range(0,len(biglist)):
-            try:
-                print(i)
-                #if given a rerun list and i is not on that list, move on
-                if failurererun is not None and  not (i in failurererun):
-                    continue
-                time.sleep(40)
-                print(biglist['Name'].iloc[i])
-                targ = biglist['Name'].iloc[i]
-                if targ.startswith("SN "):
-                    targ = targ[3:]
-                    
-                obs = tr.sn_lookup(targ)
-                tess = tr.tessreduce(obs_list=obs,plot=False,reduce=True)
-
-                holder = ""
-                for root, dirs, files in os.walk(cdir):
-                    for name in files:
-                        holder = root + "/" + name
-                        print(holder)
-                        try:
-                            filenamepieces = name.split("-")
-                            sector = str(filenamepieces[1][3:])
-                            camera = str(filenamepieces[2])
-                            ccd = str(filenamepieces[3][0])
-                            os.remove(holder)
-                            break
-                        except IndexError:
-                            print("deleting extraneous file in folder")
-                            os.remove(holder)
-                            continue
-                print(sector)
-                print(camera)
-                print(ccd)
-                
-                #make subfolder to save into 
-                targlabel = targ + sector + camera + ccd 
-                newfolder = folderToPutIn + targlabel + "/"
-                if not os.path.exists(newfolder):
-                    os.mkdir(newfolder)
-                    filesave = newfolder + targlabel + "-tessreduce.csv"
-                    tess.save_lc(filesave)
-                    tess.to_flux()
-                    filesave = newfolder + targlabel + "-tessreduce-fluxconverted.csv"
-                    tess.save_lc(filesave)
-                    
-                    del(obs)
-                    del(tess)
-                    gc.collect()
-                else:
-                    print("Folder already exists (lc already downloaded), exiting")
-                    continue
-                
-            except ValueError:
-                print("value error - something is wrong with vizier as always")
-                failures.append(i)
-                continue
-            except IndexError:
-                print("index error - tesscut can't find it?")
-                continue
-            except ConnectionResetError:
-                print("failed??")
-                failures.append(i)
-                continue
-            except TimeoutError:
-                print("failed??")
-                failures.append(i)
-                continue
-        return failures
 
     
     def window_rms_filt(self, innerfilt = None, outerfilt = None,
@@ -237,9 +146,8 @@ class etsMAIN(object):
         
         This DOES NOT save the filter output inside the object. 
         
-        Defaults the inner window as len(self.time)*0.005 and the outer as
-        inner*20. Custom arguments are on the to-do list, nudge Lindsey if 
-        you need them.
+        Defaults the inner window as len(self.time)*0.0q and the outer as
+        inner*10. 
         
         -------------------------------
         Parameters:
@@ -251,10 +159,10 @@ class etsMAIN(object):
             - plot (bool) defaults as True, plots light curve w/ mask
         
         """
-        return ut.window_rms(self.time, self.intensity, innerfilt = innerfilt, 
+        return ut.window_rms(self.time, self.flux, innerfilt = innerfilt, 
                         outerfilt = outerfilt, plot=plot)
     
-    def load_single_lc(self, time, intensity, error, discoverytime, 
+    def load_single_lc(self, time, flux, error, discoverytime, 
                        targetlabel, sector, camera, ccd, BGdata=None):
         """ 
         Load in one light curve from information you supply
@@ -265,7 +173,7 @@ class etsMAIN(object):
             - time (array) time axis for the lc. this will get the 0th
             index subtracted off. 
             
-            - intensity (array) flux array for the lc 
+            - flux (array) flux array for the lc 
             [yyy handle pre-cleaned data?]
             
             - error (array) error on flux array
@@ -286,13 +194,13 @@ class etsMAIN(object):
             background arrays.
         """
         
-        if (len(time) != len(intensity) or len(intensity) != len(error) or
+        if (len(time) != len(flux) or len(flux) != len(error) or
             len(time) != len(error)):
             print("Time length:", len(time))
-            print("Intensity length:", len(intensity))
+            print("flux length:", len(flux))
             print("Error length:", len(error))
-            raise ValueError("Mismatched sizes on time, intensity, and error!")
-        elif (time is None or intensity is None or 
+            raise ValueError("Mismatched sizes on time, flux, and error!")
+        elif (time is None or flux is None or 
               error is None or discoverytime is None or 
               targetlabel is None or sector is None or 
               camera is None or ccd is None):
@@ -305,7 +213,7 @@ class etsMAIN(object):
             raise ValueError("ccd must be a string, see help()")
         
         self.time = time
-        self.intensity = intensity
+        self.flux = flux
         self.error = error
         self.BGdata = BGdata
         self.disctime = discoverytime
@@ -316,18 +224,20 @@ class etsMAIN(object):
         self.tmin = time[0]
         self.time -= self.tmin
         self.disctime -= self.tmin
-        #self.tplot = self.time + self.tmin - 2457000
         self.bic_all = []
         self.params_all = []
-        #self.xlabel = "BJD - {timestart:.3f}".format(timestart=self.tmin)
         self.xlabel = "Time [BJD - 2457000]"
         self.ylabel = "Flux (e-/s)"
         self.cleaningdone = False
         return
     
     def test_plot(self):
-        """Quick little thing to spit out the current light curve that's loaded in """
-        plt.errorbar(self.time, self.intensity, yerr=self.error, fmt='.', color='black')
+        """
+        Quick little thing to spit out the current light curve that's loaded in 
+        """
+        if not hasattr(self, 'time'):
+            return ValueError("No light curve loaded in to plot!")
+        plt.errorbar(self.time, self.flux, yerr=self.error, fmt='.', color='black')
         plt.xlabel(self.xlabel)
         plt.ylabel(self.ylabel)
         plt.title(self.targetlabel)
@@ -338,7 +248,7 @@ class etsMAIN(object):
         return
 
     
-    def pre_run_clean(self, fitType, cutIndices=None, binning = False, 
+    def pre_run_clean(self, fitType, flux_mask=None, binning = False, 
                       fraction = None):
         """
         A function to be run before running run_MCMC()
@@ -352,100 +262,88 @@ class etsMAIN(object):
                 1-6 are default runs
                 0 are custom arguments (see below)
             
-            - cutIndices (array of ints) true/false array of points ot trim
+            - flux_mask (array of ints) true/false array of points ot trim
                 default is NONE
                 
             - binning (bool, default NONE) bins to 8 hours if true
             
-            - fraction (default NONE, 0-1 for percent) trims intensity to 
+            - fraction (default NONE, 0-1 for percent) trims flux to 
             percent of max. 0.4 is 40% of max, etc.
         """
         # handle CBVs+quats
         if self.cbvquat_access and fitType in (2,4,5):
             print("Loading in quaternions and CBVs")
             (self.time, 
-             self.intensity, 
+             self.flux, 
              self.error,
              self.quatTime, 
-             self.quatsIntensity, 
+             self.quaternions, 
              self.CBV1, 
              self.CBV2, 
              self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, 
                                                       self.time,
-                                                      self.intensity,
+                                                      self.flux,
                                                       self.error, 
                                                       self.tmin, 
                                                       self.camera, 
                                                       self.ccd,
-                                                      self.CBV_folder, 
-                                                      self.quaternion_folder_txt)
-            self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
+                                                      self.cbv_dir, 
+                                                      self.quaternion_txt_dir)
+            self.quats_cbvs = [self.quaternions, self.CBV1, self.CBV2, self.CBV3]
         elif not self.cbvquat_access and fitType in (2,4,5):
             print("You need to provide quaternion paths via use_quaternions_cbvs()")
             raise ValueError("Cannot run the requested fit type")
  
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-        if cutIndices is not None:
-            self.__custom_mask_it(cutIndices)
+        if flux_mask is not None:
+            self.__custom_mask_it(flux_mask)
        
         # 8hr binning
         if binning: #if need to bin
             self.__8hrbinning()
                                                  
         # percent of max fitting
-        if fraction is not None and self.fractiontrimmed==False:
+        if fraction is not None and not self.fractiontrimmed:
             #fractional fit code (fraction can be None)                                  
             self.__fract_fit(fraction)
             
         # this is to fix the quats and cbv inputs after trimming                       
         if fitType in (2,4,5):
-            self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3 = self.quatsandcbvs
+            self.quaternions, self.CBV1, self.CBV2, self.CBV3 = self.quats_cbvs
          
         #once  you are done with this stuff:
         self.cleaningdone = True 
         self.fitType = fitType
         return
     
-    def __custom_mask_it(self, cutIndices):
+    def __custom_mask_it(self, flux_mask):
         """remove certain indices from your light curve.
-        cutIndices should be an array of size len(time), 0 = remove, 1=keep
+        flux_mask should be an array of size len(time), 0 = remove, 1=keep
         
         *****this should NOT be used if using CBVs - that's not set up yet!!
         """
-        if hasattr(self, 'cutindexes'): #if already did a trim
+        if hasattr(self, 'mask'): #if already did a trim
             print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
             return
         elif hasattr(self, 'time'): #if something loaded in and going to trim
-            #plt.scatter(self.time, self.intensity, color='red', s=2, label="raw")
-                
-            self.cutindexes = np.nonzero(cutIndices) # which ones you are keeping
-            self.time = self.time[self.cutindexes]
-            self.intensity = self.intensity[self.cutindexes]
-            self.error = self.error[self.cutindexes]
+        
+            self.mask = np.nonzero(flux_mask) # which ones you are keeping
+            self.time = self.time[self.mask]
+            self.flux = self.flux[self.mask]
+            self.error = self.error[self.mask]
             if self.BGdata is not None:
-                self.BGdata = self.BGdata[self.cutindexes]
+                self.BGdata = self.BGdata[self.mask]
                 
-            if hasattr(self, 'quatsIntensity'): #if cbvs, trim them
-                self.quatsIntensity = self.quatsIntensity[self.cutindexes]
-                self.CBV1 = self.CBV1[self.cutindexes]
-                self.CBV2 = self.CBV2[self.cutindexes]
-                self.CBV3 = self.CBV3[self.cutindexes]
-                self.quatsandcbvs = [self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3]
-                
-           
-            # plt.scatter(self.time, self.intensity, color='blue', s=2, label="trimmed")
-            # plt.xlabel(self.xlabel)
-            # plt.ylabel(self.ylabel)
-            # if hasattr(self, 'disctime'):
-            #     plt.axvline(self.disctime, label = "disc. time")
-            # plt.legend()
-            # plt.tight_layout()
-            # plt.savefig('{p}{t}-wrms-trimmed.png'.format(p=self.folderSAVE,
-            #                                                   t=self.targetlabel))
-            # plt.close()
+            if hasattr(self, 'quaternions'): #if cbvs, trim them
+                self.quaternions = self.quaternions[self.mask]
+                self.CBV1 = self.CBV1[self.mask]
+                self.CBV2 = self.CBV2[self.mask]
+                self.CBV3 = self.CBV3[self.mask]
+                self.quats_cbvs = [self.quaternions, self.CBV1, self.CBV2, self.CBV3]
+
             return
         else:
-            print("No data loaded in yet!! Run again once light curve is loaded")
+            raise ValueError("No data loaded in yet!! Run again once light curve is loaded")
             return   
         
     def __fract_fit(self, fraction):
@@ -453,10 +351,10 @@ class etsMAIN(object):
         Internal function to do a fractional fit: 
         """
         if fraction is not None:
-            (self.time, self.intensity, self.error, self.BGdata, 
-             self.quatsandcbvs) = ut.fractionalfit(self.time, self.intensity, 
+            (self.time, self.flux, self.error, self.BGdata, 
+             self.quats_cbvs) = ut.fractionalfit(self.time, self.flux, 
                                                    self.error, self.BGdata, 
-                                                   fraction, self.quatsandcbvs)
+                                                   fraction, self.quats_cbvs)
         self.fractiontrimmed=True #make sure you can't trim it more than once
         self.fract = fraction                                        
         return
@@ -469,9 +367,9 @@ class etsMAIN(object):
             print("Data already binned! ")
             return
         else:     
-            (self.time, self.intensity, 
+            (self.time, self.flux, 
              self.error, self.BGdata,
-             self.quatsandcbvs) = ut.bin_8_hours(self.time, self.intensity, self.error, 
+             self.quats_cbvs) = ut.bin_8_hours(self.time, self.flux, self.error, 
                                                  self.BGdata, QCBVALL=None) 
             self.binned = True                                    
             return
@@ -482,7 +380,7 @@ class etsMAIN(object):
         
         """
         # check for an output folder's existence, if not, put it in. 
-        if (self.folderSAVE is None or 
+        if (self.save_dir is None or 
             self.targetlabel is None or 
             self.sector is None
             or self.camera is None or 
@@ -502,16 +400,16 @@ class etsMAIN(object):
         
         """
         internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
-        newfolderpath = (self.folderSAVE + internaluse)
+        newfolderpath = (self.save_dir + internaluse)
         if not os.path.exists(newfolderpath):
             os.mkdir(newfolderpath)
     
         subfolderpath = newfolderpath + "/" + filesavetag[1:]
         if not os.path.exists(subfolderpath):
             os.mkdir(subfolderpath)
-        self.folderSAVE = subfolderpath + "/"
-        self.parameterSaveFile = self.folderSAVE + internaluse + filesavetag + "-output-params.txt"
-        print("saving into folder: ",self.folderSAVE) 
+        self.save_dir = subfolderpath + "/"
+        self.parameterSaveFile = self.save_dir + internaluse + filesavetag + "-output-params.txt"
+        print("saving into folder: ",self.save_dir) 
         return
    
     def __setup_fittype_params(self, fitType, args=None, 
@@ -544,7 +442,7 @@ class etsMAIN(object):
         start_t = min(self.disctime-3, self.time[-1]-2)
         
         if fitType == 1: # single without
-            self.args = (self.time, self.intensity, self.error)
+            self.args = (self.time, self.flux, self.error)
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
             self.labels = [r"$t_0$", "A", r"$\beta$",  "b"]
@@ -553,8 +451,8 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
             
         elif fitType == 2: # single with
-            self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3)
+            self.args = (self.time, self.flux, self.error, 
+                         self.quaternions, self.CBV1, self.CBV2, self.CBV3)
             self.logProbFunc = mc.log_probability_singlepower_withCBV
             self.filesavetag = "-singlepower-CBV"
             self.labels = ["t0", "A", "beta", "B", "cQ", "c1", "c2", "c3"]
@@ -562,7 +460,7 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, 0.1, 1.8, 0, 0,0,0,0))
             
         elif fitType == 3: # double without
-            self.args = (self.time, self.intensity, self.error, self.disctime)
+            self.args = (self.time, self.flux, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
             self.labels = ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
@@ -570,8 +468,8 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 1.8, 1.8, 1))
 
         elif fitType ==4: # double with
-            self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3, 
+            self.args = (self.time, self.flux, self.error, 
+                         self.quaternions, self.CBV1, self.CBV2, self.CBV3, 
                          self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_withCBV
             self.filesavetag = "-doublepower-CBV"
@@ -581,8 +479,8 @@ class etsMAIN(object):
             self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
         elif fitType == 5: # just CBVs
-            self.args = (self.time, self.intensity, self.error, 
-                         self.quatsIntensity, self.CBV1, self.CBV2, self.CBV3)
+            self.args = (self.time, self.flux, self.error, 
+                         self.quaternions, self.CBV1, self.CBV2, self.CBV3)
             self.logProbFunc = mc.log_probability_justCBV
             self.filesavetag = "-CBV"
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
@@ -593,7 +491,7 @@ class etsMAIN(object):
                 raise AttributeError("NO BG LOADED IN - CANNOT RUN THIS FIT")
                 return
             else:
-                self.args = (self.time, self.intensity, self.error, self.BGdata)
+                self.args = (self.time, self.flux, self.error, self.BGdata)
                 self.logProbFunc = mc.log_probability_singlePower_BG
                 self.filesavetag = "-singlepower-BGdata"
                 self.labels = ["t0", "A", "beta",  "b", "LBG"]
@@ -601,7 +499,7 @@ class etsMAIN(object):
                 self.init_values = np.array((start_t, 0.1, 1.8, 1, 1))
          
         elif fitType == 7: # gaussian beta
-            self.args = (self.time, self.intensity, self.error, mu, sigma)
+            self.args = (self.time, self.flux, self.error, mu, sigma)
             self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
             self.filesavetag = "-singlepower-GBeta"
             self.labels = ["t0", "A", "beta",  "b"]
@@ -730,7 +628,7 @@ class etsMAIN(object):
         sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
+        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
                               sampler, self.labels, ndim, appendix = "burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
@@ -782,7 +680,7 @@ class etsMAIN(object):
         #plot autocorr things
         ########
         
-        sp.plot_autocorr_all(self.folderSAVE, self.targetlabel, index, autocorr, 
+        sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
                               autocorr_all, converged,
                               autoStep, self.labels, self.filelabels, self.filesavetag)
         
@@ -798,10 +696,10 @@ class etsMAIN(object):
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
+        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag,
                               sampler, self.labels, ndim, appendix = "production")
         
-        sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
+        sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
                                   self.targetlabel, self.filesavetag)
         
         print(len(flat_samples), "samples post second run")
@@ -832,17 +730,17 @@ class etsMAIN(object):
              
         
         if self.plotFit < 10:
-            sp.plot_mcmc(self.folderSAVE, self.time, self.intensity, self.error,
+            sp.plot_mcmc(self.save_dir, self.time, self.flux, self.error,
                          self.targetlabel, 
                          self.disctime, best_mcmc[0], 
                          flat_samples, self.labels, self.plotFit, self.filesavetag, 
                          self.xlabel, self.tmin, self.BGdata,
-                         self.quatsandcbvs)
+                         self.quats_cbvs)
         elif self.plotFit == 10:
-            sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
-                                      self.error, best_mcmc, self.gp, 
-                                      self.disctime, self.xlabel, self.tmin,
-                                      self.targetlabel, self.filesavetag)
+            sp.plot_mcmc_GP_celerite(self.save_dir, self.time, self.flux,
+                                     self.error, best_mcmc, self.gp, 
+                                     self.disctime, self.xlabel, self.tmin,
+                                     self.targetlabel, self.filesavetag)
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
@@ -858,7 +756,7 @@ class etsMAIN(object):
     
    
     
-    def run_GP_fit(self, cutIndices=None, binning=False, fraction=None, 
+    def run_GP_fit(self, flux_mask=None, binning=False, fraction=None, 
                           n1=1000, n2=10000, gpUSE = "expsqr",
                           thinParams=None, bounds = True):
         """
@@ -869,16 +767,18 @@ class etsMAIN(object):
         Update 10-31-22 - Switched to scipy.minimize to use bounds
         
         """
-        
+        allowed = ['celerite', 'expsqr', 'expsinsqr', 'matern32']
+        if gpUSE not in allowed:
+            return ValueError("Not a valid gpUSE input!")
         
         if gpUSE == "celerite":
-            self.__run_GP_fit_celerite(cutIndices, binning, 
+            self.__run_GP_fit_celerite(flux_mask, binning, 
                                        fraction, n1, n2, thinParams)
             
         else: #tinygp options
             ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-            if cutIndices is not None:
-                self.__custom_mask_it(cutIndices)
+            if flux_mask is not None:
+                self.__custom_mask_it(flux_mask)
                 
             # check for 8hr bin BEFORE trimming to percentages
             if binning: #if need to bin
@@ -890,13 +790,6 @@ class etsMAIN(object):
             #set up gpUSE settings
             self.__tinygp_setup(gpUSE=gpUSE, bounds=bounds)                                          
             #make folders to save into
-            
-            if self.binned: # it has to go in this order - need to load, then set args, then set this
-                self.filesavetag = self.filesavetag + "-8HourBin"
-        
-            if fraction is not None:
-                self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-            
             
             self.__gen_output_folder()   
             #print("entering mcmc + gp concurrent fitting")
@@ -910,7 +803,7 @@ class etsMAIN(object):
         
         self.plotFit = 1
         self.fitType = 1
-        self.args = (self.time, self.intensity, self.error)
+        self.args = (self.time, self.flux, self.error)
         self.logProbFunc = mc.log_probability_singlepower_noCBV
         self.labels = ["t0", "A", "beta",  "b"]
         self.filelabels = self.labels
@@ -925,6 +818,11 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_expsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
+            if bounds is True: #sigma, rho
+                self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
+                                             [np.log(21.2), np.log(3)]])
+            else: 
+                self.tinygp_bounds = None
             
         elif gpUSE == 'matern32':
             self.filesavetag = "-tinygp-matern32"
@@ -949,15 +847,20 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_expsinsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscalegamma
+            if bounds is True: #sigma, rho
+                self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1), np.log(1)], 
+                                             [np.log(21.2), np.log(3), np.log(3)]])
+            else: 
+                self.tinygp_bounds = None
         
         if self.binned: # it has to go in this order - need to load, then set args, then set this
             self.filesavetag = self.filesavetag + "-8HourBin"
     
-        if self.fractiontrimmed:
+        if self.fractiontrimmed and self.fract is not None:
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
         return
     
-    def __run_GP_fit_celerite(self, cutIndices, binning, fraction=None, 
+    def __run_GP_fit_celerite(self, flux_mask, binning, fraction=None, 
                             n1=1000, n2=10000, thinParams=None):
         """
         Run the GP fitting w/ celerite
@@ -975,8 +878,8 @@ class etsMAIN(object):
         self.filesavetag = "-celerite-matern32"
         
         ### custom masking
-        if cutIndices is not None:
-            self.__custom_mask_it(cutIndices)
+        if flux_mask is not None:
+            self.__custom_mask_it(flux_mask)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binning: #if need to bin
@@ -1009,9 +912,9 @@ class etsMAIN(object):
         self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
         self.gp = celerite.GP(kernel, mean=0.0)
         self.gp.compute(self.time, self.error)
-        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.intensity)))
+        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
         # set up arguments etc.
-        self.args = (self.time,self.intensity, self.error, self.gp)
+        self.args = (self.time,self.flux, self.error, self.gp)
         self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
@@ -1100,7 +1003,7 @@ class etsMAIN(object):
         sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag, 
+        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
                               sampler, self.labels, ndim, appendix = "burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
@@ -1127,7 +1030,7 @@ class etsMAIN(object):
         
         # GP setup
         #calculate residual from intermediate best:
-        res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+        res = make_residual(self.time, self.flux, best_mcmc_inter[0])
         #print("created residual")
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
@@ -1151,7 +1054,7 @@ class etsMAIN(object):
                 for i in range(ndim):
                     best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
                     
-                res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+                res = make_residual(self.time, self.flux, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
                 soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
@@ -1181,11 +1084,11 @@ class etsMAIN(object):
         #save output gp params:
         self.update_theta(soln.params)
         #plot gp log likelihood over steps
-        sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
+        sp.plot_tinygp_ll(self.save_dir, np.asarray(self.GP_LL_all), 
                           self.targetlabel, self.filesavetag)
         
         #plot autocorr things
-        sp.plot_autocorr_all(self.folderSAVE, self.targetlabel, index, autocorr, 
+        sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
                               autocorr_all, converged,
                               autoStep, self.labels, self.filelabels, self.filesavetag)
             
@@ -1200,10 +1103,10 @@ class etsMAIN(object):
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag,
+        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag,
                               sampler, self.labels, ndim, appendix = "production")
         
-        sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
+        sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
                                   self.targetlabel, self.filesavetag)
         
         print(len(flat_samples), "samples post second run")
@@ -1237,10 +1140,10 @@ class etsMAIN(object):
             BIC = BIC[0]
          
             
-        sp.plot_mcmc_GP_tinygp(self.folderSAVE, self.time, self.intensity, self.error,
+        sp.plot_mcmc_GP_tinygp(self.save_dir, self.time, self.flux, self.error,
                                best_mcmc[0], self.build_gp(self.theta, self.time),
                                self.disctime, self.xlabel, self.tmin, self.targetlabel,
-                               self.filesavetag, plotComponents=False)
+                               self.filesavetag)
 
         with open(self.parameterSaveFile, 'w') as file:
             file.write("{best}\n".format(best=best_mcmc[0]))
@@ -1249,19 +1152,27 @@ class etsMAIN(object):
             file.write("tinygp log sigma, rho: \n {one},{two}\n".format(one=self.theta['log_sigma'],
                                                                     two = self.theta['log_rho']))
             if ('log_gamma' in self.theta.keys()):
-                file.write("log gamma: {three}\n".format(three=self.gp_soln['log_gamma']))
+                file.write("log gamma: {three}\n".format(three=self.theta['log_gamma']))
             file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=BIC))
             file.write("Converged:{conv}".format(conv=converged))
         
         return best_mcmc, upper_error, lower_error, BIC
     
 
-    def run_both_matern32(self, cutIndices, binning=False, fraction=None,
+    def run_both_matern32(self, flux_mask, binning=False, fraction=None,
                           bounds = True):
         """ 
         
-        concurrent tinygp and celerite fitting to residuals
-        update 11/4: why do the output plots look so damn different.
+        Run concurrent tinygp and celerite fitting to residuals
+        ----------------------------
+        Params: 
+            - flux_mask (array of ints) true/false array of points ot trim
+                default is NONE
+                
+            - binning (bool, default NONE) bins to 8 hours if true
+            
+            - fraction (default NONE, 0-1 float for percent) trims flux to 
+            percent of max. 0.4 is 40% of max, etc.
         
         """
         def make_residual(x, y, best_mcmc):
@@ -1281,8 +1192,8 @@ class etsMAIN(object):
         self.__makepath(taggy)
         
         ### custom masking: 
-        if cutIndices is not None:
-            self.__custom_mask_it(cutIndices)
+        if flux_mask is not None:
+            self.__custom_mask_it(flux_mask)
             
         # check for 8hr bin BEFORE trimming to percentages
         if binning: 
@@ -1324,9 +1235,9 @@ class etsMAIN(object):
 
         self.gpcelerite = celerite.GP(kernel, mean=0.0)
         self.gpcelerite.compute(self.time, self.error)
-        print("Initial celerite log-likelihood: {0}".format(self.gpcelerite.log_likelihood(self.intensity)))
+        print("Initial celerite log-likelihood: {0}".format(self.gpcelerite.log_likelihood(self.flux)))
         # set up arguments etc.
-        self.args = (self.time,self.intensity, self.error, self.gpcelerite)
+        self.args = (self.time,self.flux, self.error, self.gpcelerite)
         self.logProbFunc = mc.log_probability_celerite
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
@@ -1371,7 +1282,7 @@ class etsMAIN(object):
         sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1, 
+        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag1, 
                               sampler, self.labels, ndim, appendix = "burnin")
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
@@ -1400,7 +1311,7 @@ class etsMAIN(object):
         
         # GP setup
         #calculate residual from intermediate best:
-        res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+        res = make_residual(self.time, self.flux, best_mcmc_inter[0])
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
@@ -1425,7 +1336,7 @@ class etsMAIN(object):
                 for i in range(ndim):
                     best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
                     
-                res = make_residual(self.time, self.intensity, best_mcmc_inter[0])
+                res = make_residual(self.time, self.flux, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
                 soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
@@ -1455,11 +1366,11 @@ class etsMAIN(object):
         #save output gp params:
         self.update_theta(soln.params)
         
-        sp.plot_tinygp_ll(self.folderSAVE, np.asarray(self.GP_LL_all), 
+        sp.plot_tinygp_ll(self.save_dir, np.asarray(self.GP_LL_all), 
                           self.targetlabel, self.filesavetag2)
         
         #plot autocorr things
-        sp.plot_autocorr_all(self.folderSAVE, self.targetlabel, index, autocorr, 
+        sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
                               autocorr_all, converged,
                               autoStep, self.labels, self.filelabels, self.filesavetag1)
         
@@ -1474,10 +1385,10 @@ class etsMAIN(object):
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self.folderSAVE, self.targetlabel, self.filesavetag1,
+        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag1,
                               sampler, self.labels, ndim, appendix = "production")
         
-        sp.plot_param_samples_all(flat_samples, self.labels, self.folderSAVE, 
+        sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
                                   self.targetlabel, self.filesavetag1)
         
         print(len(flat_samples), "samples post second run")
@@ -1508,7 +1419,7 @@ class etsMAIN(object):
         tinygpll = float(self.GP_LL_all[-1]) #final neg ll
         
         #set up a new sampler with the plain format
-        argy = (self.time, self.intensity, self.error)
+        argy = (self.time, self.flux, self.error)
         sampler2 = emcee.EnsembleSampler(nwalkers, 4, 
                                          mc.log_probability_singlepower_noCBV, 
                                          args=argy)
@@ -1527,7 +1438,7 @@ class etsMAIN(object):
         plot_celerite.compute(self.time, self.error)
 
 
-        sp.plot_celerite_tinygp_comp(self.folderSAVE, self.time, self.intensity, 
+        sp.plot_celerite_tinygp_comp(self.save_dir, self.time, self.flux, 
                                      self.targetlabel, taggy, 
                                      self.best_mcmc, plot_celerite,
                                      self.build_gp(self.theta, self.time), 
