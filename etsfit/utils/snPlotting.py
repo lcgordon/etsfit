@@ -354,9 +354,9 @@ def plot_tinygp_ll(savepath, gpll, targetlabel, filesavetag):
     fig, ax1 = plt.subplots(figsize=(10,10))
     x = np.arange(0, len(gpll), 1) * 1000 #x axis
     ax1.scatter(x, gpll)
-    ax1.xlabel("Step")
-    ax1.ylabel("GP Neg. Log Likelihood")
-    ax1.title(targetlabel + "  GP log likelihood over MCMC steps")
+    ax1.set_xlabel("Step")
+    ax1.set_ylabel("GP Neg. Log Likelihood")
+    ax1.set_title(targetlabel + "  GP log likelihood over MCMC steps")
     plt.tight_layout()
     plt.savefig('{s}{t}{f}-GP-loglike-steps.png'.format(s=savepath,
                                                       t=targetlabel,
@@ -714,7 +714,8 @@ def plot_celerite_tinygp_comp(savepath, time, intensity, targetlabel,
             ax[i][n].legend(fontsize=14)
             ax[i][n].tick_params('y', labelsize=14)
     
-    ax[nrows-1].tick_params('x', labelsize=14)
+    ax[nrows-1][0].tick_params('x', labelsize=14)
+    ax[nrows-1][1].tick_params('x', labelsize=14)
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=savepath,
                                                       t=targetlabel,

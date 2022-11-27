@@ -338,7 +338,7 @@ class etsMAIN(object):
         return
 
     
-    def pre_run_clean(self, fitType, cutIndices=None, binYesNo = False, 
+    def pre_run_clean(self, fitType, cutIndices=None, binning = False, 
                       fraction = None):
         """
         A function to be run before running run_MCMC()
@@ -355,7 +355,7 @@ class etsMAIN(object):
             - cutIndices (array of ints) true/false array of points ot trim
                 default is NONE
                 
-            - binYesNo (bool, default NONE) bins to 8 hours if true
+            - binning (bool, default NONE) bins to 8 hours if true
             
             - fraction (default NONE, 0-1 for percent) trims intensity to 
             percent of max. 0.4 is 40% of max, etc.
@@ -389,7 +389,7 @@ class etsMAIN(object):
             self.__custom_mask_it(cutIndices)
        
         # 8hr binning
-        if binYesNo: #if need to bin
+        if binning: #if need to bin
             self.__8hrbinning()
                                                  
         # percent of max fitting
@@ -840,9 +840,9 @@ class etsMAIN(object):
                          self.quatsandcbvs)
         elif self.plotFit == 10:
             sp.plot_mcmc_GP_celerite(self.folderSAVE, self.time, self.intensity, 
-                            self.error, best_mcmc, self.gp, self.disctime, 
-                            self.xlabel, self.tmin, self.targetlabel, self.filesavetag, 
-                            plotComponents=False)
+                                      self.error, best_mcmc, self.gp, 
+                                      self.disctime, self.xlabel, self.tmin,
+                                      self.targetlabel, self.filesavetag)
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
@@ -858,7 +858,7 @@ class etsMAIN(object):
     
    
     
-    def run_GP_fit(self, cutIndices=None, binYesNo=False, fraction=None, 
+    def run_GP_fit(self, cutIndices=None, binning=False, fraction=None, 
                           n1=1000, n2=10000, gpUSE = "expsqr",
                           thinParams=None, bounds = True):
         """
@@ -872,7 +872,7 @@ class etsMAIN(object):
         
         
         if gpUSE == "celerite":
-            self.__run_GP_fit_celerite(cutIndices, binYesNo, 
+            self.__run_GP_fit_celerite(cutIndices, binning, 
                                        fraction, n1, n2, thinParams)
             
         else: #tinygp options
@@ -881,7 +881,7 @@ class etsMAIN(object):
                 self.__custom_mask_it(cutIndices)
                 
             # check for 8hr bin BEFORE trimming to percentages
-            if binYesNo: #if need to bin
+            if binning: #if need to bin
                 self.__8hrbinning()
                                                      
             #fractional fit code (fraction can be None)                                  
@@ -957,7 +957,7 @@ class etsMAIN(object):
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
         return
     
-    def __run_GP_fit_celerite(self, cutIndices, binYesNo, fraction=None, 
+    def __run_GP_fit_celerite(self, cutIndices, binning, fraction=None, 
                             n1=1000, n2=10000, thinParams=None):
         """
         Run the GP fitting w/ celerite
@@ -979,7 +979,7 @@ class etsMAIN(object):
             self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: #if need to bin
+        if binning: #if need to bin
             self.__8hrbinning()
                                                  
         #fractional fit code (fraction can be None)                                  
@@ -1256,7 +1256,7 @@ class etsMAIN(object):
         return best_mcmc, upper_error, lower_error, BIC
     
 
-    def run_both_matern32(self, cutIndices, binYesNo=False, fraction=None,
+    def run_both_matern32(self, cutIndices, binning=False, fraction=None,
                           bounds = True):
         """ 
         
@@ -1285,7 +1285,7 @@ class etsMAIN(object):
             self.__custom_mask_it(cutIndices)
             
         # check for 8hr bin BEFORE trimming to percentages
-        if binYesNo: 
+        if binning: 
             self.__8hrbinning()
         
         #fractional fit code (fraction can be None)                                  

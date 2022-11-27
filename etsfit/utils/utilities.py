@@ -551,6 +551,6 @@ def tr_load_lc(file, printname=True):
     if printname:
         print(targetlabel, sector, camera, ccd)
         
-    time, intensity, error, bg = normalize_sigmaclip(time, intensity, error, None, axis=0)
+    time, intensity, error, bg = sigmaclip(time, intensity, error, None, axis=0)
         
     return time, intensity, error, targetlabel, sector, camera, ccd
