@@ -13,14 +13,14 @@ from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
 
 
-# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-# TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-# save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
-# quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
-# quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
-# gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
-#          "2020hdw", "2020bj", "2019gqv"]
+data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
+quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
+quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
+          "2020hdw", "2020bj", "2019gqv"]
 
 
 def run_all_fits(fitType, data_dir, save_dir, TNSFile,
@@ -53,6 +53,7 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
         - n2 (int) steps for production (default 40k)
 
     """
+    i = 0
     for root, dirs, files in os.walk(data_dir):
         for name in files:
             if name.endswith(filekey):
@@ -80,14 +81,19 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                 
                 if "2018fhw" in targetlabel:
                     winfilter[1040:1080] = 0.0
+                if "2020hdw" in targetlabel:
+                    winfilter[0:45] = 0.0
+                    winfilter[610:685] = 0.0
                 
                 trlc.pre_run_clean(fitType, flux_mask=winfilter, 
                                    binning = binning, fraction = fraction)
-                
+                #trlc.test_plot()
                 trlc.run_MCMC(n1, n2)
-                del(trlc)
+                #del(trlc)
                 gc.collect()
-    return
+                i=i+1
+    return trlc
+
 
 
 def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
@@ -113,9 +119,10 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
         - n1 (int) steps for burn in (default 10k)
         - n2 (int) steps for production (default 40k)
     """
+    i = 0
     for root, dirs, files in os.walk(data_dir):
         for name in files:
-            if name.endswith(filekey):
+            if name.endswith(filekey) and i==0:
                 fname = root + "/" + name
                 #get stuff
                 (time, flux, error, targetlabel, 
@@ -135,13 +142,23 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                 
                 if "2018fhw" in targetlabel:
                     winfilter[1040:1080] = 0.0
+                if "2020hdw" in targetlabel:
+                    winfilter[0:45] = 0.0
+                    winfilter[610:685] = 0.0
                     
                 trlc.run_GP_fit(winfilter, binning=binning, fraction=fraction, 
                                n1=n1, n2=n2, gpUSE=GPtype, bounds=bounds)
 
                 gc.collect()
+                i=i+1
 
     return
+
+trlc = run_all_GP('celerite', data_dir, save_dir, TNSFile,
+                  filekey = "-tessreduce",
+                  goodList=gList, 
+                  fraction=0.6, binning=False, n1=5000, n2=40000, bounds=True)
+
 
 def run_all_matern32comp(data_dir, save_dir, TNSFile,
                          filekey = "-tessreduce", goodList=None, fraction=None, 
@@ -167,10 +184,10 @@ def run_all_matern32comp(data_dir, save_dir, TNSFile,
         - n2 (int) steps for production (default 40k)
         - bounds (bool) whether or not to bound the GP values
     """
-
+    i=0
     for root, dirs, files in os.walk(data_dir):
         for name in files:
-            if name.endswith(filekey):
+            if name.endswith(filekey) and i==0:
                 fname = root + "/" + name
 
                 (time, flux, error, targetlabel, 
@@ -184,16 +201,21 @@ def run_all_matern32comp(data_dir, save_dir, TNSFile,
                 trlc = etsMAIN(save_dir, TNSFile)
                 
                 trlc.load_single_lc(time, flux, error, discoverytime, 
-                                   targetlabel, sector, camera, ccd, lygosbg=None)
+                                   targetlabel, sector, camera, ccd)
                 
                 winfilter = trlc.window_rms_filt(plot=False)
                 
                 if "2018fhw" in targetlabel:
                     winfilter[1040:1080] = 0.0
+                if "2020hdw" in targetlabel:
+                    winfilter[0:45] = 0.0
+                    winfilter[610:685] = 0.0
                     
                 trlc.run_both_matern32(winfilter, binning=binning, fraction=fraction,
                                        bounds=bounds)
-                
+            
                 gc.collect()
+                i=i+1
 
     return trlc
+

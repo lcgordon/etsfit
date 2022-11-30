@@ -28,31 +28,36 @@ def beta_histo(foldersave, betaall, convy ):
     ax1.set_ylabel('Number of light curves')
     ax1.set_xlabel(r"$\beta$")
     plt.title(r"Histogram of Retrieved $\beta$ Values")
-    plt.legend()
+    #plt.legend()
     plt.tight_layout()
     plt.savefig("{f}/beta-histogram.png".format(f=foldersave))
     plt.show()
     plt.close()
 
-def plot_t0_disc_beta(foldersave, discall, t0all, betaall, upper_all,
-                      convy):
+def plot_t0_disc_beta(foldersave, disc_all, params_all, upper_e, lower_e):
+    rcParams['figure.figsize'] = 8,8
+    for k in params_all.keys():
+        t_b = disc_all[k] - params_all[k][0]
+        print(k, t_b)
+        beta = params_all[k][2]
+        u_e_t = upper_e[k][0]
+        l_e_t = lower_e[k][0]
+        u_e_b = upper_e[k][2]
+        l_e_b = lower_e[k][2]
+        plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
+                     yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
+                     color='blue')
 
-    time_between = np.asarray(discall)-np.asarray(t0all)
-    plt.errorbar(np.asarray(betaall), time_between, xerr = np.asarray(upper_all)[:,2],
-                  yerr = np.asarray(upper_all)[:,0], fmt='o',
-                  label = "Unconverged", color='red')
-    plt.errorbar(np.asarray(betaall)[np.where(np.asarray(convy) == "True")], 
-                time_between[np.where(np.asarray(convy) == "True")], 
-                xerr = np.asarray(upper_all)[np.where(np.asarray(convy) == "True")][:,2],
-                yerr = np.asarray(upper_all)[np.where(np.asarray(convy) == "True")][:,0], fmt='o',label = "Converged",
-                color="Blue")
     plt.xlabel(r"$\beta$")
-    plt.ylabel(r"Disc time. - $t_0$ (JD)")
-    plt.title(r"Time between $t_0$ and discovery time versus $\beta$")
-    plt.legend()
+    plt.ylabel(r"Disc. time. - $t_0$ (JD)")
+    plt.title(r"Time between $t_0$ and Disc. time versus $\beta$")
+    #plt.legend()
     plt.tight_layout()
     plt.savefig("{f}/disc-t0-beta.png".format(f=foldersave))
+    rcParams['figure.figsize'] = 16,6
     return
+
+
 
 def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                          filetag, 
@@ -71,6 +76,10 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
     #i = 0
     m = 0
     n = 0
+    (disc_all, params_all, 
+     converged_all, 
+     upper_all, lower_all) = ba.retrieve_all_singlepower06(bigInfoFile, datafolder, 
+                                                           foldersave, gList)
     
     for root, dirs, files in os.walk(datafolder):
         for name in files:
@@ -79,7 +88,7 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 if targ not in targetlist:
                     continue
                 holder = root + "/" + name
-                (time, intensity, error, targetlabel, 
+                (time, flux, error, targetlabel, 
                  sector, camera, ccd) = ut.tr_load_lc(holder)
     
                 #get discovery time
@@ -91,16 +100,19 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 
                 trlc = etsMAIN(foldersave, bigInfoFile)
                 
-                trlc.load_single_lc(time, intensity, error, discoverytime, 
-                                   targetlabel, sector, camera, ccd, lygosbg=None)
+                trlc.load_single_lc(time, flux, error, discoverytime, 
+                                   targetlabel, sector, camera, ccd)
                 
                 
                 filterMade = trlc.window_rms_filt(plot=False)
                 if "2018fhw" in targetlabel:
                     filterMade[1040:1080] = 0.0
+                if "2020hdw" in targetlabel:
+                    filterMade[0:45] = 0.0
+                    filterMade[610:685] = 0.0
                     
-                trlc.pre_run_clean(1, cutIndices=filterMade, 
-                                   binYesNo = binning, fraction = fraction)
+                trlc.pre_run_clean(1, flux_mask=filterMade, 
+                                   binning = binning, fraction = fraction)
                 
                 internal = trlc.targetlabel + trlc.sector + trlc.camera + trlc.ccd
                 
@@ -108,8 +120,7 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                                                                          i=internal,
                                                                          t=filetag)
  
-    
-                t0,A,beta,B, bicrow, conv = ba.extract_singlepowerparams_from_file(filepath)
+                t0, A, beta, B = params_all[trlc.targetlabel]
                 
                 t1 = trlc.time - t0
                 model = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + B
@@ -119,7 +130,7 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 #print(trlc.tmin)
     
                 
-                ax[m,n].scatter(tplot, trlc.intensity, color='black', s=2, label=trlc.targetlabel)
+                ax[m,n].scatter(tplot, trlc.flux, color='black', s=2, label=trlc.targetlabel)
                 ax[m,n].plot(tplot, model, color='red', label='Model')
                 #ax[m][n].set_title(trlc.targetlabel, fontsize=14)
                 ax[m][n].axvline(trlc.disctime+trlc.tmin-2457000, color="brown", linestyle = "dotted",
@@ -136,7 +147,7 @@ def big_plot_singlepower(bigInfoFile, datafolder, foldersave, targetlist,
                 else:
                     m=m+1
                     n=0
-    fig.suptitle("Collated Power Law Fits")
+    #fig.suptitle("Collated Power Law Fits")
     fig.tight_layout()
     fig.show()   
     plt.savefig("{f}/collated-single-powerlaws.png".format(f=foldersave))            
@@ -153,6 +164,10 @@ gList = ["2018exc", "2018fhw", "2018fub", "2020tld",
          "2020zbo", "2020hvq", "2018hzh",
          "2020hdw", "2020bj", "2019gqv"]
 
-trlc = big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
-                     "singlepower-0.6", 
-                     fraction = 0.6, binning=False)
+import etsfit.utils.batch_analyze as ba
+
+#disc_all, params_all, converged_all, upper_all, lower_all = ba.retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList)
+
+# big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
+#                          "-singlepower-0.6", 
+#                          fraction = 0.6, binning=False)

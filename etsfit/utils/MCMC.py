@@ -113,7 +113,7 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
     # handle log priors
     
     if priors is None: #if you didn't feed it something else
-        priors = [x[0], x[-1], 0.0, 10.0, 0.5, 6.0, -30,30, 
+        priors = [x[0], x[-1], 0.0, 30.0, 0.5, 6.0, -30, 30, 
                   -30,30, -30,30, -30,30, -30,30] 
     lp = check_priors(priors, theta)
     
@@ -356,59 +356,24 @@ def log_probability_singlepower_gaussianbeta(theta, x, y, yerr, mu,
         yerr2 = yerr**2.0
         return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
 
-
-def log_probability_celerite(theta, x, y, yerr, gp, priors=None):
-    """
-    Calculates the log probability for the model with a single power law
-    and a celerite background. 
+def log_probability_celerite(theta, y, gp):
+    """ 
+    Calculates the log probability for the celerite model
     
-    Associated labels: ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
-    init_values in MCMC: 
-        np.array((start_t, 0.1, 1.8, 0,np.log(1), np.log(2)))
-    args = (x,y,yerr, gp, (optionally) priors)
+    Associated labels: ["sigma", "rho", "t0", "A", "beta",  "b"]
+    args = (y, gp)
     ----------------------------------------------
     Parameters:
         - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
         - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - gp (celerite gp object)
-        - priors (defaults to NONE, can be custom-set)
+        - gp
     ----------------------------------------------
     Returns:
         - log likelihood
         - log prior
     """
-    
-    t0, A, beta, b = theta[:4]
-    GPparams = theta[4:]
-    #first handle the issues with the gp stuff
-    gp.set_parameter_vector(GPparams) #gp params set to current params
-    #get lp of GP
-    lp = gp.log_prior() #gp log prior
-    #add lp of actual
-    
-    if priors is None: #if you didn't feed it something else
-        priors = [x[0], x[-1], 0.001, 5, 0.5, 6]
-        
-    lp += check_priors(priors, theta[:4]) #ADD to gp prior function
-    
-    #if lp is no good   
+    gp.set_parameter_vector(theta)
+    lp = gp.log_prior()
     if not np.isfinite(lp):
-        return -np.inf, -np.inf #ll, lp
-
-    t1 = x - t0
-    model = ((np.heaviside((t1), 1) * A 
-              *np.nan_to_num((t1**beta))) + 1 + b)
-    
-    residual = y - model
-
-    ll = gp.log_likelihood(residual, quiet=True) #fit the GP to JUST the residual
-    
-    yerr2 = yerr**2.0
-    ll += -0.5 * np.nansum((residual) ** 2 / yerr2 + np.log(yerr2))
-    #if ll is no good
-    if not np.isfinite(ll):
-        return lp, -np.inf
-    
-    return ll+lp, lp
+        return -np.inf
+    return gp.log_likelihood(y, quiet=True) + lp

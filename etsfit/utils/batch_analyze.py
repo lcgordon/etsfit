@@ -28,43 +28,8 @@ import etsfit.utils.utilities as ut
 #          "2020zbo", "2020hvq", "2018hzh",
 #          "2020hdw", "2020bj", "2019gqv"]
 
-# filepath = "/Users/lindseygordon/research/urop/paperOutput/2018exc0111/celerite-tinygp-matern32/2018exc0111-celerite-tinygp-matern32-output-params.txt"
+filepath = "/Users/lindseygordon/research/urop/paperOutput/2020tld2921/singlepower-0.6/2020tld2921-singlepower-0.6-output-params.txt"
 
-
-def extract_singlepowerparams_from_file(filepath):
-    filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-    #filerow2 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
-    #print(filerow2)
-    bicrow = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-    conv = np.loadtxt(filepath, skiprows=4, dtype=str, max_rows=1)
-    if filerow1[0] == "[": #first string is just [
-        t0= float(filerow1[1])
-        A=float(filerow1[2])
-        beta=float(filerow1[3])
-        B=float(filerow1[4][:-1])
-    else: #first string contains [
-        #print(filerow1, filerow1[0][1:],filerow1[3][:-1])
-        t0=float(filerow1[0])
-        A=float(filerow1[1])
-        beta=float(filerow1[2])
-        B=float(filerow1[3][:-1])
-    return t0,A,beta,B, bicrow, conv
-
-def get_upper_e_single(filepath):
-    filerow1 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
-    t0=float(filerow1[0])
-    A=float(filerow1[1])
-    beta=float(filerow1[2])
-    B=float(filerow1[3][:-1])
-    return t0,A,beta,B
-
-def get_lower_e_single(filepath):
-    filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    t0=float(filerow1[0])
-    A=float(filerow1[1])
-    beta=float(filerow1[2])
-    B=float(filerow1[3][:-1])
-    return t0,A,beta,B
 
 
 def retrieve_disctimes(datafolder, info, gList):
@@ -90,65 +55,74 @@ def retrieve_disctimes(datafolder, info, gList):
                 #disctimeall.append(disctime)
     return disctimeall 
 
-def retrieve_all_singlepower(bigInfoFile, datafolder, foldersave, gList):
+def retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList):
     info = pd.read_csv(bigInfoFile)
-    #cmd + 1 to comment
-    discall = retrieve_disctimes(datafolder, info, gList)
-    t0all = []
-    Aall= []
-    betaall = []
-    Ball = []
-    convy = []
-    upper_all = []
-    lower_all = []
+    disc_all = retrieve_disctimes(datafolder, info, gList)
+    params_all = {}
+    converged_all = {}
+    upper_all = {}
+    lower_all = {}
     
     #retrieve an d print out the things: 
     for root, dirs, files in os.walk(foldersave):
         for name in files:
             if name.endswith("singlepower-0.6-output-params.txt"):
-                targ = name.split("-")[0]
-                #print(targ[0])
-                #print(targ[:-4])
-                if targ[:-4] not in gList:
+                targ = name.split("-")[0][:-4]
+                print(targ)
+                if targ not in gList:
                     continue
                 
                 filepath = root + "/" + name
-                #print(filepath)
-
-                t0,A,beta,B, bicrow, conv = extract_singlepowerparams_from_file(filepath)
-                u_all = get_upper_e_single(filepath)
-                upper_all.append(u_all)
-                l_all = get_lower_e_single(filepath)
-                lower_all.append(l_all)
-                # print("{t} & {t0:.2f}^{upper_t0:.2f}_{lower_t0:.2f}  &{A:.2f} & {b:.2f} & {B:.2f} \\".format(t=targ[:-4],
-                #                                                 t0 = t0,
-                #                                                 A=A,
-                #                                                 b=beta,
-                #                                                 B=B,
-                #                                                 upper_t0 = u_all[0],
-                #                                                 lower_t0 = l_all[0]))
-    
-                # print("{t} & {A:.2f}^{u_A:.2f}_{l_A:.2f}".format(t=targ[:-4],
-                #                                                        A=A,
-                #                                                        u_A = u_all[1],
-                #                                                        l_A = l_all[1]))
-                print("{t} & {beta:.3f}^+{u_A:.3f}_-{l_A:.3f}".format(t=targ[:-4],
-                                                                       beta=beta,
-                                                                       u_A = u_all[2],
-                                                                       l_A = l_all[2]))
-                t0all.append(t0)
-                Aall.append(A)
-                betaall.append(beta)
-                Ball.append(B)
+                print(filepath)
                 
-                if "True" in str(conv):
-                    convy.append("True")
-                else:
-                    convy.append("False")
-    return t0all, Aall, betaall, Ball, upper_all, lower_all, discall, convy
+                (params,  upper_e, 
+                 lower_e,  converg) = extract_singlepower_all(filepath)
+                
+                params_all[targ] = params
+                upper_all[targ] = upper_e
+                lower_all[targ] = lower_e
+                converged_all[targ] = converg
+                
+                
+    return (disc_all, params_all, converged_all, upper_all, lower_all)
 
-#t0all, Aall, betaall, Ball, upper_all, lower_all, discall, convy = retrieve_all_singlepower(bigInfoFile, datafolder, foldersave, gList)
 
+def extract_singlepower_all(filepath):
+    
+    #main params:
+    filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
+    if filerow1[0] == "[": #first string is just [
+        params = (float(filerow1[1]), float(filerow1[2]), 
+                  float(filerow1[3]), float(filerow1[4][:-1]))
+    else: #first string contains [
+        params = (float(filerow1[0][1:]), float(filerow1[1]), 
+                  float(filerow1[2]), float(filerow1[3][:-1]))
+    
+    #upper error:
+    filerow3 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
+    if filerow3[0] == "[": #first string is just [
+        upper_e = (float(filerow3[1]), float(filerow3[2]), 
+                  float(filerow3[3]), float(filerow3[4]), 
+                  float(filerow3[5]), float(filerow3[6][:-1]))
+    else: #first string contains [
+        upper_e = (float(filerow3[0][1:]), float(filerow3[1]), 
+                  float(filerow3[2]), float(filerow3[3][:-1]))
+    
+    filerow4 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+    if filerow3[0] == "[": #first string is just [
+        lower_e = (float(filerow4[1]), float(filerow4[2]), 
+                  float(filerow4[3]), float(filerow4[4][:-1]))
+    else: #first string contains [
+        lower_e = (float(filerow4[0][1:]), float(filerow4[1]), 
+                  float(filerow4[2]), float(filerow4[3][:-1]))
+    
+    #get convergence
+    filerow9 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+    if "True" in filerow9:
+        converg = True
+    else:
+        converg = False
+    return params, upper_e, lower_e, converg
 
 
 def extract_tgpc_all(filepath):

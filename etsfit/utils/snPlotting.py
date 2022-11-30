@@ -16,8 +16,8 @@ import corner
 from pylab import rcParams
 rcParams['figure.figsize'] = 16,6
 rcParams["font.size"] = 20
-rcParams["xtick.labelsize"] = 14
-rcParams["ytick.labelsize"] = 14
+rcParams["xtick.labelsize"] = 18
+rcParams["ytick.labelsize"] = 18
 
 
 
@@ -37,24 +37,26 @@ def plot_autocorr_mean(save_dir, targetlabel, index, autocorr, converged,
         - filesavetag (str) filename used for this fit
         
     """
+    rcParams['figure.figsize'] = 8, 8
     n = autoStep * np.arange(1, index + 1) #x axis = total number of steps
     plotAutocorr = autocorr[:index]
     plt.plot(n, n / 100, "--k", label = "N/100 threshold") #plots the N vs N/100=tau threshold 
     #this determines length of chain vs autocorrelation time
     plt.plot(n, plotAutocorr, label="Autocorrelation")
     plt.xlim(0, n.max())
-    plt.xlabel("Number of Steps", fontsize=16)
-    plt.ylabel(r"$\hat{\tau}$", fontsize=16)
-    plt.title("{targ} Mean Autocorrelation Time. Converged = {c}".format(targ=targetlabel,
-                                                                    c = converged))
+    plt.xlabel("Number of Steps", fontsize=20)
+    plt.ylabel(r"$\hat{\tau}$", fontsize=20)
+    plt.title(targetlabel + r" $\hat{\tau}$" + " Converged={c}".format(c=converged))
     plt.legend(loc="lower right")
-    plt.tick_params('x', labelsize=14)
-    plt.tick_params('y', labelsize=14)
+    plt.tick_params('x', labelsize=18)
+    plt.tick_params('y', labelsize=18)
     plt.tight_layout()
     plt.savefig("{s}{t}{f}-autocorr-mean.png".format(s=save_dir,
                                                       t=targetlabel,
                                                       f = filesavetag))
     plt.close()
+    rcParams['figure.figsize'] = 16,6
+    return
     
 def plot_autocorr_individual(save_dir, targetlabel, index, autocorr_all,
                              autoStep, labels, filelabels, filesavetag):
@@ -79,12 +81,12 @@ def plot_autocorr_individual(save_dir, targetlabel, index, autocorr_all,
         #this determines length of chain vs autocorrelation time
         plt.plot(n, plotAutocorr, label="Autocorrelation")
         plt.xlim(0, n.max())
-        plt.xlabel("Number of Steps", fontsize=16)
-        plt.ylabel(r"$\hat{\tau}$ for " + labels[i], fontsize=16)
+        plt.xlabel("Number of Steps", fontsize=20)
+        plt.ylabel(r"$\hat{\tau}$ for " + labels[i], fontsize=20)
         plt.title("{t} Autocorrelation Time for {l}".format(t=targetlabel,
-                                                   l = labels[i]), fontsize=20)
-        plt.tick_params('x', labelsize=14)
-        plt.tick_params('y', labelsize=14)
+                                                   l = labels[i]), fontsize=22)
+        plt.tick_params('x', labelsize=18)
+        plt.tick_params('y', labelsize=18)
         plt.legend()
         plt.tight_layout()
         plt.savefig("{s}{t}{f}-autocorr-{fl}.png".format(s=save_dir,
@@ -138,13 +140,15 @@ def plot_corner(flat_samples, labels, save_dir, targetlabel, filesavetag):
                         labels=labels,
                         quantiles = [0.16, 0.5, 0.84],
                         show_titles=True, title_fmt = ".3f", 
-                        title_kwargs={"fontsize": 16},
-                        label_kwargs={'size':16})
+                        title_kwargs={"fontsize": 20},
+                        label_kwargs={'size':18})
 
     for ax in fig.get_axes():
-        ax.tick_params(axis='both', labelsize=14)
+        ax.tick_params(axis='both', labelsize=18)
         ax.yaxis.set_label_coords(-.5, .5)
         ax.xaxis.set_label_coords(0.5, -0.5)
+        ax.xaxis.label.set_size(18)
+        ax.yaxis.label.set_size(18)
 
     plt.tight_layout()
     fig.savefig('{s}{t}{f}-corner-plot-params.png'.format(s=save_dir,
@@ -180,13 +184,13 @@ def plot_param_samples_all(flat_samples, labels, save_dir, targetlabel, filesave
         for m in range(nrows):
             if p < len(labels):
                 ax[m, n].hist(flat_samples[:, p], 100, color="k", histtype="step")
-                ax[m, n].set_xlabel(labels[p])
+                ax[m, n].set_xlabel(labels[p], fontsize=20)
                 ax[m, n].set_ylabel("p({pl})".format(pl=labels[p]))
-                ax[m,n].tick_params('y', size=14)
-                ax[m,n].tick_params('x', size=14)
+                ax[m,n].tick_params('y', labelsize=18)
+                ax[m,n].tick_params('x', labelsize=18)
                 p+=1
     
-    fig.suptitle("Chain Sampling By Parameter")
+    #fig.suptitle("Chain Sampling By Parameter", fontsize=22, y=0.95)
     plt.tight_layout()
     plt.savefig('{s}{t}{f}-chainHisto-all.png'.format(s=save_dir,
                                                       t=targetlabel,
@@ -293,22 +297,71 @@ def plot_chain_logpost(save_dir, targetlabel, filesavetag, sampler, labels, ndim
     for h in range(len(logpost[0])):
         ax = axes[0]
         ax.scatter(xaxis, logpost[:,0], alpha=0.3, color='black', s=2)
-        ax.set_ylabel("Log \n Post.")
-        ax.set_title("MCMC Chain Traces", fontsize=20)
-        ax.tick_params('y', labelsize=12)
+        ax.set_ylabel("Log Post.", fontsize=16)
+        ax.set_title("MCMC Chain Traces", fontsize=22)
+        ax.tick_params('y', labelsize=18)
     
     for i in range(ndim):
         ax = axes[i+1]
         ax.plot(samples[:, :, i], "k", alpha=0.3)
         ax.set_xlim(0, len(samples))
-        ax.set_ylabel(labels[i], fontsize=16)
+        ax.set_ylabel(labels[i], fontsize=20)
         ax.yaxis.set_label_coords(-0.1, 0.5)
-        ax.tick_params('y', labelsize=12)
+        ax.tick_params('y', labelsize=18)
     
-    axes[-1].set_xlabel("Step Number", fontsize=16)
-    axes[-1].tick_params(axis='x', labelsize=12)
+    axes[-1].set_xlabel("Step Number", fontsize=20)
+    axes[-1].tick_params(axis='x', labelsize=18)
     plt.tight_layout()
     plt.savefig('{s}{t}{f}-chain-logpost-{a}.png'.format(s=save_dir,
+                                                      t=targetlabel,
+                                                      f=filesavetag,
+                                                      a=appendix))
+    #plt.show()
+    plt.close()
+    return
+
+def plot_chain(save_dir, targetlabel, filesavetag, sampler, labels, ndim,
+                       appendix=""):
+    """
+    Plots MCMC chain trace plots for all parameters and the log posterior
+    --------------------------------------
+    Params:
+        - save_dir (str) folder to save plot into
+        - targetlabel (str) target ID
+        - filesavetag (str) filename used for this fit
+        - sampler (emcee obj) the sampler object produced by emcee
+        - labels (array of strings) param names, may use latex formatting
+        - ndim (int) number of parameters
+        - appendix (str) tail end string for the filename - usually "burnin" 
+                or "production"
+    
+    """
+    fig, axes = plt.subplots(ndim+1, figsize=(10, 7), sharex=True)
+    samples = sampler.get_chain()
+    logprobs = sampler.get_log_prob()
+    #logprior = sampler.get_blobs()
+    #logpost = logprobs+logprior
+    xaxis = np.linspace(1,len(logprobs), len(logprobs[:,0]))
+    
+    for h in range(len(logprobs[0])):
+        ax = axes[0]
+        ax.scatter(xaxis, logprobs[:,0], alpha=0.3, color='black', s=2)
+        ax.set_ylabel("Log Prob.", fontsize=16)
+        ax.set_title("MCMC Chain Traces", fontsize=22)
+        ax.tick_params('y', labelsize=18)
+    
+    for i in range(ndim):
+        ax = axes[i+1]
+        ax.plot(samples[:, :, i], "k", alpha=0.3)
+        ax.set_xlim(0, len(samples))
+        ax.set_ylabel(labels[i], fontsize=20)
+        ax.yaxis.set_label_coords(-0.1, 0.5)
+        ax.tick_params('y', labelsize=18)
+    
+    axes[-1].set_xlabel("Step Number", fontsize=20)
+    axes[-1].tick_params(axis='x', labelsize=18)
+    plt.tight_layout()
+    plt.savefig('{s}{t}{f}-chain-{a}.png'.format(s=save_dir,
                                                       t=targetlabel,
                                                       f=filesavetag,
                                                       a=appendix))
@@ -436,25 +489,23 @@ def plot_mcmc_GP_celerite(save_dir, time, flux, error, best_mcmc, gp,
         - filesavetag (str) filename used for this fit
     """
     
-    t0, A,beta,B = best_mcmc[0][:4]
-    t1 = time - t0
-    mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    #t0, A,beta,B = best_mcmc[0][2:]
+    #t1 = time - t0
+    #mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    gp.set_parameter_vector(best_mcmc[0][4:])
-    bg = gp.predict(flux-mod, time, return_cov=False)
+    gp.set_parameter_vector(best_mcmc[0])
+    #gp.compute(time, error)
+    model = gp.predict(flux, time, return_cov=False)
 
-    model = mod + bg
+    #model = mod + bg
     #fix time axis
     time = time + tmin - 2457000
     disctime = disctime + tmin - 2457000
+    t0 = best_mcmc[0][2]
     t0 = t0 + tmin - 2457000
     
     plot_mcmc_model(save_dir, model, time, flux, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
-    
-    gp_plots(save_dir, mod, bg, time, flux, error,
-                 disctime, t0, xlabel, targetlabel, filesavetag, 
-                 gpfiletag = "-MCMC-celeriteGP-TriplePlotResiduals")
     return
 
 def plot_mcmc_GP_tinygp(save_dir, time, flux, error, best_mcmc,
@@ -525,30 +576,30 @@ def plot_mcmc_model(save_dir, model, time, flux, error,
                                    figsize=(8*ncols * 2, 3*nrows * 2))
     
     #plot model, data
-    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
+    ax[0].plot(time, model, label="Best Fit Model", lw=3, color = 'red')
     ax[0].scatter(time, flux, label = "Data", s = 3, color = 'black')
     
     for n in range(nrows):
         axy = ax[n]
-        axy.axvline(t0, color = 'green', linestyle = 'dotted',
+        axy.axvline(t0, color = 'green', lw=2, linestyle = 'dotted',
                           label=r"$t_0$")
-        axy.axvline(disctime, color = 'grey', linestyle = 'dotted', 
+        axy.axvline(disctime, color = 'grey', lw=2, linestyle = 'dotted', 
                       label="Ground Disc.")
-        axy.set_ylabel("Flux (e-/s)", fontsize=16)
-        axy.tick_params('y', labelsize=14)
+        axy.set_ylabel("Flux (e-/s)", fontsize=20)
+        axy.tick_params('y', labelsize=18)
         
     #main
     ax[0].set_title(targetlabel + filesavetag)
-    ax[0].legend(fontsize=14, loc="upper left")
+    ax[0].legend(fontsize=18, loc="upper left")
     ax[nrows-1].set_xlabel(xlabel)
-    ax[nrows-1].tick_params('x', labelsize=14)
+    ax[nrows-1].tick_params('x', labelsize=18)
     
     #residuals
     ax[1].set_title("Residual")
     residuals = flux - model
     ax[1].scatter(time,residuals, s=3, color = 'black', label='Residual, All')
-    ax[1].axhline(0, color='orange', linestyle = 'dashed', label="Zero")
-    ax[1].legend(fontsize=14)
+    #ax[1].axhline(0, color='orange', linestyle = 'dashed', label="Zero")
+    ax[1].legend(fontsize=18)
     
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-MCMCmodel-bestFit.png'.format(p=save_dir,
@@ -588,7 +639,7 @@ def gp_plots(save_dir, model, bg, time, flux, error,
     
     #top row: data, model ONLY
     ax[0].scatter(time, flux, label = "Data", s = 3, color = 'black')
-    ax[0].plot(time, model, label="Best Fit Model", color = 'red')
+    ax[0].plot(time, model, label="Best Fit Model", lw=3,color = 'red')
     
     
     #middle row: residual, GP fit to residual
@@ -597,33 +648,33 @@ def gp_plots(save_dir, model, bg, time, flux, error,
     #bg, var = gp.predict(residual1, time, return_var=True)
     #err_bg = np.sqrt(var)
     ax[1].scatter(time, residual1, label = "Model  Residual", s = 3, color = 'black')
-    ax[1].plot(time, bg, label="GP", color="blue", alpha=0.5)
-    ax[1].axhline(0, color='orange', linestyle = 'dashed', label="zero")
+    ax[1].plot(time, bg, label="GP", color="blue",lw=3, alpha=0.5)
+    #ax[1].axhline(0, color='orange', linestyle = 'dashed', label="zero")
     
     
     #bottom row: GP residual
     residual2 = residual1 - bg
     ax[2].set_title("GP Residual")
     ax[2].scatter(time, residual2, label = "GP Residual", s = 3, color = 'black')
-    ax[2].axhline(0, color='orange', linestyle = 'dashed', label="zero")
+    ax[2].axhline(0, color='orange', linestyle = 'dashed', lw=2,label="zero")
     
     #all plots: t_0, disc, rel flux label 
     for n in range(nrows):
-        ax[n].axvline(t0, color = 'green', linestyle = 'dotted',
+        ax[n].axvline(t0, color = 'green',lw=2, linestyle = 'dotted',
                           label=r"$t_0$")
-        ax[n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
+        ax[n].axvline(disctime, color = 'grey', lw=2,linestyle = 'dotted', 
                       label="Ground Disc.")
-        ax[n].set_ylabel("Flux (e-/s)", fontsize=18)
-        ax[n].tick_params('y', labelsize=14)
+        ax[n].set_ylabel("Flux (e-/s)", fontsize=20)
+        ax[n].tick_params('y', labelsize=18)
         
     #plot labelling
     ax[0].set_title(targetlabel + filesavetag)
-    ax[nrows-1].set_xlabel(xlabel, fontsize=18)
-    ax[nrows-1].tick_params('x', labelsize=14)
+    ax[nrows-1].set_xlabel(xlabel, fontsize=20)
+    ax[nrows-1].tick_params('x', labelsize=18)
     
-    ax[0].legend(fontsize=14, loc="upper left")
-    ax[1].legend(fontsize=14)
-    ax[2].legend(fontsize=14)
+    ax[0].legend(fontsize=18, loc="upper left")
+    ax[1].legend(fontsize=18)
+    ax[2].legend(fontsize=18)
     
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=save_dir,t=targetlabel,
@@ -672,53 +723,105 @@ def plot_celerite_tinygp_comp(save_dir, time, flux, targetlabel,
     t0 = t0 + tmin - 2457000
     
     #set up
-    nrows = 2
-    ncols = 3
+    nrows = 3
+    ncols = 2
     fig, ax = plt.subplots(nrows, ncols, sharex=True, sharey=True,
                                    figsize=(8*ncols, 3*nrows))
     
     #fill the data into all rows, disctimes, tmin, axis labels:
-    ax[0][0].set_title("{t} {f} Model Only".format(t=targetlabel,
-                                                   f=filesavetag), fontsize=12)
-    ax[0][1].set_title("{t} {f} celerite".format(t=targetlabel,
-                                                   f=filesavetag), fontsize=12)
-    ax[0][2].set_title("{t} {f} tinygp".format(t=targetlabel,
-                                                   f=filesavetag), fontsize=12)
+    ax[0][0].set_title("Flat Background", fontsize=20)
+    ax[0][1].set_title("Residuals", fontsize=20)
+    ax[1][0].set_title("celerite", fontsize=20)
+    ax[2][0].set_title("tinygp", fontsize=20)
+    # ax[0][0].set_title("{t} {f} Model Only".format(t=targetlabel,
+    #                                                f=filesavetag), fontsize=20)
+    # ax[0][1].set_title("{t} {f} celerite".format(t=targetlabel,
+    #                                                f=filesavetag), fontsize=20)
+    # ax[0][2].set_title("{t} {f} tinygp".format(t=targetlabel,
+    #                                                f=filesavetag), fontsize=20)
     
     
-    ax[0][0].plot(time, mod, label="Model", color = 'red')
-    ax[1][0].scatter(time, flux-mod, label="Residual", color='black', s=3)
+    ax[0][0].plot(time, mod, lw=3, label="Model", color = 'red')
+    ax[0][1].scatter(time, flux-mod, label="Residual", color='black', s=3)
     
-    ax[0][1].plot(time, mod+celerite_bg, label="Model + celerite", color='red')
-    ax[0][1].fill_between(time, mod+celerite_bg+cel_std, 
-                          mod+celerite_bg-cel_std, color='pink', 
-                          alpha=0.3,edgecolor="none", label="1 sigma")
+    ax[1][0].plot(time, mod+celerite_bg, lw=3,label="Model + celerite", color='red')
+    #ax[1][0].fill_between(time, mod+celerite_bg+cel_std, 
+     #                     mod+celerite_bg-cel_std, color='pink', 
+      #                    alpha=0.3,edgecolor="none", label="1 sigma")
     ax[1][1].scatter(time, flux-mod-celerite_bg, label="Residual", color='black', s=3)
     
-    ax[0][2].plot(time, mod+tinygp_bg, label="Model + tinygp", color='red')
-    ax[1][2].scatter(time, flux-mod-tinygp_bg, label="Residual", color='black', s=3)
+    ax[2][0].plot(time, mod+tinygp_bg, lw=3,label="Model + tinygp", color='red')
+    ax[2][1].scatter(time, flux-mod-tinygp_bg, label="Residual", color='black', s=3)
     
-    ax[0][0].set_ylabel("Flux (e-/s)", fontsize=18)
-    ax[1][0].set_ylabel("Flux (e-/s)", fontsize=18)
+    ax[0][0].set_ylabel("Flux (e-/s)", fontsize=20)
+    ax[1][0].set_ylabel("Flux (e-/s)", fontsize=20)
+    ax[2][0].set_ylabel("Flux (e-/s)", fontsize=20)
     
     for n in range(ncols):
-        ax[0][n].scatter(time, flux, label = "Data", s = 3, color = 'black')
-        ax[1][n].axhline(0, color="orange", label="Zero", linestyle='dotted')
-        ax[nrows-1][n].set_xlabel(xlabel, fontsize=18)
+        #ax[1][n].axhline(0, color="orange", lw=2, label="Zero", linestyle='dotted')
+        ax[nrows-1][n].set_xlabel(xlabel, fontsize=20)
         
         for i in range(nrows):
-            ax[i][n].axvline(t0, color = 'green', linestyle = 'dotted',
+            ax[i][0].scatter(time, flux, label = "Data", s = 3, color = 'black')
+            ax[i][n].axvline(t0, color = 'green', lw=2,linestyle = 'dotted',
                               label=r"$t_0$")
-            ax[i][n].axvline(disctime, color = 'grey', linestyle = 'dotted', 
+            ax[i][n].axvline(disctime, color = 'grey', lw=2,linestyle = 'dotted', 
                           label="Ground Disc.")
-            ax[i][n].legend(fontsize=14)
-            ax[i][n].tick_params('y', labelsize=14)
+            ax[i][n].legend(fontsize=12, loc='upper left')
+            ax[i][n].tick_params('y', labelsize=18)
     
-    ax[nrows-1][0].tick_params('x', labelsize=14)
-    ax[nrows-1][1].tick_params('x', labelsize=14)
+    ax[nrows-1][0].tick_params('x', labelsize=18)
+    ax[nrows-1][1].tick_params('x', labelsize=18)
     plt.tight_layout()
     plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=save_dir,
                                                       t=targetlabel,
                                                       f=filesavetag))
     plt.close()
     return
+
+def plot_scipy_max(save_dir, filesavetag, targetlabel, x, y, yerr, 
+                   t, mu, std, tmin, disctime):
+    x = x + tmin - 2457000
+    disctime = disctime + tmin - 2457000
+    t = t + tmin - 2457000
+    
+    plt.errorbar(x, y, yerr=yerr, fmt=".k", alpha=0.2,capsize=0, label="Data")
+    plt.plot(t, mu, lw=4, color='green', label="Prediction")
+    plt.fill_between(t, mu+std, mu-std, color='green', alpha=0.3, edgecolor="none")
+    plt.axvline(disctime, color = 'grey', lw=2,linestyle = 'dotted', 
+                  label="Ground Disc.")
+    plt.ylabel("Flux")
+    plt.xlabel("Time [BJD-2457000]")
+    plt.title("{t}: Scipy max. likelihood prediction".format(t=targetlabel))
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('{s}{t}{f}-scipy-prediction.png'.format(s=save_dir,
+                                                        t=targetlabel,
+                                                        f=filesavetag))
+    plt.show()
+    plt.close()
+    
+def celerite_post_pred(save_dir, filesavetag, targetlabel, x, y, yerr,
+                       t, flat_samples, gp, tmin, disctime):
+    x = x + tmin - 2457000
+    disctime = disctime + tmin - 2457000
+    tplot = t + tmin - 2457000
+    
+    plt.errorbar(x, y, yerr=yerr, fmt=".k",alpha=0.3, capsize=0)
+    plt.axvline(disctime, color = 'grey', lw=2,linestyle = 'dotted', 
+                  label="Ground Disc.")
+    # Plot 24 posterior samples.
+    for s in flat_samples[np.random.randint(len(flat_samples), size=24)]:
+        gp.set_parameter_vector(s)
+        mu = gp.predict(y, t, return_cov=False)
+        plt.plot(tplot, mu, color='green', alpha=0.5)
+
+    plt.ylabel("Flux")
+    plt.xlabel("Time [BJD-2457000]")
+    plt.title("{t} posterior predictions".format(t=targetlabel))
+    plt.legend()
+    plt.savefig('{s}{t}{f}-celerite-post-pred.png'.format(s=save_dir,
+                                                        t=targetlabel,
+                                                        f=filesavetag))
+    plt.show()
+    plt.close()

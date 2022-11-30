@@ -206,11 +206,19 @@ def number_Ias(file):
     f = pd.read_csv(file)
     return len(f[f["Obj. Type"] == "SN Ia"])
 
+import ticgen as tg
+import pandas as pd
+
 tesscut_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
 wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all_WTV_SN_matches.csv"
 
 f = pd.read_csv(tesscut_all)
-rcParams['figure.figsize'] = 10,10
+#rcParams['figure.figsize'] = 10,10
+
+# convert using ticgen
+
+
+
 
 plt.hist(f["Discovery Mag/Flux"], 10, color="black")
 plt.axvline(20.5, color="red", label="TESS Mag. Limit")

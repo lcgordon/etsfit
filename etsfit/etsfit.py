@@ -628,8 +628,13 @@ class etsMAIN(object):
         sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
-                              sampler, self.labels, ndim, appendix = "burnin")
+        if self.plotFit < 10:
+            sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
+                                  sampler, self.labels, ndim, appendix = "burnin")
+        elif self.plotFit == 10:
+            sp.plot_chain(self.save_dir, self.targetlabel, self.filesavetag, 
+                                  sampler, self.labels, ndim, appendix = "burnin")
+            
     
         flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
@@ -695,9 +700,7 @@ class etsMAIN(object):
 
         flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
-        # plot chains, parameters
-        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag,
-                              sampler, self.labels, ndim, appendix = "production")
+
         
         sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
                                   self.targetlabel, self.filesavetag)
@@ -716,6 +719,9 @@ class etsMAIN(object):
             upper_error[0][i] = q[1]
             lower_error[0][i] = q[0]
      
+        self.best_mcmc = best_mcmc
+        self.upper_error = upper_error
+        self.lower_error = lower_error
         logprob, blob = sampler.compute_log_prob(best_mcmc)
 
         # ### BIC
@@ -730,6 +736,8 @@ class etsMAIN(object):
              
         
         if self.plotFit < 10:
+            sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
+                                  sampler, self.labels, ndim, appendix = "production")
             sp.plot_mcmc(self.save_dir, self.time, self.flux, self.error,
                          self.targetlabel, 
                          self.disctime, best_mcmc[0], 
@@ -737,10 +745,17 @@ class etsMAIN(object):
                          self.xlabel, self.tmin, self.BGdata,
                          self.quats_cbvs)
         elif self.plotFit == 10:
+            sp.plot_chain(self.save_dir, self.targetlabel, self.filesavetag, 
+                                  sampler, self.labels, ndim, appendix = "production")
+            # Plot the data.
+            sp.celerite_post_pred(self.save_dir, self.filesavetag, self.targetlabel,
+                                  self.time, self.flux, self.error,
+                                  self.t, flat_samples, self.gp, self.tmin, self.disctime)
+            
             sp.plot_mcmc_GP_celerite(self.save_dir, self.time, self.flux,
-                                     self.error, best_mcmc, self.gp, 
-                                     self.disctime, self.xlabel, self.tmin,
-                                     self.targetlabel, self.filesavetag)
+                                      self.error, best_mcmc, self.gp, 
+                                      self.disctime, self.xlabel, self.tmin,
+                                      self.targetlabel, self.filesavetag)
         
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
@@ -768,12 +783,13 @@ class etsMAIN(object):
         
         """
         allowed = ['celerite', 'expsqr', 'expsinsqr', 'matern32']
+        self.gpUSE = gpUSE
         if gpUSE not in allowed:
             return ValueError("Not a valid gpUSE input!")
         
         if gpUSE == "celerite":
             self.__run_GP_fit_celerite(flux_mask, binning, 
-                                       fraction, n1, n2, thinParams)
+                                       fraction, n1, n2, thinParams, bounds=bounds)
             
         else: #tinygp options
             ### THEN DO CUSTOM MASKING if both not already cut and indices are given
@@ -861,7 +877,7 @@ class etsMAIN(object):
         return
     
     def __run_GP_fit_celerite(self, flux_mask, binning, fraction=None, 
-                            n1=1000, n2=10000, thinParams=None):
+                            n1=1000, n2=10000, thinParams=None, bounds=False):
         """
         Run the GP fitting w/ celerite
         
@@ -893,36 +909,105 @@ class etsMAIN(object):
     
         if self.fractiontrimmed:
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-        
+        if bounds:
+            self.filesavetag = self.filesavetag + "-bounded"
         
         #make folders to save into
         self.__gen_output_folder()  
+       
+        from celerite.modeling import Model
+        from scipy.optimize import minimize
+        import celerite
+        from celerite import terms
         
-        #set up kernel
+    
+        class MeanModel(Model):
+            parameter_names = ("t0", "A", "beta", "b")
+
+            def get_value(self, t):
+                t1 = t-self.t0
+                mod = np.heaviside((t1), 1) * self.A *np.nan_to_num((t1**self.beta), copy=False)
+                return mod + self.b
+
+            
+            def compute_gradient(self, t):
+                t1 = t-self.t0
+                dt = np.heaviside((t1), 1) * -self.A * self.t0 * (t1)**(self.beta-1)
+                dt[np.isnan(dt)] = 0
+                dA = np.heaviside((t1), 1) * t1**self.beta
+                dA[np.isnan(dA)] = 0
+                dbeta = np.heaviside((t1), 1) * self.A * np.log(t1)*(t1)**self.beta
+                dbeta[np.isnan(dbeta)] = 0
+                dB = np.heaviside((t1), 1) * np.ones((len(t),)) #np.heaviside((t1), 1) * 
+                return np.array([dt, dA, dbeta, dB])
+        
+        #set up power law model
+        bounds_model_dict = {"t0":(0, self.time[-1]),
+                             "A": (0.001, 20),
+                             "beta":(0.5,6.0),
+                             "b":(-50, 50)}
+        
         start_t = min(self.disctime-3, self.time[-1]-2)
-        # set up gp:
-        rho = 2 # init value
-        sigma = 1
-        rho_bounds = np.log((1, 10)) #0, 2.302
-        sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
-        bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
-        kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
-                                    bounds=bounds_dict)
+        t0, A, beta, b = (start_t, 5, 1.8, 5)
         
-        self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
-        self.gp = celerite.GP(kernel, mean=0.0)
+        mean_model = MeanModel(t0=t0, A=A, beta=beta, b=b,
+                               bounds = bounds_model_dict)
+
+        # Set up the GP model
+        #presently unbounded
+        if bounds:
+            kbounds = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
+                       'log_rho':np.log((1,10))}
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
+                                        bounds=kbounds)
+        else:
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1))
+            
+        self.gp = celerite.GP(kernel, mean=mean_model, fit_mean=True)
         self.gp.compute(self.time, self.error)
         print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
-        # set up arguments etc.
-        self.args = (self.time,self.flux, self.error, self.gp)
+
+        # Define a cost function
+        def neg_log_like(params, y, gp):
+            gp.set_parameter_vector(params)
+            return -gp.log_likelihood(y)
+
+        def grad_neg_log_like(params, y, gp):
+            gp.set_parameter_vector(params)
+            return -gp.grad_log_likelihood(y)[1]
+
+        # Fit for the maximum likelihood parameters
+        initial_params = self.gp.get_parameter_vector()
+        bounds = self.gp.get_parameter_bounds()
+
+        print("Running scipy maximizer")
+        soln = minimize(neg_log_like, initial_params, jac=grad_neg_log_like,
+                        method="L-BFGS-B", bounds=bounds, args=(self.flux, self.gp))
+
+        self.gp.set_parameter_vector(soln.x)
+        # Make the maximum likelihood prediction
+        self.t = np.linspace(0, self.time[-1], 500)
+        mu, var = self.gp.predict(self.flux, self.t, return_var=True)
+        std = np.sqrt(var)
+
+        # Plot the data + scipy prediction
+        sp.plot_scipy_max(self.save_dir, self.filesavetag, self.targetlabel, 
+                          self.time, self.flux, self.error, self.t, mu, std,
+                          self.tmin, self.disctime)
+
+
+
+        self.init_values = soln.x
+        self.args = (self.flux, self.gp)
         self.logProbFunc = mc.log_probability_celerite
-        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
-        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
+        self.labels = [r"$log\sigma$",r"$log\rho$", "t0", "A", "beta",  "b"] 
+        self.filelabels = ["logsigma", "logrho", "t0", "A", "beta",  "b"]
         self.plotFit = 10
-        
-        
+    
+        #emcee section
         #run it
         self.__mcmc_outer_structure(n1, n2, thinParams)
+           
         return
     
     def __build_tinygp_matern32(self, theta, X):
@@ -1187,9 +1272,8 @@ class etsMAIN(object):
         
         #make folder
         taggy = "-celerite-tinygp-matern32"
-        if bounds is False:
-            taggy = "-celerite-tinygp-matern32-noBounds"
-        self.__makepath(taggy)
+        
+        
         
         ### custom masking: 
         if flux_mask is not None:
@@ -1201,7 +1285,19 @@ class etsMAIN(object):
         
         #fractional fit code (fraction can be None)                                  
         self.__fract_fit(fraction)
+        
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
+            #self.filesavetag = self.filesavetag + "-8HourBin"
+            taggy = taggy + "-8HourBin"
+    
+        if self.fractiontrimmed and self.fract is not None:
+            #self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+            taggy = taggy + "-{fraction}".format(fraction=self.fract)
+        
+        if bounds is False:
+            taggy = taggy + "-noBounds"
             
+        self.__makepath(taggy)
        
         #SET UP CELERITE                                               
         self.filesavetag1 = "-celerite-matern32"

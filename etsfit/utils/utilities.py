@@ -64,7 +64,7 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
     
     This DOES NOT save the filter output inside the object. 
     
-    Defaults the inner window as len(self.time)*0.01 and the outer as
+    Defaults the inner window as len(self.time)*0.005 and the outer as
     inner*10.
     
     -------------------------------
@@ -78,7 +78,7 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
     
     """
     if innerfilt is None:
-        innersize = int(len(time)*0.01)
+        innersize = int(len(time)*0.005)
     else:
         innersize = innerfilt
     if outerfilt is None:
