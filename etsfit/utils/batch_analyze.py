@@ -17,18 +17,18 @@ from etsfit import etsMAIN
 from astropy.time import Time
 import etsfit.utils.utilities as ut
 
-# datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-# foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
-# quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
-# quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
-# bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+datafolder = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+foldersave = "/Users/lindseygordon/research/urop/paperOutput/"
+quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
+quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 
-# gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
-#          "2020zbo", "2020hvq", "2018hzh",
-#          "2020hdw", "2020bj", "2019gqv"]
-
-filepath = "/Users/lindseygordon/research/urop/paperOutput/2020tld2921/singlepower-0.6/2020tld2921-singlepower-0.6-output-params.txt"
+#gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
+ #         "2020zbo", "2020hvq", "2018hzh",
+  #        "2020hdw", "2020bj", "2019gqv"]
+gList = ["2020tld"]
+#filepath = "/Users/lindseygordon/research/urop/paperOutput/2020tld2921/singlepower-0.6/2020tld2921-singlepower-0.6-output-params.txt"
 
 
 
@@ -43,7 +43,7 @@ def retrieve_disctimes(datafolder, info, gList):
                     continue
                 holder = root + "/" + name
                 (time, intensity, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(holder)
+                 sector, camera, ccd) = ut.tr_load_lc(holder, printname=False)
 
                 #get discovery time
                 d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
@@ -68,12 +68,12 @@ def retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList):
         for name in files:
             if name.endswith("singlepower-0.6-output-params.txt"):
                 targ = name.split("-")[0][:-4]
-                print(targ)
+                #print(targ)
                 if targ not in gList:
                     continue
                 
                 filepath = root + "/" + name
-                print(filepath)
+                #print(filepath)
                 
                 (params,  upper_e, 
                  lower_e,  converg) = extract_singlepower_all(filepath)
@@ -85,6 +85,7 @@ def retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList):
                 
                 
     return (disc_all, params_all, converged_all, upper_all, lower_all)
+
 
 
 def extract_singlepower_all(filepath):
@@ -102,8 +103,7 @@ def extract_singlepower_all(filepath):
     filerow3 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
     if filerow3[0] == "[": #first string is just [
         upper_e = (float(filerow3[1]), float(filerow3[2]), 
-                  float(filerow3[3]), float(filerow3[4]), 
-                  float(filerow3[5]), float(filerow3[6][:-1]))
+                  float(filerow3[3]), float(filerow3[4][:-1]))
     else: #first string contains [
         upper_e = (float(filerow3[0][1:]), float(filerow3[1]), 
                   float(filerow3[2]), float(filerow3[3][:-1]))
@@ -124,67 +124,13 @@ def extract_singlepower_all(filepath):
         converg = False
     return params, upper_e, lower_e, converg
 
-
-def extract_tgpc_all(filepath):
-    
-    #main params:
-    filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-    if filerow1[0] == "[": #first string is just [
-        params = (float(filerow1[1]), float(filerow1[2]), 
-                  float(filerow1[3]), float(filerow1[4]))
-    else: #first string contains [
-        params = (float(filerow1[0][1:]), float(filerow1[1]), 
-                  float(filerow1[2]), float(filerow1[3]))
-    
-    #celerite params: (in-place conversion)
-    filerow2 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
-    celerite_params = (float(filerow2[0]), float(filerow2[1][:-1])) #log sigma, log rho
-    celerite_params = (np.exp(celerite_params[0]*2), np.exp(celerite_params[1]))
-    
-    
-    #upper error:
-    filerow3 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    if filerow3[0] == "[": #first string is just [
-        upper_e = (float(filerow3[1]), float(filerow3[2]), 
-                  float(filerow3[3]), float(filerow3[4]), 
-                  float(filerow3[5]), float(filerow3[6][:-1]))
-    else: #first string contains [
-        upper_e = (float(filerow3[0][1:]), float(filerow3[1]), 
-                  float(filerow3[2]), float(filerow3[3]), 
-                  float(filerow3[4]), float(filerow3[5][:-1]))
-    
-    filerow4 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-    if filerow3[0] == "[": #first string is just [
-        lower_e = (float(filerow4[1]), float(filerow4[2]), 
-                  float(filerow4[3]), float(filerow4[4]), 
-                  float(filerow4[5]), float(filerow4[6][:-1]))
-    else: #first string contains [
-        lower_e = (float(filerow4[0][1:]), float(filerow4[1]), 
-                  float(filerow4[2]), float(filerow4[3]), 
-                  float(filerow4[4]), float(filerow4[5][:-1]))
-        
-    #skip a row, get tinygp params: 
-    filerow6 = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1, delimiter=",")
-    tinygp_params = (float(filerow6[0]), float(filerow6[1])) #log sigma, log rho
-    tinygp_params = (np.exp(tinygp_params[0]*2), np.exp(tinygp_params[1]))
-    
-    #get convergence
-    filerow9 = np.loadtxt(filepath, skiprows=8, dtype=str, max_rows=1)
-    if "True" in filerow9:
-        converg = True
-    else:
-        converg = False
-    return params, celerite_params, upper_e, lower_e, tinygp_params, converg
+#retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList)
 
 
-
-def retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList):
+def retrieve_all_singlepower06celerite(bigInfoFile, datafolder, foldersave, gList):
     info = pd.read_csv(bigInfoFile)
-    #cmd + 1 to comment
     disc_all = retrieve_disctimes(datafolder, info, gList)
     params_all = {}
-    celerite_all = {}
-    tinygp_all = {}
     converged_all = {}
     upper_all = {}
     lower_all = {}
@@ -192,51 +138,78 @@ def retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList):
     #retrieve an d print out the things: 
     for root, dirs, files in os.walk(foldersave):
         for name in files:
-            if name.endswith("matern32-noBounds-output-params.txt"):
-                targ = name.split("-")[0]
+            if name.endswith("celerite-matern32-0.6-output-params.txt"):
+                targ = name.split("-")[0][:-4]
                 print(targ)
-                if targ[:-4] not in gList:
+                if targ not in gList:
                     continue
                 
                 filepath = root + "/" + name
-                print(filepath)
+                #print(filepath)
                 
-                
-                (params, celerite_params, upper_e, 
-                 lower_e, tinygp_params, converg) = extract_tgpc_all(filepath)
+                (params,  upper_e, 
+                 lower_e,  converg) = extract_celerite_all(filepath)
                 
                 params_all[targ] = params
-                celerite_all[targ] = celerite_params
                 upper_all[targ] = upper_e
                 lower_all[targ] = lower_e
                 converged_all[targ] = converg
-                tinygp_all[targ] = tinygp_params
                 
                 
-    return (disc_all, params_all, celerite_all, tinygp_all, 
-            converged_all, upper_all, lower_all)
+    return (disc_all, params_all, converged_all, upper_all, lower_all)
 
-# (disc_all, params_all, 
-#  celerite_all, tinygp_all, 
-#  converged_all, upper_all, 
-#  lower_all) = retrieve_all_tinygp_celerite(bigInfoFile, datafolder, foldersave, gList)
+def extract_celerite_all(filepath):
+    
+    # target label row 0
+    # bic row 1
+    # convg row 2
+    filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+    print(filerow1)
+    if "True" in filerow1:
+        converg = True
+    else:
+        converg = False
+    
+    #params row 1: 
+    filerow1 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+    
+    sigsq, rho, t0, A = (np.exp(2*float(filerow1[0])), 
+                         np.exp(float(filerow1[1])), 
+                         float(filerow1[2]), 
+                         float(filerow1[3]))
+    
+    filerow2 = np.loadtxt(filepath, skiprows=4, dtype=str, max_rows=1)    
+    beta, B = (float(filerow2[0]), float(filerow2[1]))                                    
 
-# #%%
-# for k in params_all.keys(): 
-#     print("{k}&{t0:.2f}&{A:.2f}&{beta:.2f}&{B:.2f}".format(k=k[:-4],
-#                                                            t0 = params_all[k][0],
-#                                                            A = params_all[k][1],
-#                                                            beta = params_all[k][2],
-#                                                            B=params_all[k][3]))
-# #%%
-# for k in celerite_all.keys(): 
-#     print("{h} ({sigsq:.3f},{rho:.3f})".format(h=k, 
-#                                                sigsq=celerite_all[k][0], 
-#                                                rho=celerite_all[k][1] ))
+    params = (sigsq, rho, t0, A, beta, B)
     
+    #upper error
+    filerow1 = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1)
+    sigsq, rho, t0, A = (float(filerow1[0]), 
+                         float(filerow1[1]), 
+                         float(filerow1[2]), 
+                         float(filerow1[3]))
+    filerow2 = np.loadtxt(filepath, skiprows=6, dtype=str, max_rows=1)    
+    beta, B = (float(filerow2[0]), float(filerow2[1]))                                    
+
+    upper_e = (sigsq, rho, t0, A, beta, B)
     
+    #lower error
+    filerow1 = np.loadtxt(filepath, skiprows=7, dtype=str, max_rows=1)
+    sigsq, rho, t0, A = (float(filerow1[0]), 
+                         float(filerow1[1]), 
+                         float(filerow1[2]), 
+                         float(filerow1[3]))
+    filerow2 = np.loadtxt(filepath, skiprows=8, dtype=str, max_rows=1)    
+    beta, B = (float(filerow2[0]), float(filerow2[1]))                                    
+
+    lower_e = (sigsq, rho, t0, A, beta, B)
     
-# for k in tinygp_all.keys(): 
-#     print("{h} ({sigsq:.3f},{rho:.3f})".format(h=k, 
-#                                                sigsq=tinygp_all[k][0], 
-#                                                rho=tinygp_all[k][1] ))
+    return params, upper_e, lower_e, converg
+
+(disc_all, params_all, 
+ converged_all, upper_all, 
+ lower_all) = retrieve_all_singlepower06celerite(bigInfoFile, datafolder, 
+                                                 foldersave, gList)
+
+

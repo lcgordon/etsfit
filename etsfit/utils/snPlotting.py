@@ -468,7 +468,8 @@ def plot_mcmc(save_dir, time, flux, error,
     return
 
 def plot_mcmc_GP_celerite(save_dir, time, flux, error, best_mcmc, gp, 
-                          disctime, xlabel, tmin, targetlabel, 
+                          disctime, xlabel, tmin, targetlabel, flat_samples,
+                          labels, 
                           filesavetag):
     """
     Plots the best fit model from MCMC with a celerite background
@@ -489,14 +490,15 @@ def plot_mcmc_GP_celerite(save_dir, time, flux, error, best_mcmc, gp,
         - filesavetag (str) filename used for this fit
     """
     
-    #t0, A,beta,B = best_mcmc[0][2:]
-    #t1 = time - t0
-    #mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
+    t0, A,beta,B = best_mcmc[0][2:]
+    t1 = time - t0
+    justmod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
     gp.set_parameter_vector(best_mcmc[0])
     #gp.compute(time, error)
     model = gp.predict(flux, time, return_cov=False)
 
+    bg = model - justmod
     #model = mod + bg
     #fix time axis
     time = time + tmin - 2457000
@@ -504,8 +506,14 @@ def plot_mcmc_GP_celerite(save_dir, time, flux, error, best_mcmc, gp,
     t0 = best_mcmc[0][2]
     t0 = t0 + tmin - 2457000
     
+    plot_corner(flat_samples, labels, save_dir, targetlabel, filesavetag)
+    
     plot_mcmc_model(save_dir, model, time, flux, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
+    
+    gp_plots(save_dir, justmod, bg, time, flux, error,
+                 disctime, t0, xlabel, targetlabel, filesavetag, 
+                 "MCMC-celerite-TriplePlotResiduals")
     return
 
 def plot_mcmc_GP_tinygp(save_dir, time, flux, error, best_mcmc,
@@ -534,7 +542,9 @@ def plot_mcmc_GP_tinygp(save_dir, time, flux, error, best_mcmc,
     t1 = time - t0
     mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
 
-    bg = gp.predict(flux-mod, time, return_cov=False)
+    _, cond = gp.condition(flux-mod, time)
+    bg = cond.loc #mu
+    #std = np.sqrt(cond.variance)
 
     model = mod + bg
     
@@ -542,6 +552,8 @@ def plot_mcmc_GP_tinygp(save_dir, time, flux, error, best_mcmc,
     time = time + tmin - 2457000
     disctime = disctime + tmin - 2457000
     t0 = t0 + tmin - 2457000
+    
+    
     
     plot_mcmc_model(save_dir, model, time, flux, error,
                      disctime, t0, xlabel,targetlabel, filesavetag)
@@ -798,7 +810,7 @@ def plot_scipy_max(save_dir, filesavetag, targetlabel, x, y, yerr,
     plt.savefig('{s}{t}{f}-scipy-prediction.png'.format(s=save_dir,
                                                         t=targetlabel,
                                                         f=filesavetag))
-    plt.show()
+    #plt.show()
     plt.close()
     
 def celerite_post_pred(save_dir, filesavetag, targetlabel, x, y, yerr,
@@ -823,5 +835,5 @@ def celerite_post_pred(save_dir, filesavetag, targetlabel, x, y, yerr,
     plt.savefig('{s}{t}{f}-celerite-post-pred.png'.format(s=save_dir,
                                                         t=targetlabel,
                                                         f=filesavetag))
-    plt.show()
+    #plt.show()
     plt.close()

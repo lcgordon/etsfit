@@ -152,12 +152,12 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                 gc.collect()
                 i=i+1
 
-    return
+    return trlc
 
 trlc = run_all_GP('celerite', data_dir, save_dir, TNSFile,
                   filekey = "-tessreduce",
                   goodList=gList, 
-                  fraction=0.6, binning=False, n1=5000, n2=40000, bounds=True)
+                  fraction=0.6, binning=False, n1=5000, n2=40000, bounds=False)
 
 
 def run_all_matern32comp(data_dir, save_dir, TNSFile,

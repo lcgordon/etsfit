@@ -674,9 +674,9 @@ class etsMAIN(object):
             index += 1 # how many times have you saved it
         
             # Check convergence
-            converged = np.all((tau * 100) < sampler.iteration)
-            converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
-            if converged:
+            self.converged = np.all((tau * 100) < sampler.iteration)
+            self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
+            if self.converged:
                 print("Converged, ending chain")
                 break
             old_tau = tau
@@ -686,7 +686,7 @@ class etsMAIN(object):
         ########
         
         sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
-                              autocorr_all, converged,
+                              autocorr_all, self.converged,
                               autoStep, self.labels, self.filelabels, self.filesavetag)
         
             
@@ -708,31 +708,27 @@ class etsMAIN(object):
         print(len(flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
-        best_mcmc = np.zeros((1,ndim))
-        upper_error = np.zeros((1,ndim))
-        lower_error = np.zeros((1,ndim))
+        self.best_mcmc = np.zeros((1,ndim))
+        self.upper_error = np.zeros((1,ndim))
+        self.lower_error = np.zeros((1,ndim))
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
             q = np.diff(mcmc)
             print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
-            best_mcmc[0][i] = mcmc[1]
-            upper_error[0][i] = q[1]
-            lower_error[0][i] = q[0]
+            self.best_mcmc[0][i] = mcmc[1]
+            self.upper_error[0][i] = q[1]
+            self.lower_error[0][i] = q[0]
      
-        self.best_mcmc = best_mcmc
-        self.upper_error = upper_error
-        self.lower_error = lower_error
-        logprob, blob = sampler.compute_log_prob(best_mcmc)
+
+        logprob, blob = sampler.compute_log_prob(self.best_mcmc)
 
         # ### BIC
         #print(np.log(len(self.time)))
         print("log prob:", logprob)
-        BIC = ndim * np.log(len(self.time)) - 2 * (logprob * -1.0)
-        print("BAYESIAN INF CRIT: ", BIC)
-        if np.isnan(np.float64(BIC[0])): # if it's a nan
-            BIC = 500000
-        else:
-            BIC = BIC[0]
+        self.BIC = (ndim * np.log(len(self.time)) - 2 * (logprob * -1.0))[0]
+        print("BAYESIAN INF CRIT: ", self.BIC)
+        if np.isnan(np.float64(self.BIC)): # if it's a nan
+            self.BIC = 500000
              
         
         if self.plotFit < 10:
@@ -740,7 +736,7 @@ class etsMAIN(object):
                                   sampler, self.labels, ndim, appendix = "production")
             sp.plot_mcmc(self.save_dir, self.time, self.flux, self.error,
                          self.targetlabel, 
-                         self.disctime, best_mcmc[0], 
+                         self.disctime, self.best_mcmc[0], 
                          flat_samples, self.labels, self.plotFit, self.filesavetag, 
                          self.xlabel, self.tmin, self.BGdata,
                          self.quats_cbvs)
@@ -753,22 +749,63 @@ class etsMAIN(object):
                                   self.t, flat_samples, self.gp, self.tmin, self.disctime)
             
             sp.plot_mcmc_GP_celerite(self.save_dir, self.time, self.flux,
-                                      self.error, best_mcmc, self.gp, 
+                                      self.error,self.best_mcmc, self.gp, 
                                       self.disctime, self.xlabel, self.tmin,
-                                      self.targetlabel, self.filesavetag)
+                                      self.targetlabel, flat_samples,self.labels, 
+                                      self.filesavetag)
         
+        #save output parameters
+        self.__fileparamsave()
+        
+        return self.best_mcmc, self.upper_error, self.lower_error, self.BIC
+    
+    def __fileparamsave(self):
+        """ 
+        Internal function to save parameters into txt file 
+        """
+        BICstring = "BIC:{bicy:.3f}\n".format(bicy=self.BIC)
+        CONVstring = "Converged:{conv} \n".format(conv=self.converged)
+        BPstring = ""
+        UEstring = ""
+        LEstring = ""
+        THstring = ""
+        #save parameters in rows of 4: 
+        ndim = len(self.best_mcmc[0])
+        print(self.best_mcmc[0])
+        for n in range(ndim):
+            print(self.best_mcmc[0][n])
+            BPstring = BPstring + "{A:.4f} ".format(A=self.best_mcmc[0][n])
+            UEstring = UEstring + "{A:.4f} ".format(A=self.upper_error[0][n])
+            LEstring = LEstring + "{A:.4f} ".format(A=self.lower_error[0][n])
+            if n>0 and not n % 4: #every 4, make a new line
+                BPstring = BPstring + "\n"
+                UEstring = UEstring + "\n"
+                LEstring = LEstring + "\n"
+                
+        #then add another gap after that
+        BPstring = BPstring + "\n"
+        UEstring = UEstring + "\n"
+        LEstring = LEstring + "\n"
+        
+        print(BPstring)
+        
+        #save theta values for tinygp
+        if hasattr(self, 'theta'):
+            for k in self.theta.keys():
+                THstring = THstring + "{key} \n {val:.4f} \n".format(key=k, 
+                                                                     val = self.theta[k])
+        
+        #write into file:
         with open(self.parameterSaveFile, 'w') as file:
-            #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("{best}\n".format(best=best_mcmc[0]))
-            file.write("{upper}\n".format(upper=upper_error[0]))
-            file.write("{lower}\n".format(lower=lower_error[0]))
-            file.write("BIC:{bicy:.3f}\n".format(bicy=BIC))
-            file.write("Converged:{conv}".format(conv=converged))
-                       
+            file.write(self.targetlabel + "\n")
+            file.write(BICstring)
+            file.write(CONVstring)
+            file.write(BPstring)
+            file.write(UEstring)
+            file.write(LEstring)
+            file.write(THstring)
         
-        return best_mcmc, upper_error, lower_error, BIC
-    
-    
+        return
    
     
     def run_GP_fit(self, flux_mask=None, binning=False, fraction=None, 
@@ -1158,9 +1195,9 @@ class etsMAIN(object):
             index += 1 # how many times have you saved it
         
             # Check convergence
-            converged = np.all((tau * 100) < sampler.iteration)
-            converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
-            if converged:
+            self.converged = np.all((tau * 100) < sampler.iteration)
+            self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
+            if self.converged:
                 print("Converged, ending chain")
                 break
             old_tau = tau
@@ -1174,7 +1211,7 @@ class etsMAIN(object):
         
         #plot autocorr things
         sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
-                              autocorr_all, converged,
+                              autocorr_all, self.converged,
                               autoStep, self.labels, self.filelabels, self.filesavetag)
             
         #thin and burn out dump
@@ -1197,17 +1234,17 @@ class etsMAIN(object):
         print(len(flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
-        best_mcmc = np.zeros((1,ndim))
-        upper_error = np.zeros((1,ndim))
-        lower_error = np.zeros((1,ndim))
+        self.best_mcmc = np.zeros((1,ndim))
+        self.upper_error = np.zeros((1,ndim))
+        self.lower_error = np.zeros((1,ndim))
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
             print(self.labels[i], mcmc[1], -1 * np.diff(mcmc)[0], np.diff(mcmc)[1] )
-            best_mcmc[0][i] = mcmc[1]
-            upper_error[0][i] = np.diff(mcmc)[1]
-            lower_error[0][i] = np.diff(mcmc)[0]
+            self.best_mcmc[0][i] = mcmc[1]
+            self.upper_error[0][i] = np.diff(mcmc)[1]
+            self.lower_error[0][i] = np.diff(mcmc)[0]
      
-        logprob, blob = sampler.compute_log_prob(best_mcmc)
+        logprob, blob = sampler.compute_log_prob(self.best_mcmc)
 
         # ### BIC
         #so have logprob from the sampler (just model)
@@ -1217,31 +1254,21 @@ class etsMAIN(object):
         print("negative log like,  GP: ", negll)
         logprob = -1.0 * (logprob+negll)
         
-        BIC = ndim * np.log(len(self.time)) - 2 * logprob
-        print("BAYESIAN INF CRIT: ", BIC)
-        if np.isnan(np.float64(BIC[0])): # if it's a nan
-            BIC = 500000
-        else:
-            BIC = BIC[0]
+        self.BIC = (ndim * np.log(len(self.time)) - 2 * logprob)[0]
+        print("BAYESIAN INF CRIT: ", self.BIC)
+        if np.isnan(np.float64(self.BIC)): # if it's a nan
+            self.BIC = 500000
+
          
             
         sp.plot_mcmc_GP_tinygp(self.save_dir, self.time, self.flux, self.error,
-                               best_mcmc[0], self.build_gp(self.theta, self.time),
+                               self.best_mcmc[0], self.build_gp(self.theta, self.time),
                                self.disctime, self.xlabel, self.tmin, self.targetlabel,
                                self.filesavetag)
 
-        with open(self.parameterSaveFile, 'w') as file:
-            file.write("{best}\n".format(best=best_mcmc[0]))
-            file.write("{upper}\n".format(upper=upper_error[0]))
-            file.write("{lower}\n".format(lower=lower_error[0]))
-            file.write("tinygp log sigma, rho: \n {one},{two}\n".format(one=self.theta['log_sigma'],
-                                                                    two = self.theta['log_rho']))
-            if ('log_gamma' in self.theta.keys()):
-                file.write("log gamma: {three}\n".format(three=self.theta['log_gamma']))
-            file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=BIC))
-            file.write("Converged:{conv}".format(conv=converged))
+        self.__fileparamsave()
         
-        return best_mcmc, upper_error, lower_error, BIC
+        return self.best_mcmc, self.upper_error, self.lower_error, self.BIC
     
 
     def run_both_matern32(self, flux_mask, binning=False, fraction=None,
@@ -1302,44 +1329,93 @@ class etsMAIN(object):
         #SET UP CELERITE                                               
         self.filesavetag1 = "-celerite-matern32"
         
-        #rho should be DEFINITELY > 1, probably > 2, and no more than ~10
+        from celerite.modeling import Model
+        from scipy.optimize import minimize
         
-        rho = 2 # init value
-        # sigma squared controls how big the max covariance is - more than 0, less than 20
-        sigma = 1
-        if bounds is True:
-            print("Using bounds")
-            rho_bounds = np.log((1, 10)) #0, 2.302
-            sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
-            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
-            self.tinygp_bounds = np.asarray([[np.log(1), np.log(np.sqrt(0.1))], #rho, sigma low
-                                             [np.log(10), np.log(np.sqrt(20))]]) #rho, sigma up
-        else:
-            print("no bounds")
-            rho_bounds = np.log((1, 1000))
-            sigma_bounds = np.log( np.sqrt((0.1, 1000)) )
-            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
-            self.tinygp_bounds = np.asarray([[np.log(np.sqrt(1)), np.log(0.1)], 
-                                             [np.log(np.sqrt(1000)), np.log(1000)]])
+        class MeanModel(Model):
+            parameter_names = ("t0", "A", "beta", "b")
+
+            def get_value(self, t):
+                t1 = t-self.t0
+                mod = np.heaviside((t1), 1) * self.A *np.nan_to_num((t1**self.beta), copy=False)
+                return mod + self.b
+
             
-        kernel = terms.Matern32Term(log_sigma=np.log(sigma), 
-                                    log_rho=np.log(rho), 
-                                    bounds=bounds_dict)
+            def compute_gradient(self, t):
+                t1 = t-self.t0
+                dt = np.heaviside((t1), 1) * -self.A * self.t0 * (t1)**(self.beta-1)
+                dt[np.isnan(dt)] = 0
+                dA = np.heaviside((t1), 1) * t1**self.beta
+                dA[np.isnan(dA)] = 0
+                dbeta = np.heaviside((t1), 1) * self.A * np.log(t1)*(t1)**self.beta
+                dbeta[np.isnan(dbeta)] = 0
+                dB = np.heaviside((t1), 1) * np.ones((len(t),)) #np.heaviside((t1), 1) * 
+                return np.array([dt, dA, dbeta, dB])
+        
+        #set up power law model
+        bounds_model_dict = {"t0":(0, self.time[-1]),
+                             "A": (0.001, 20),
+                             "beta":(0.5,6.0),
+                             "b":(-50, 50)}
         
         start_t = min(self.disctime-3, self.time[-1]-2)
-        self.init_values = np.array((start_t, 0.1, 1.8, 0, np.log(sigma), np.log(rho)))
-
-        self.gpcelerite = celerite.GP(kernel, mean=0.0)
-        self.gpcelerite.compute(self.time, self.error)
-        print("Initial celerite log-likelihood: {0}".format(self.gpcelerite.log_likelihood(self.flux)))
-        # set up arguments etc.
-        self.args = (self.time,self.flux, self.error, self.gpcelerite)
-        self.logProbFunc = mc.log_probability_celerite
-        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
-        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
-                                                   
-        #set up tinygp
+        t0, A, beta, b = (start_t, 5, 1.8, 5)
         
+        mean_model = MeanModel(t0=t0, A=A, beta=beta, b=b,
+                               bounds = bounds_model_dict)
+
+        # Set up the GP model
+        #presently unbounded
+        if bounds:
+            kbounds = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
+                       'log_rho':np.log((1,10))}
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
+                                        bounds=kbounds)
+        else:
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1))
+            
+        self.gp = celerite.GP(kernel, mean=mean_model, fit_mean=True)
+        self.gp.compute(self.time, self.error)
+        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
+
+        # Define a cost function
+        def neg_log_like(params, y, gp):
+            gp.set_parameter_vector(params)
+            return -gp.log_likelihood(y)
+
+        def grad_neg_log_like(params, y, gp):
+            gp.set_parameter_vector(params)
+            return -gp.grad_log_likelihood(y)[1]
+
+        # Fit for the maximum likelihood parameters
+        initial_params = self.gp.get_parameter_vector()
+        bounds = self.gp.get_parameter_bounds()
+
+        print("Running scipy maximizer")
+        soln = minimize(neg_log_like, initial_params, jac=grad_neg_log_like,
+                        method="L-BFGS-B", bounds=bounds, args=(self.flux, self.gp))
+
+        self.gp.set_parameter_vector(soln.x)
+        # Make the maximum likelihood prediction
+        self.t = np.linspace(0, self.time[-1], 500)
+        mu, var = self.gp.predict(self.flux, self.t, return_var=True)
+        std = np.sqrt(var)
+
+        # Plot the data + scipy prediction
+        sp.plot_scipy_max(self.save_dir, self.filesavetag, self.targetlabel, 
+                          self.time, self.flux, self.error, self.t, mu, std,
+                          self.tmin, self.disctime)
+
+        self.init_values = soln.x
+        self.args = (self.flux, self.gp)
+        self.logProbFunc = mc.log_probability_celeri
+        self.labels = [r"$log\sigma$",r"$log\rho$", "t0", "A", "beta",  "b"] 
+        self.filelabels = ["logsigma", "logrho", "t0", "A", "beta",  "b"]
+        #self.plotFit = 10
+            
+    #######################3                                       
+        #set up tinygp
+    #########################3
         self.plotFit = 1
         self.fitType = 1
         self.filesavetag2 = "-tinygp-matern32"
@@ -1451,9 +1527,9 @@ class etsMAIN(object):
             index += 1 # how many times have you saved it
         
             # Check convergence
-            converged = np.all((tau * 100) < sampler.iteration)
-            converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
-            if converged:
+            self.converged = np.all((tau * 100) < sampler.iteration)
+            self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
+            if self.converged:
                 print("Converged, ending chain")
                 break
             old_tau = tau
@@ -1467,7 +1543,7 @@ class etsMAIN(object):
         
         #plot autocorr things
         sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
-                              autocorr_all, converged,
+                              autocorr_all, self.converged,
                               autoStep, self.labels, self.filelabels, self.filesavetag1)
         
         #thin and burn out dump
@@ -1490,22 +1566,19 @@ class etsMAIN(object):
         print(len(flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
-        best_mcmc = np.zeros((1,ndim))
-        upper_error = np.zeros((1,ndim))
-        lower_error = np.zeros((1,ndim))
+        self.best_mcmc = np.zeros((1,ndim))
+        self.upper_error = np.zeros((1,ndim))
+        self.lower_error = np.zeros((1,ndim))
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
             q = np.diff(mcmc)
             print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
-            best_mcmc[0][i] = mcmc[1]
-            upper_error[0][i] = q[1]
-            lower_error[0][i] = q[0]
+            self.best_mcmc[0][i] = mcmc[1]
+            self.upper_error[0][i] = q[1]
+            self.lower_error[0][i] = q[0]
             
-        self.best_mcmc = best_mcmc
-        self.upper_error = upper_error
-        self.lower_error = lower_error
      
-        logprobcelerite, blob = sampler.compute_log_prob(best_mcmc)
+        logprobcelerite, blob = sampler.compute_log_prob(self.best_mcmc)
         
         print("neg. log prob for celerite: ", logprobcelerite * -1)
         self.BIC_celerite = ndim * np.log(len(self.time)) - 2 * (logprobcelerite * -1)
@@ -1519,15 +1592,15 @@ class etsMAIN(object):
         sampler2 = emcee.EnsembleSampler(nwalkers, 4, 
                                          mc.log_probability_singlepower_noCBV, 
                                          args=argy)
-        logprobplain, blob = sampler2.compute_log_prob(best_mcmc[:,0:4])
+        logprobplain, blob = sampler2.compute_log_prob(self.best_mcmc[:,0:4])
         logprobwgp = (-1* logprobplain) + tinygpll #positive
         self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobwgp
         print("BIC (tinygp): ", self.BIC_tinygp)
         
 
         #re-compute the celerite kernel
-        kernel2 = terms.Matern32Term(log_sigma=best_mcmc[0][4], 
-                                    log_rho=best_mcmc[0][5], 
+        kernel2 = terms.Matern32Term(log_sigma=self.best_mcmc[0][4], 
+                                    log_rho=self.best_mcmc[0][5], 
                                     bounds={})
         
         plot_celerite = celerite.GP(kernel2, mean=0.0)
@@ -1542,13 +1615,13 @@ class etsMAIN(object):
 
         with open(self.parameterSaveFile, 'w') as file:
             #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("{best}\n".format(best=best_mcmc[0]))
-            file.write("{upper}\n".format(upper=upper_error[0]))
-            file.write("{lower}\n".format(lower=lower_error[0]))
+            file.write("{best}\n".format(best=self.best_mcmc[0]))
+            file.write("{upper}\n".format(upper=self.upper_error[0]))
+            file.write("{lower}\n".format(lower=self.lower_error[0]))
             file.write("tinygp log sigma, rho: \n {one},{two}\n".format(one=self.theta['log_sigma'],
                                                                     two = self.theta['log_rho']))
             file.write("BIC celerite:{bicy:.3f}\n".format(bicy=self.BIC_celerite[0]))
             file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=self.BIC_tinygp[0]))
-            file.write("Converged:{conv}".format(conv=converged))
+            file.write("Converged:{conv}".format(conv=self.converged))
             
     
