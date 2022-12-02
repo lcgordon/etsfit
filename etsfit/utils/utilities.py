@@ -143,6 +143,24 @@ def sigmaclip(time, flux,error, bg, axis=0):
         
     return time,flux,error, bg
 
+
+def data_masking(obj):
+    mask = np.nonzero(obj.flux_mask) # which ones you are keeping
+    obj.time = obj.time[mask]
+    obj.flux = obj.flux[mask]
+    obj.error = obj.error[mask]
+    if obj.BGdata is not None:
+        obj.BGdata = obj.BGdata[mask]
+        
+    if hasattr(obj, 'quaternions'): #if cbvs, trim them
+        obj.quaternions = obj.quaternions[mask]
+        obj.CBV1 = obj.CBV1[mask]
+        obj.CBV2 = obj.CBV2[mask]
+        obj.CBV3 = obj.CBV3[mask]
+        obj.quats_cbvs = [obj.quaternions, obj.CBV1, obj.CBV2, obj.CBV3]
+    return 
+    
+
 def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
     """
     Trims light curve to a chosen fraction of the peak flux

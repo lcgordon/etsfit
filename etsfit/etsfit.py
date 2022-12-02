@@ -98,41 +98,31 @@ class etsMAIN(object):
         
         ----------------------------------------------------
         Parameters: 
-            
             - cbv_dir (str) a path to the folder holding all CBVs. 
             this is probably within the eleanor directory
             the directory structure should be such that there are files like
             folder/s001/cbv_components_s0001_0001_0001.txt
-            
             - quaternion_raw_dir (str) is the path to the folder holding
             all of the .fits file versions of the quaternions. this can be
             some random path if you already have produced the txt versions
-            
             - quaternion_txt_dir (str) is the path to the folder either
             HOLDING the .txt file versions of the quaternions OR the path to
             the EMPTY folder that all the txt versions are about 
             to be generated into
         """
         
-        if not os.path.exists(cbv_dir):
-            raise ValueError("Not a valid CBV path")
+        if (not os.path.exists(cbv_dir) or not os.path.exists(quaternion_raw_dir)
+            or not os.path.exists(quaternion_txt_dir)):
+            raise ValueError("At least one or your paths are bad!")
         else:
             self.cbv_dir = cbv_dir
-            
-        if not os.path.exists(quaternion_raw_dir):
-            raise ValueError("Not  a valid raw quat path")
-        else:
             self.quaternion_raw_dir = quaternion_raw_dir
-        
-        if not os.path.exists(quaternion_txt_dir):
-            raise ValueError("Not a valid txt quat path")
-        else:
             self.quaternion_txt_dir = quaternion_txt_dir
+            #empty directory, make txt files
             if (len(os.listdir(self.quaternion_txt_dir))==0 and
                 len(os.listdir(self.quaternion_raw_dir))!=0):
-                #empty directory, make txt files
-                ut.make_quat_txtfiles(self.quaternion_raw_dir, self.quaternion_txt_dir)
                 
+                ut.make_quat_txtfiles(self.quaternion_raw_dir, self.quaternion_txt_dir)
         self.cbvquat_access = True
         return
 
@@ -169,26 +159,16 @@ class etsMAIN(object):
         
         ----------------------------------
         Parameters:
-            
             - time (array) time axis for the lc. this will get the 0th
             index subtracted off. 
-            
             - flux (array) flux array for the lc 
-            [yyy handle pre-cleaned data?]
-            
             - error (array) error on flux array
-            
             - discoverytime (double) when ground telescopes found it
-            
             - targetlabel (str) no spaces name, will be used on files
-            
             - sector (str) this needs to be a two-character string (ie, sector
                                                                     2 is "02")
-            
             - camera (str) needs to be a 1 char string
-            
             - ccd (str) needs to be a 1 char string
-            
             - BGdata (defaults to NONE) can put in background array if 
             doing that one specific fit. should also work to float other 
             background arrays.
@@ -205,12 +185,8 @@ class etsMAIN(object):
               targetlabel is None or sector is None or 
               camera is None or ccd is None):
             raise ValueError("Inputs all have to be SOMETHING you can't give any None's here")
-        elif type(sector) != str:
-            raise ValueError("Sector must be a string, see help()")
-        elif type(camera) != str:
-            raise ValueError("camera must be a string, see help()")
-        elif type(ccd) != str:
-            raise ValueError("ccd must be a string, see help()")
+        elif (type(sector) != str or type(camera) != str or type(ccd) != str) :
+            raise ValueError("Sector, camera, ccd must be strings, see help()")
         
         self.time = time
         self.flux = flux
@@ -270,6 +246,10 @@ class etsMAIN(object):
             - fraction (default NONE, 0-1 for percent) trims flux to 
             percent of max. 0.4 is 40% of max, etc.
         """
+        
+        self.fitType = fitType
+        self.flux_mask = flux_mask
+        
         # handle CBVs+quats
         if self.cbvquat_access and fitType in (2,4,5):
             print("Loading in quaternions and CBVs")
@@ -296,7 +276,7 @@ class etsMAIN(object):
  
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if flux_mask is not None:
-            self.__custom_mask_it(flux_mask)
+            self.__custom_mask_it()
        
         # 8hr binning
         if binning: #if need to bin
@@ -313,10 +293,9 @@ class etsMAIN(object):
          
         #once  you are done with this stuff:
         self.cleaningdone = True 
-        self.fitType = fitType
         return
     
-    def __custom_mask_it(self, flux_mask):
+    def __custom_mask_it(self):
         """remove certain indices from your light curve.
         flux_mask should be an array of size len(time), 0 = remove, 1=keep
         
@@ -326,21 +305,7 @@ class etsMAIN(object):
             print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
             return
         elif hasattr(self, 'time'): #if something loaded in and going to trim
-        
-            self.mask = np.nonzero(flux_mask) # which ones you are keeping
-            self.time = self.time[self.mask]
-            self.flux = self.flux[self.mask]
-            self.error = self.error[self.mask]
-            if self.BGdata is not None:
-                self.BGdata = self.BGdata[self.mask]
-                
-            if hasattr(self, 'quaternions'): #if cbvs, trim them
-                self.quaternions = self.quaternions[self.mask]
-                self.CBV1 = self.CBV1[self.mask]
-                self.CBV2 = self.CBV2[self.mask]
-                self.CBV3 = self.CBV3[self.mask]
-                self.quats_cbvs = [self.quaternions, self.CBV1, self.CBV2, self.CBV3]
-
+            ut.data_masking(self)
             return
         else:
             raise ValueError("No data loaded in yet!! Run again once light curve is loaded")
@@ -374,7 +339,7 @@ class etsMAIN(object):
             self.binned = True                                    
             return
    
-    def __gen_output_folder(self):
+    def __gen_output_folder(self, filesavetag):
         """
         Internal function, sets up output folder for files
         
@@ -387,18 +352,6 @@ class etsMAIN(object):
             self.ccd is None):
             raise ValueError("Cannot generate output folders, one of the parameters is None")
         
-        self.__makepath(self.filesavetag)
-
-        return 
-    
-    def __makepath(self, filesavetag):
-        """ 
-        
-        Makes a target's filepath.
-        This is separate from __gen_output_folder() because it sometimes gets 
-        used elsewhere w/out self.filesavetag existing
-        
-        """
         internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
         newfolderpath = (self.save_dir + internaluse)
         if not os.path.exists(newfolderpath):
@@ -410,9 +363,11 @@ class etsMAIN(object):
         self.save_dir = subfolderpath + "/"
         self.parameterSaveFile = self.save_dir + internaluse + filesavetag + "-output-params.txt"
         print("saving into folder: ",self.save_dir) 
-        return
-   
-    def __setup_fittype_params(self, fitType, args=None, 
+
+        return 
+    
+ 
+    def __setup_fittype_params(self, args=None, 
                                logProbFunc = None, plotFit = None,
                                filesavetag=None, labels=None, init_values=None,
                                mu = 2, sigma = 1):
@@ -438,10 +393,10 @@ class etsMAIN(object):
             
             
         """
-        self.plotFit = fitType
+        self.plotFit = self.fitType
         start_t = min(self.disctime-3, self.time[-1]-2)
         
-        if fitType == 1: # single without
+        if self.fitType == 1: # single without
             self.args = (self.time, self.flux, self.error)
             self.logProbFunc = mc.log_probability_singlepower_noCBV
             self.filesavetag = "-singlepower"
@@ -450,7 +405,7 @@ class etsMAIN(object):
             
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
             
-        elif fitType == 2: # single with
+        elif self.fitType == 2: # single with
             self.args = (self.time, self.flux, self.error, 
                          self.quaternions, self.CBV1, self.CBV2, self.CBV3)
             self.logProbFunc = mc.log_probability_singlepower_withCBV
@@ -459,7 +414,7 @@ class etsMAIN(object):
             self.filelabels = self.labels
             self.init_values = np.array((start_t, 0.1, 1.8, 0, 0,0,0,0))
             
-        elif fitType == 3: # double without
+        elif self.fitType == 3: # double without
             self.args = (self.time, self.flux, self.error, self.disctime)
             self.logProbFunc = mc.log_probability_doublepower_noCBV
             self.filesavetag = "-doublepower"
@@ -467,7 +422,7 @@ class etsMAIN(object):
             self.filelabels = self.labels
             self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 1.8, 1.8, 1))
 
-        elif fitType ==4: # double with
+        elif self.fitType ==4: # double with
             self.args = (self.time, self.flux, self.error, 
                          self.quaternions, self.CBV1, self.CBV2, self.CBV3, 
                          self.disctime)
@@ -478,7 +433,7 @@ class etsMAIN(object):
             self.filelabels = self.labels
             self.init_values = np.array((start_t, start_t+1, 0.1, 0.1, 
                                     1.8, 1.8, 0,0,0,0))
-        elif fitType == 5: # just CBVs
+        elif self.fitType == 5: # just CBVs
             self.args = (self.time, self.flux, self.error, 
                          self.quaternions, self.CBV1, self.CBV2, self.CBV3)
             self.logProbFunc = mc.log_probability_justCBV
@@ -486,7 +441,7 @@ class etsMAIN(object):
             self.labels = ["b", "cQ", "c1", "c2", "c3"]
             self.filelabels = self.labels
             self.init_values = np.array((1, 0,0,0,0))
-        elif fitType == 6: # detrending lygos BG
+        elif self.fitType == 6: # detrending lygos BG
             if self.BGdata is None:
                 raise AttributeError("NO BG LOADED IN - CANNOT RUN THIS FIT")
                 return
@@ -498,7 +453,7 @@ class etsMAIN(object):
                 self.filelabels = self.labels
                 self.init_values = np.array((start_t, 0.1, 1.8, 1, 1))
          
-        elif fitType == 7: # gaussian beta
+        elif self.fitType == 7: # gaussian beta
             self.args = (self.time, self.flux, self.error, mu, sigma)
             self.logProbFunc = mc.log_probability_singlepower_gaussianbeta
             self.filesavetag = "-singlepower-GBeta"
@@ -506,7 +461,7 @@ class etsMAIN(object):
             self.filelabels = self.labels
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
         
-        elif fitType == 0: # diy your stuff
+        elif self.fitType == 0: # diy your stuff
             self.args = args # LAST ONE MUST BE PRIORS IF USING CUSTOMS
             self.logProbFunc = logProbFunc
             self.filesavetag = filesavetag
@@ -573,22 +528,20 @@ class etsMAIN(object):
         if not self.cleaningdone:
             raise Exception("You must run self.pre_run_clean() first!")
         # load parameters by fit type                                           
-        self.__setup_fittype_params(self.fitType, args,
-                                    logProbFunc, plotFit, filesavetag, 
+        self.__setup_fittype_params(args,logProbFunc, plotFit, filesavetag, 
                                     labels, init_values, mu, sigma)
         if not local_dir:
             # set up the output folder
-            self.__gen_output_folder() 
+            self.__gen_output_folder(self.filesavetag) 
                                                         
         # run it
-        (self.best, self.upperError, 
-         self.lowerError, self.bic) = self.__mcmc_outer_structure(n1, n2, thinParams)
+        self.__mcmc_outer_structure(n1, n2, thinParams)
         
         if saveBIC:
-            self.bic_all.append(self.bic)
-            self.params_all.append(self.best)
+            self.bic_all.append(self.BIC[0])
+            self.params_all.append(self.best_mcmc)
             
-        return (self.best, self.upperError, self.lowerError, self.bic) 
+        return
       
         
     def __mcmc_outer_structure(self, n1, n2, thinParams):
@@ -616,65 +569,63 @@ class etsMAIN(object):
         np.random.seed(42)
         
         nwalkers = 100
-        ndim = len(self.labels) # labels are provided when you run it
-        p0 = np.zeros((nwalkers, ndim)) # init positions
+        self.ndim = len(self.labels) # labels are provided when you run it
+        p0 = np.zeros((nwalkers, self.ndim)) # init positions
         for n in range(len(p0)): # add a little spice - YYY gaussian??
-            p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
+            p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
         
         print("Starting burnin chain")
         # ### Initial run
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, 
+        self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, 
                                         self.logProbFunc,args=self.args) # setup
-        sampler.run_mcmc(p0, n1, progress=True) # run it
+        self.sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
         if self.plotFit < 10:
-            sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
-                                  sampler, self.labels, ndim, appendix = "burnin")
+            sp.plot_chain_logpost(self, appendix = "burnin")
         elif self.plotFit == 10:
-            sp.plot_chain(self.save_dir, self.targetlabel, self.filesavetag, 
-                                  sampler, self.labels, ndim, appendix = "burnin")
+            sp.plot_chain(self, appendix = "burnin")
             
     
-        flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
         # get intermediate best
-        best_mcmc_inter = np.zeros((1,ndim))
-        for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+        best_mcmc_inter = np.zeros((1,self.ndim))
+        for i in range(self.ndim):
+            mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             best_mcmc_inter[0][i] = mcmc[1]
             
         # ### Main run
         np.random.seed(50)
-        p0 = np.zeros((nwalkers, ndim))
+        p0 = np.zeros((nwalkers, self.ndim))
         for i in range(nwalkers): # reinitialize the walkers around prev. best
-            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, ndim)
+            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, self.ndim)
            
-        sampler.reset()
+        self.sampler.reset()
         
         # ### CORRELATION FUNCTION 
-        index = 0 # number of checks
-        autocorr = np.empty(n2) # total possible checks
+        self.index = 0 # number of checks
+        self.autocorr = np.empty(n2) # total possible checks
         old_tau = np.inf
-        autoStep = 100 # how often to check
-        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
+        self.autoStep = 100 # how often to check
+        self.autocorr_all = np.empty((int(n2/self.autoStep) + 2,len(self.labels))) # save all autocorr times
         
         # sample up to n2 steps
-        for sample in sampler.sample(p0, iterations=n2, progress=True):
+        for sample in self.sampler.sample(p0, iterations=n2, progress=True):
             # Only check convergence every 100 steps
-            if sampler.iteration % autoStep:
+            if self.sampler.iteration % self.autoStep:
                 continue
             # Compute the autocorrelation time so far
-            tau = sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
+            tau = self.sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
             if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
                 print("autocorr is nan or inf")
                 print(tau)
-            autocorr[index] = np.mean(tau) # save mean autocorr time
-            autocorr_all[index] = tau # save all autocorr times for plotting
-            index += 1 # how many times have you saved it
+            self.autocorr[self.index] = np.mean(tau) # save mean autocorr time
+            self.autocorr_all[self.index] = tau # save all autocorr times for plotting
+            self.index += 1 # how many times have you saved it
         
             # Check convergence
-            self.converged = np.all((tau * 100) < sampler.iteration)
+            self.converged = np.all((tau * 100) < self.sampler.iteration)
             self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
             if self.converged:
                 print("Converged, ending chain")
@@ -684,35 +635,28 @@ class etsMAIN(object):
         # ######
         #plot autocorr things
         ########
-        
-        sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
-                              autocorr_all, self.converged,
-                              autoStep, self.labels, self.filelabels, self.filesavetag)
+        sp.plot_autocorr_all(self)
         
             
         #thin and burn out dump
-        tau = sampler.get_autocorr_time(tol=0)
-        if (np.max(tau) < (sampler.iteration/50)):
+        tau = self.sampler.get_autocorr_time(tol=0)
+        if (np.max(tau) < (self.sampler.iteration/50)):
             burnin = int(2 * np.max(tau))
             thinning = int(0.5 * np.min(tau))
         else:
             burnin = int(n2/4)
 
-        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
+        sp.plot_param_samples_all(self)
         
-
-        
-        sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
-                                  self.targetlabel, self.filesavetag)
-        
-        print(len(flat_samples), "samples post second run")
+        print(len(self.flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
-        self.best_mcmc = np.zeros((1,ndim))
-        self.upper_error = np.zeros((1,ndim))
-        self.lower_error = np.zeros((1,ndim))
-        for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+        self.best_mcmc = np.zeros((1,self.ndim))
+        self.upper_error = np.zeros((1,self.ndim))
+        self.lower_error = np.zeros((1,self.ndim))
+        for i in range(self.ndim):
+            mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             q = np.diff(mcmc)
             print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
             self.best_mcmc[0][i] = mcmc[1]
@@ -720,39 +664,28 @@ class etsMAIN(object):
             self.lower_error[0][i] = q[0]
      
 
-        logprob, blob = sampler.compute_log_prob(self.best_mcmc)
+        logprob, blob = self.sampler.compute_log_prob(self.best_mcmc)
 
         # ### BIC
         #print(np.log(len(self.time)))
         print("log prob:", logprob)
-        self.BIC = (ndim * np.log(len(self.time)) - 2 * (logprob * -1.0))[0]
+        self.BIC = (self.ndim * np.log(len(self.time)) - 2 * (logprob * -1.0))[0]
         print("BAYESIAN INF CRIT: ", self.BIC)
         if np.isnan(np.float64(self.BIC)): # if it's a nan
             self.BIC = 500000
              
         
         if self.plotFit < 10:
-            sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
-                                  sampler, self.labels, ndim, appendix = "production")
-            sp.plot_mcmc(self.save_dir, self.time, self.flux, self.error,
-                         self.targetlabel, 
-                         self.disctime, self.best_mcmc[0], 
-                         flat_samples, self.labels, self.plotFit, self.filesavetag, 
-                         self.xlabel, self.tmin, self.BGdata,
-                         self.quats_cbvs)
+            sp.plot_chain_logpost(self, appendix = "production")
+            sp.plot_mcmc(self)
         elif self.plotFit == 10:
-            sp.plot_chain(self.save_dir, self.targetlabel, self.filesavetag, 
-                                  sampler, self.labels, ndim, appendix = "production")
-            # Plot the data.
-            sp.celerite_post_pred(self.save_dir, self.filesavetag, self.targetlabel,
-                                  self.time, self.flux, self.error,
-                                  self.t, flat_samples, self.gp, self.tmin, self.disctime)
-            
-            sp.plot_mcmc_GP_celerite(self.save_dir, self.time, self.flux,
-                                      self.error,self.best_mcmc, self.gp, 
-                                      self.disctime, self.xlabel, self.tmin,
-                                      self.targetlabel, flat_samples,self.labels, 
-                                      self.filesavetag)
+            sp.plot_chain(self, appendix = "production")
+            if 'mean' in self.gpUSE:
+                # Plot the data.
+                sp.plot_mcmc_GP_celerite_mean(self)
+                sp.celerite_post_pred(self)
+            else:
+                sp.plot_mcmc_GP_celerite_residual(self)
         
         #save output parameters
         self.__fileparamsave()
@@ -763,21 +696,25 @@ class etsMAIN(object):
         """ 
         Internal function to save parameters into txt file 
         """
-        BICstring = "BIC:{bicy:.3f}\n".format(bicy=self.BIC)
+        if hasattr(self, 'BIC_celerite'):
+            BICstring = "BIC celerite:{b1:.3f}\nBIC tinygp{b2:.3f}\n".format(b1=self.BIC_celerite[0],
+                                                                             b2=self.BIC_tinygp[0])
+        else:
+            BICstring = "BIC:{bicy:.3f}\n".format(bicy=self.BIC)
         CONVstring = "Converged:{conv} \n".format(conv=self.converged)
         BPstring = ""
         UEstring = ""
         LEstring = ""
         THstring = ""
         #save parameters in rows of 4: 
-        ndim = len(self.best_mcmc[0])
-        print(self.best_mcmc[0])
-        for n in range(ndim):
+        self.ndim = len(self.best_mcmc[0])
+        #print(self.best_mcmc[0])
+        for n in range(self.ndim):
             print(self.best_mcmc[0][n])
-            BPstring = BPstring + "{A:.4f} ".format(A=self.best_mcmc[0][n])
-            UEstring = UEstring + "{A:.4f} ".format(A=self.upper_error[0][n])
-            LEstring = LEstring + "{A:.4f} ".format(A=self.lower_error[0][n])
-            if n>0 and not n % 4: #every 4, make a new line
+            BPstring = BPstring + " {A:.4f} ".format(A=self.best_mcmc[0][n])
+            UEstring = UEstring + " {A:.4f} ".format(A=self.upper_error[0][n])
+            LEstring = LEstring + " {A:.4f} ".format(A=self.lower_error[0][n])
+            if not (n+1) % 4: #every 4, make a new line
                 BPstring = BPstring + "\n"
                 UEstring = UEstring + "\n"
                 LEstring = LEstring + "\n"
@@ -787,7 +724,7 @@ class etsMAIN(object):
         UEstring = UEstring + "\n"
         LEstring = LEstring + "\n"
         
-        print(BPstring)
+        #print(BPstring)
         
         #save theta values for tinygp
         if hasattr(self, 'theta'):
@@ -819,19 +756,23 @@ class etsMAIN(object):
         Update 10-31-22 - Switched to scipy.minimize to use bounds
         
         """
-        allowed = ['celerite', 'expsqr', 'expsinsqr', 'matern32']
+        allowed = ['celerite_mean', 'celerite_residual', 'expsqr', 'expsinsqr', 'matern32']
         self.gpUSE = gpUSE
-        if gpUSE not in allowed:
+        if self.gpUSE not in allowed:
             return ValueError("Not a valid gpUSE input!")
         
-        if gpUSE == "celerite":
-            self.__run_GP_fit_celerite(flux_mask, binning, 
+        if 'celerite_mean' in self.gpUSE:
+            self.__run_GP_fit_celerite_mean(flux_mask, binning, 
                                        fraction, n1, n2, thinParams, bounds=bounds)
+        elif 'celerite_residual' in self.gpUSE:
+            self.__run_GP_fit_celerite_residual(flux_mask, binning, 
+                                       fraction, n1, n2, thinParams)
             
         else: #tinygp options
             ### THEN DO CUSTOM MASKING if both not already cut and indices are given
             if flux_mask is not None:
-                self.__custom_mask_it(flux_mask)
+                self.flux_mask = flux_mask
+                self.__custom_mask_it()
                 
             # check for 8hr bin BEFORE trimming to percentages
             if binning: #if need to bin
@@ -844,7 +785,7 @@ class etsMAIN(object):
             self.__tinygp_setup(gpUSE=gpUSE, bounds=bounds)                                          
             #make folders to save into
             
-            self.__gen_output_folder()   
+            self.__gen_output_folder(self.filesavetag)   
             #print("entering mcmc + gp concurrent fitting")
             self.__mcmc_concurrent_gp(n1, n2, thinParams)
         return
@@ -913,10 +854,10 @@ class etsMAIN(object):
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
         return
     
-    def __run_GP_fit_celerite(self, flux_mask, binning, fraction=None, 
-                            n1=1000, n2=10000, thinParams=None, bounds=False):
+    def __run_GP_fit_celerite_residual(self, flux_mask, binning, fraction=None, 
+                            n1=1000, n2=10000, thinParams=None, bounds=True):
         """
-        Run the GP fitting w/ celerite
+        Run the GP fitting w/ celerite fitting repeatedly to the residual
         
         customSigmaRho must unpack as: [sigma start, rho start, 
                                         sigma lower, sigma upper,
@@ -928,11 +869,84 @@ class etsMAIN(object):
                                     0, 0]
         
         """
-        self.filesavetag = "-celerite-matern32"
+        self.filesavetag = "-celerite-matern32-residual"
         
         ### custom masking
         if flux_mask is not None:
-            self.__custom_mask_it(flux_mask)
+            self.flux_mask = flux_mask
+            self.__custom_mask_it()
+            
+        # check for 8hr bin BEFORE trimming to percentages
+        if binning: #if need to bin
+            self.__8hrbinning()
+                                                 
+        #fractional fit code (fraction can be None)                                  
+        self.__fract_fit(fraction)
+        
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
+            self.filesavetag = self.filesavetag + "-8HourBin"
+    
+        if self.fractiontrimmed:
+            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+        
+        if bounds:
+            self.filesavetag = self.filesavetag + "-bounded"
+        
+        #make folders to save into
+        self.__gen_output_folder(self.filesavetag)  
+        
+        #set up kernel
+        start_t = min(self.disctime-3, self.time[-1]-2)
+        # set up gp:
+        rho = 2 # init value
+        sigma = 1
+        if bounds:
+            rho_bounds = np.log((1, 10)) #0, 2.302
+            sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
+            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+                                        bounds=bounds_dict)
+        else:
+            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho))
+            
+        self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
+        self.gp = celerite.GP(kernel, mean=0.0)
+        self.gp.compute(self.time, self.error)
+        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
+        # set up arguments etc.
+        self.args = (self.time,self.flux, self.error, self.gp)
+        self.logProbFunc = mc.log_probability_celerite_residual
+        self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
+        self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
+        self.plotFit = 10
+        
+        #run it
+        self.__mcmc_outer_structure(n1, n2, thinParams)
+        return
+    
+    def __run_GP_fit_celerite_mean(self, flux_mask, binning, fraction=None, 
+                            n1=1000, n2=10000, thinParams=None, bounds=False):
+        """
+        Run the GP fitting w/ celerite and a mean model 
+        
+        customSigmaRho must unpack as: [sigma start, rho start, 
+                                        sigma lower, sigma upper,
+                                        rho lower, rho upper, 
+                                        sigma frozen (bool), rho frozen (bool)]
+        the default run of this is [1, 2, 
+                                    sqrt(0.1), sqrt(20), 
+                                    1, 10, 
+                                    0, 0]
+        
+        """
+        
+        self.filesavetag = "-celerite-matern32-mean-model"
+
+        
+        ### custom masking
+        if flux_mask is not None:
+            self.flux_mask = flux_mask
+            self.__custom_mask_it()
             
         # check for 8hr bin BEFORE trimming to percentages
         if binning: #if need to bin
@@ -950,8 +964,8 @@ class etsMAIN(object):
             self.filesavetag = self.filesavetag + "-bounded"
         
         #make folders to save into
-        self.__gen_output_folder()  
-       
+        self.__gen_output_folder(self.filesavetag)  
+        
         from celerite.modeling import Model
         from scipy.optimize import minimize
         import celerite
@@ -1024,19 +1038,17 @@ class etsMAIN(object):
         self.gp.set_parameter_vector(soln.x)
         # Make the maximum likelihood prediction
         self.t = np.linspace(0, self.time[-1], 500)
-        mu, var = self.gp.predict(self.flux, self.t, return_var=True)
-        std = np.sqrt(var)
+        self.mu, var = self.gp.predict(self.flux, self.t, return_var=True)
+        self.std = np.sqrt(var)
 
         # Plot the data + scipy prediction
-        sp.plot_scipy_max(self.save_dir, self.filesavetag, self.targetlabel, 
-                          self.time, self.flux, self.error, self.t, mu, std,
-                          self.tmin, self.disctime)
+        sp.plot_scipy_max(self)
 
 
 
         self.init_values = soln.x
         self.args = (self.flux, self.gp)
-        self.logProbFunc = mc.log_probability_celerite
+        self.logProbFunc = mc.log_probability_celerite_mean
         self.labels = [r"$log\sigma$",r"$log\rho$", "t0", "A", "beta",  "b"] 
         self.filelabels = ["logsigma", "logrho", "t0", "A", "beta",  "b"]
         self.plotFit = 10
@@ -1070,7 +1082,6 @@ class etsMAIN(object):
     def __update_theta_ampsscale(self, solnparams):
         self.theta["log_sigma"] = solnparams["log_sigma"]
         self.theta["log_rho"] = solnparams["log_rho"]
-        #self.theta["mean"] = solnparams["mean"]
         return
     
     def __update_theta_ampsscalegamma(self, solnparams):
@@ -1114,41 +1125,40 @@ class etsMAIN(object):
         np.random.seed(42)
         
         nwalkers = 100
-        ndim = len(self.labels) # labels are provided when you run it
-        p0 = np.zeros((nwalkers, ndim)) # init positions
+        self.ndim = len(self.labels) # labels are provided when you run it
+        p0 = np.zeros((nwalkers, self.ndim)) # init positions
         for n in range(len(p0)): # add a little spice
-            p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
+            p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
         
         print("Starting burn-in chain")
         # ### Initial run
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.logProbFunc,args=self.args) # setup
-        sampler.run_mcmc(p0, n1, progress=True) # run it
+        self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.logProbFunc,args=self.args) # setup
+        self.sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag, 
-                              sampler, self.labels, ndim, appendix = "burnin")
+        sp.plot_chain_logpost(self, appendix = "burnin")
     
-        flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
         # get intermediate best
-        best_mcmc_inter = np.zeros((1,ndim))
-        for i in range(ndim):
-            best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
+        best_mcmc_inter = np.zeros((1,self.ndim))
+        for i in range(self.ndim):
+            best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
             
         # ### Main run
         np.random.seed(50)
-        p0 = np.zeros((nwalkers, ndim))
+        p0 = np.zeros((nwalkers, self.ndim))
         for i in range(nwalkers): # reinitialize the walkers around prev. best
-            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, ndim)
+            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, self.ndim)
            
-        sampler.reset()
+        self.sampler.reset()
         
         # ### CORRELATION FUNCTION/GP FIT
-        index = 0 # number of checks
-        autocorr = np.empty(n2) # total possible checks
+        self.index = 0 # number of checks
+        self.autocorr = np.empty(n2) # total possible checks
         old_tau = np.inf
-        autoStep = 100 # how often to check
-        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
+        self.autoStep = 100 # how often to check
+        self.autocorr_all = np.empty((int(n2/self.autoStep) + 2,len(self.labels))) # save all autocorr times
         
         # GP setup
         #calculate residual from intermediate best:
@@ -1166,15 +1176,15 @@ class etsMAIN(object):
         self.GP_LL_all = [soln.state.fun_val]
         
         # sample up to n2 steps
-        for sample in sampler.sample(p0, iterations=n2, progress=True):
+        for sample in self.sampler.sample(p0, iterations=n2, progress=True):
             
             #refit the GP every 1000 steps
-            if sampler.iteration % 1000 == 0:
+            if self.sampler.iteration % 1000 == 0:
                 #new residual:
-                flat_samples = sampler.get_chain(flat=True)
-                best_mcmc_inter = np.zeros((1,ndim))
-                for i in range(ndim):
-                    best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
+                self.flat_samples = self.sampler.get_chain(flat=True)
+                best_mcmc_inter = np.zeros((1,self.ndim))
+                for i in range(self.ndim):
+                    best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
                     
                 res = make_residual(self.time, self.flux, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
@@ -1183,19 +1193,19 @@ class etsMAIN(object):
                 self.update_theta(soln.params)
             
             # Only check convergence every 100 steps
-            if sampler.iteration % autoStep:
+            if self.sampler.iteration % self.autoStep:
                 continue
             # Compute the autocorrelation time so far
-            tau = sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
+            tau = self.sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
             if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
                 print("autocorr is nan or inf")
                 print(tau)
-            autocorr[index] = np.mean(tau) # save mean autocorr time
-            autocorr_all[index] = tau # save all autocorr times for plotting
-            index += 1 # how many times have you saved it
+            self.autocorr[self.index] = np.mean(tau) # save mean autocorr time
+            self.autocorr_all[self.index] = tau # save all autocorr times for plotting
+            self.index += 1 # how many times have you saved it
         
             # Check convergence
-            self.converged = np.all((tau * 100) < sampler.iteration)
+            self.converged = np.all((tau * 100) < self.sampler.iteration)
             self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
             if self.converged:
                 print("Converged, ending chain")
@@ -1206,65 +1216,57 @@ class etsMAIN(object):
         #save output gp params:
         self.update_theta(soln.params)
         #plot gp log likelihood over steps
-        sp.plot_tinygp_ll(self.save_dir, np.asarray(self.GP_LL_all), 
-                          self.targetlabel, self.filesavetag)
+        sp.plot_tinygp_ll(self)
         
-        #plot autocorr things
-        sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
-                              autocorr_all, self.converged,
-                              autoStep, self.labels, self.filelabels, self.filesavetag)
+        #plot autocorrelation times 
+        sp.plot_autocorr_all(self)
             
         #thin and burn out dump
-        tau = sampler.get_autocorr_time(tol=0)
-        if (np.max(tau) < (sampler.iteration/50)):
+        tau = self.sampler.get_autocorr_time(tol=0)
+        if (np.max(tau) < (self.sampler.iteration/50)):
             burnin = int(2 * np.max(tau))
             thinning = int(0.5 * np.min(tau))
         else:
             burnin = int(n2/4)
 
-        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag,
-                              sampler, self.labels, ndim, appendix = "production")
+        sp.plot_chain_logpost(self, appendix = "production")
         
-        sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
-                                  self.targetlabel, self.filesavetag)
+        sp.plot_param_samples_all(self)
         
-        print(len(flat_samples), "samples post second run")
+        print(len(self.flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
-        self.best_mcmc = np.zeros((1,ndim))
-        self.upper_error = np.zeros((1,ndim))
-        self.lower_error = np.zeros((1,ndim))
-        for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+        self.best_mcmc = np.zeros((1,self.ndim))
+        self.upper_error = np.zeros((1,self.ndim))
+        self.lower_error = np.zeros((1,self.ndim))
+        for i in range(self.ndim):
+            mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             print(self.labels[i], mcmc[1], -1 * np.diff(mcmc)[0], np.diff(mcmc)[1] )
             self.best_mcmc[0][i] = mcmc[1]
             self.upper_error[0][i] = np.diff(mcmc)[1]
             self.lower_error[0][i] = np.diff(mcmc)[0]
      
-        logprob, blob = sampler.compute_log_prob(self.best_mcmc)
+        logprob, blob = self.sampler.compute_log_prob(self.best_mcmc)
 
         # ### BIC
-        #so have logprob from the sampler (just model)
+        #so have logprob from the self.sampler (just model)
         # want to add the log prob from the tinygp model
         print("negative log prob, no GP: ", logprob) #this spits out a negative value
         negll = -1.0 * float(self.GP_LL_all[-1]) #neg ll
         print("negative log like,  GP: ", negll)
         logprob = -1.0 * (logprob+negll)
         
-        self.BIC = (ndim * np.log(len(self.time)) - 2 * logprob)[0]
+        self.BIC = (self.ndim * np.log(len(self.time)) - 2 * logprob)[0]
         print("BAYESIAN INF CRIT: ", self.BIC)
         if np.isnan(np.float64(self.BIC)): # if it's a nan
             self.BIC = 500000
 
          
-            
-        sp.plot_mcmc_GP_tinygp(self.save_dir, self.time, self.flux, self.error,
-                               self.best_mcmc[0], self.build_gp(self.theta, self.time),
-                               self.disctime, self.xlabel, self.tmin, self.targetlabel,
-                               self.filesavetag)
+        self.gp = self.build_gp(self.theta, self.time)
+        sp.plot_mcmc_GP_tinygp(self)
 
         self.__fileparamsave()
         
@@ -1298,13 +1300,12 @@ class etsMAIN(object):
             return -tinygp.log_probability(y)
         
         #make folder
-        taggy = "-celerite-tinygp-matern32"
-        
-        
+        taggy = "-both-celerite-tinygp-matern32"
         
         ### custom masking: 
         if flux_mask is not None:
-            self.__custom_mask_it(flux_mask)
+            self.flux_mask = flux_mask
+            self.__custom_mask_it()
             
         # check for 8hr bin BEFORE trimming to percentages
         if binning: 
@@ -1324,9 +1325,10 @@ class etsMAIN(object):
         if bounds is False:
             taggy = taggy + "-noBounds"
             
-        self.__makepath(taggy)
+        self.__gen_output_folder(taggy)
        
-        #SET UP CELERITE                                               
+        #SET UP CELERITE   
+                                                   
         self.filesavetag1 = "-celerite-matern32"
         
         from celerite.modeling import Model
@@ -1334,12 +1336,10 @@ class etsMAIN(object):
         
         class MeanModel(Model):
             parameter_names = ("t0", "A", "beta", "b")
-
             def get_value(self, t):
                 t1 = t-self.t0
                 mod = np.heaviside((t1), 1) * self.A *np.nan_to_num((t1**self.beta), copy=False)
                 return mod + self.b
-
             
             def compute_gradient(self, t):
                 t1 = t-self.t0
@@ -1398,17 +1398,15 @@ class etsMAIN(object):
         self.gp.set_parameter_vector(soln.x)
         # Make the maximum likelihood prediction
         self.t = np.linspace(0, self.time[-1], 500)
-        mu, var = self.gp.predict(self.flux, self.t, return_var=True)
-        std = np.sqrt(var)
+        self.mu, var = self.gp.predict(self.flux, self.t, return_var=True)
+        self.std = np.sqrt(var)
 
         # Plot the data + scipy prediction
-        sp.plot_scipy_max(self.save_dir, self.filesavetag, self.targetlabel, 
-                          self.time, self.flux, self.error, self.t, mu, std,
-                          self.tmin, self.disctime)
+        sp.plot_scipy_max(self)
 
         self.init_values = soln.x
         self.args = (self.flux, self.gp)
-        self.logProbFunc = mc.log_probability_celeri
+        self.logProbFunc = mc.log_probability_celerite_mean
         self.labels = [r"$log\sigma$",r"$log\rho$", "t0", "A", "beta",  "b"] 
         self.filelabels = ["logsigma", "logrho", "t0", "A", "beta",  "b"]
         #self.plotFit = 10
@@ -1443,42 +1441,43 @@ class etsMAIN(object):
         np.random.seed(42)
         
         nwalkers = 100
-        ndim = len(self.labels) # labels are provided when you run it
-        p0 = np.zeros((nwalkers, ndim)) # init positions
+        self.ndim = len(self.labels) # labels are provided when you run it
+        p0 = np.zeros((nwalkers, self.ndim)) # init positions
         for n in range(len(p0)): # add a little spice
-            p0[n] = self.init_values + (np.ones(ndim) - 0.9) * np.random.rand(ndim) 
+            p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
         
         print("Starting burn-in chain")
         # ### Initial run
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.logProbFunc, args=self.args) # setup
-        sampler.run_mcmc(p0, n1, progress=True) # run it
+        self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.logProbFunc, args=self.args) # setup
+        self.sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag1, 
-                              sampler, self.labels, ndim, appendix = "burnin")
+        self.filesavetag = self.filesavetag1
+        sp.plot_chain_logpost(self, appendix = "burnin")
+        self.filesavetag = taggy
     
-        flat_samples = sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
         # get intermediate best
-        best_mcmc_inter = np.zeros((1,ndim))
-        for i in range(ndim):
-            best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
+        best_mcmc_inter = np.zeros((1,self.ndim))
+        for i in range(self.ndim):
+            best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
         print(best_mcmc_inter)
             
         # ### Main run
         np.random.seed(50)
-        p0 = np.zeros((nwalkers, ndim))
+        p0 = np.zeros((nwalkers, self.ndim))
         for i in range(nwalkers): # reinitialize the walkers around prev. best
-            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, ndim)
+            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, self.ndim)
            
-        sampler.reset()
+        self.sampler.reset()
         
         # ### CORRELATION FUNCTION/GP FIT
-        index = 0 # number of checks
-        autocorr = np.empty(n2) # total possible checks
+        self.index = 0 # number of checks
+        self.autocorr = np.empty(n2) # total possible checks
         old_tau = np.inf
-        autoStep = 100 # how often to check
-        autocorr_all = np.empty((int(n2/autoStep) + 2,len(self.labels))) # save all autocorr times
+        self.autoStep = 100 # how often to check
+        self.autocorr_all = np.empty((int(n2/self.autoStep) + 2,len(self.labels))) # save all autocorr times
         
         
         # GP setup
@@ -1493,20 +1492,19 @@ class etsMAIN(object):
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
         self.update_theta(soln.params)
-        self.GP_LL_all = [soln.state.fun_val]
+        self.GP_LL_all = np.asarray([soln.state.fun_val])
         
-
         # sample up to n2 steps
-        for sample in sampler.sample(p0, iterations=n2, progress=True):
+        for sample in self.sampler.sample(p0, iterations=n2, progress=True):
             
             #refit the GP every 1000 steps
-            if sampler.iteration % 1000 == 0:
+            if self.sampler.iteration % 1000 == 0:
                 #new residual:
-                flat_samples = sampler.get_chain(flat=True)
+                self.flat_samples = self.sampler.get_chain(flat=True)
                 # get intermediate best
-                best_mcmc_inter = np.zeros((1,ndim))
-                for i in range(ndim):
-                    best_mcmc_inter[0][i] = np.percentile(flat_samples[:, i], [16, 50, 84])[1]
+                best_mcmc_inter = np.zeros((1,self.ndim))
+                for i in range(self.ndim):
+                    best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
                     
                 res = make_residual(self.time, self.flux, best_mcmc_inter[0])
                 solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
@@ -1515,19 +1513,19 @@ class etsMAIN(object):
                 self.update_theta(soln.params)
             
             # check convergence every 100 steps
-            if sampler.iteration % autoStep:
+            if self.sampler.iteration % self.autoStep:
                 continue
             # Compute the autocorrelation time so far
-            tau = sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
+            tau = self.sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
             if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
                 print("autocorr is nan or inf")
                 print(tau)
-            autocorr[index] = np.mean(tau) # save mean autocorr time
-            autocorr_all[index] = tau # save all autocorr times for plotting
-            index += 1 # how many times have you saved it
+            self.autocorr[self.index] = np.mean(tau) # save mean autocorr time
+            self.autocorr_all[self.index] = tau # save all autocorr times for plotting
+            self.index += 1 # how many times have you saved it
         
             # Check convergence
-            self.converged = np.all((tau * 100) < sampler.iteration)
+            self.converged = np.all((tau * 100) < self.sampler.iteration)
             self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
             if self.converged:
                 print("Converged, ending chain")
@@ -1538,39 +1536,36 @@ class etsMAIN(object):
         #save output gp params:
         self.update_theta(soln.params)
         
-        sp.plot_tinygp_ll(self.save_dir, np.asarray(self.GP_LL_all), 
-                          self.targetlabel, self.filesavetag2)
+        self.filesavetag = self.filesavetag2
+        sp.plot_tinygp_ll(self)
+        self.filesavetag = taggy
         
         #plot autocorr things
-        sp.plot_autocorr_all(self.save_dir, self.targetlabel, index, autocorr, 
-                              autocorr_all, self.converged,
-                              autoStep, self.labels, self.filelabels, self.filesavetag1)
+        sp.plot_autocorr_all(self)
         
         #thin and burn out dump
-        tau = sampler.get_autocorr_time(tol=0)
-        if (np.max(tau) < (sampler.iteration/50)):
+        tau = self.sampler.get_autocorr_time(tol=0)
+        if (np.max(tau) < (self.sampler.iteration/50)):
             burnin = int(2 * np.max(tau))
             thinning = int(0.5 * np.min(tau))
         else:
             burnin = int(n2/4)
 
-        flat_samples = sampler.get_chain(discard=burnin, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self.save_dir, self.targetlabel, self.filesavetag1,
-                              sampler, self.labels, ndim, appendix = "production")
+        sp.plot_chain_logpost(self, appendix = "production")
         
-        sp.plot_param_samples_all(flat_samples, self.labels, self.save_dir, 
-                                  self.targetlabel, self.filesavetag1)
+        sp.plot_param_samples_all(self)
         
-        print(len(flat_samples), "samples post second run")
+        print(len(self.flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
-        self.best_mcmc = np.zeros((1,ndim))
-        self.upper_error = np.zeros((1,ndim))
-        self.lower_error = np.zeros((1,ndim))
-        for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+        self.best_mcmc = np.zeros((1,self.ndim))
+        self.upper_error = np.zeros((1,self.ndim))
+        self.lower_error = np.zeros((1,self.ndim))
+        for i in range(self.ndim):
+            mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             q = np.diff(mcmc)
             print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
             self.best_mcmc[0][i] = mcmc[1]
@@ -1578,23 +1573,23 @@ class etsMAIN(object):
             self.lower_error[0][i] = q[0]
             
      
-        logprobcelerite, blob = sampler.compute_log_prob(self.best_mcmc)
+        logprobcelerite, blob = self.sampler.compute_log_prob(self.best_mcmc)
         
         print("neg. log prob for celerite: ", logprobcelerite * -1)
-        self.BIC_celerite = ndim * np.log(len(self.time)) - 2 * (logprobcelerite * -1)
+        self.BIC_celerite = self.ndim * np.log(len(self.time)) - 2 * (logprobcelerite * -1)
         print("BIC (celerite) ", self.BIC_celerite)
         
         #print("Now need to calc prob for JUST model, and then prob for tinygp")
         tinygpll = float(self.GP_LL_all[-1]) #final neg ll
         
-        #set up a new sampler with the plain format
+        #set up a new self.sampler with the plain format
         argy = (self.time, self.flux, self.error)
-        sampler2 = emcee.EnsembleSampler(nwalkers, 4, 
+        self.sampler2 = emcee.EnsembleSampler(nwalkers, 4, 
                                          mc.log_probability_singlepower_noCBV, 
                                          args=argy)
-        logprobplain, blob = sampler2.compute_log_prob(self.best_mcmc[:,0:4])
+        logprobplain, blob = self.sampler2.compute_log_prob(self.best_mcmc[:,0:4])
         logprobwgp = (-1* logprobplain) + tinygpll #positive
-        self.BIC_tinygp = ndim * np.log(len(self.time)) - 2 * logprobwgp
+        self.BIC_tinygp = self.ndim * np.log(len(self.time)) - 2 * logprobwgp
         print("BIC (tinygp): ", self.BIC_tinygp)
         
 
@@ -1602,26 +1597,13 @@ class etsMAIN(object):
         kernel2 = terms.Matern32Term(log_sigma=self.best_mcmc[0][4], 
                                     log_rho=self.best_mcmc[0][5], 
                                     bounds={})
+        self.gpcelerite = celerite.GP(kernel2, mean=0.0)
+        self.gpcelerite.compute(self.time, self.error)
+        self.gptinygp = self.build_gp(self.theta, self.time)
         
-        plot_celerite = celerite.GP(kernel2, mean=0.0)
-        plot_celerite.compute(self.time, self.error)
+        sp.plot_celerite_tinygp_comp(self)
 
-
-        sp.plot_celerite_tinygp_comp(self.save_dir, self.time, self.flux, 
-                                     self.targetlabel, taggy, 
-                                     self.best_mcmc, plot_celerite,
-                                     self.build_gp(self.theta, self.time), 
-                                     self.disctime, self.xlabel, self.tmin)
-
-        with open(self.parameterSaveFile, 'w') as file:
-            #file.write(self.filesavetag + "-" + str(datetime.datetime.now()))
-            file.write("{best}\n".format(best=self.best_mcmc[0]))
-            file.write("{upper}\n".format(upper=self.upper_error[0]))
-            file.write("{lower}\n".format(lower=self.lower_error[0]))
-            file.write("tinygp log sigma, rho: \n {one},{two}\n".format(one=self.theta['log_sigma'],
-                                                                    two = self.theta['log_rho']))
-            file.write("BIC celerite:{bicy:.3f}\n".format(bicy=self.BIC_celerite[0]))
-            file.write("BIC tingyp:{bicy:.3f}\n".format(bicy=self.BIC_tinygp[0]))
-            file.write("Converged:{conv}".format(conv=self.converged))
+        self.__fileparamsave()
+        return
             
     

@@ -94,7 +94,11 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                 i=i+1
     return trlc
 
-
+# trlc = run_all_fits(1, data_dir, save_dir, TNSFile,
+#                  filekey = "-tessreduce",
+#                  goodList=gList, cbv_dir=None, quaternion_raw_dir=None,
+#                  quaternion_txt_dir=None, 
+#                  fraction=0.6, binning=False, n1=10000, n2=40000)
 
 def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                filekey = "-tessreduce", goodList=None, fraction=None, 
@@ -154,10 +158,10 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
 
     return trlc
 
-trlc = run_all_GP('celerite', data_dir, save_dir, TNSFile,
+trlc = run_all_GP('celerite_mean', data_dir, save_dir, TNSFile,
                   filekey = "-tessreduce",
                   goodList=gList, 
-                  fraction=0.6, binning=False, n1=5000, n2=40000, bounds=False)
+                  fraction=0.6, binning=False, n1=3000, n2=15000, bounds=True)
 
 
 def run_all_matern32comp(data_dir, save_dir, TNSFile,

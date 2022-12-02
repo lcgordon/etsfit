@@ -34,8 +34,10 @@ def beta_histo(foldersave, betaall, convy ):
     plt.show()
     plt.close()
 
-def plot_t0_disc_beta(foldersave, disc_all, params_all, upper_e, lower_e):
+def plot_t0_disc_beta(foldersave, disc_all, params_all, upper_e, lower_e, 
+                      params_all2, upper_e2, lower_e2):
     rcParams['figure.figsize'] = 8,8
+    i=1
     for k in params_all.keys():
         t_b = disc_all[k] - params_all[k][0]
         print(k, t_b)
@@ -44,14 +46,38 @@ def plot_t0_disc_beta(foldersave, disc_all, params_all, upper_e, lower_e):
         l_e_t = lower_e[k][0]
         u_e_b = upper_e[k][2]
         l_e_b = lower_e[k][2]
-        plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
-                     yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
-                     color='blue')
+        if i==1:
+            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
+                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
+                         color='blue', label="No GP")
+            i=2
+        else:
+            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
+                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
+                         color='blue')
+    i = 1
+    for k in params_all2.keys():
+        t_b = disc_all[k] - params_all2[k][2]
+        print(k, t_b)
+        beta = params_all2[k][4]
+        u_e_t = upper_e2[k][2]
+        l_e_t = lower_e2[k][2]
+        u_e_b = upper_e2[k][4]
+        l_e_b = lower_e2[k][4]
+        if i==1:
+            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
+                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
+                         color='green', label="With GP")
+            i=2
+        else:
+            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
+                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
+                         color='green')
 
     plt.xlabel(r"$\beta$")
     plt.ylabel(r"Disc. time. - $t_0$ (JD)")
     plt.title(r"Time between $t_0$ and Disc. time versus $\beta$")
-    #plt.legend()
+    plt.legend()
     plt.tight_layout()
     plt.savefig("{f}/disc-t0-beta.png".format(f=foldersave))
     rcParams['figure.figsize'] = 16,6
@@ -164,10 +190,11 @@ gList = ["2018exc", "2018fhw", "2018fub", "2020tld",
          "2020zbo", "2020hvq", "2018hzh",
          "2020hdw", "2020bj", "2019gqv"]
 
+
 import etsfit.utils.batch_analyze as ba
 
 #disc_all, params_all, converged_all, upper_all, lower_all = ba.retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList)
 
-# big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
-#                          "-singlepower-0.6", 
-#                          fraction = 0.6, binning=False)
+big_plot_singlepower(bigInfoFile, datafolder, foldersave, gList,
+                          "-singlepower-0.6", 
+                          fraction = 0.6, binning=False)

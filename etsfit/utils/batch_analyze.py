@@ -24,10 +24,10 @@ quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
 quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
 bigInfoFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 
-#gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
- #         "2020zbo", "2020hvq", "2018hzh",
-  #        "2020hdw", "2020bj", "2019gqv"]
-gList = ["2020tld"]
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
+          "2020zbo", "2020hvq", "2018hzh",
+          "2020hdw", "2020bj", "2019gqv"]
+#gList = ["2020tld"]
 #filepath = "/Users/lindseygordon/research/urop/paperOutput/2020tld2921/singlepower-0.6/2020tld2921-singlepower-0.6-output-params.txt"
 
 
@@ -66,14 +66,16 @@ def retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList):
     #retrieve an d print out the things: 
     for root, dirs, files in os.walk(foldersave):
         for name in files:
-            if name.endswith("singlepower-0.6-output-params.txt"):
+            if (name.endswith("singlepower-0.6-output-params.txt") and
+                'celerite' not in name and 'tinygp' not in name
+                ):
                 targ = name.split("-")[0][:-4]
                 #print(targ)
                 if targ not in gList:
                     continue
                 
                 filepath = root + "/" + name
-                #print(filepath)
+                print(filepath)
                 
                 (params,  upper_e, 
                  lower_e,  converg) = extract_singlepower_all(filepath)
@@ -90,41 +92,40 @@ def retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList):
 
 def extract_singlepower_all(filepath):
     
-    #main params:
-    filerow1 = np.loadtxt(filepath, skiprows=0, dtype=str, max_rows=1)
-    if filerow1[0] == "[": #first string is just [
-        params = (float(filerow1[1]), float(filerow1[2]), 
-                  float(filerow1[3]), float(filerow1[4][:-1]))
-    else: #first string contains [
-        params = (float(filerow1[0][1:]), float(filerow1[1]), 
-                  float(filerow1[2]), float(filerow1[3][:-1]))
-    
-    #upper error:
-    filerow3 = np.loadtxt(filepath, skiprows=1, dtype=str, max_rows=1)
-    if filerow3[0] == "[": #first string is just [
-        upper_e = (float(filerow3[1]), float(filerow3[2]), 
-                  float(filerow3[3]), float(filerow3[4][:-1]))
-    else: #first string contains [
-        upper_e = (float(filerow3[0][1:]), float(filerow3[1]), 
-                  float(filerow3[2]), float(filerow3[3][:-1]))
-    
-    filerow4 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    if filerow3[0] == "[": #first string is just [
-        lower_e = (float(filerow4[1]), float(filerow4[2]), 
-                  float(filerow4[3]), float(filerow4[4][:-1]))
-    else: #first string contains [
-        lower_e = (float(filerow4[0][1:]), float(filerow4[1]), 
-                  float(filerow4[2]), float(filerow4[3][:-1]))
-    
-    #get convergence
-    filerow9 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-    if "True" in filerow9:
+    # target label row 0
+    # bic row 1
+    # convg row 2
+    #print(filepath)
+    filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+    #print("conv", filerow1)
+    if "True" in filerow1:
         converg = True
     else:
         converg = False
+        
+    #main params:
+    #params row 1: 
+    filerow1 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+    #print("params1", filerow1)
+    params = (float(filerow1[0]), float(filerow1[1]), 
+                      float(filerow1[2]), float(filerow1[3]))
+    
+    #upper error:
+    filerow1 = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1)
+    #print("params1", filerow1)
+    upper_e = (float(filerow1[0]), float(filerow1[1]), 
+                      float(filerow1[2]), float(filerow1[3]))
+    
+    filerow1 = np.loadtxt(filepath, skiprows=7, dtype=str, max_rows=1)
+    #print("params1", filerow1)
+    lower_e = (float(filerow1[0]), float(filerow1[1]), 
+                      float(filerow1[2]), float(filerow1[3]))
     return params, upper_e, lower_e, converg
 
-#retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList)
+
+(disc_all1, params_all1, 
+ converged_all1, upper_all1, 
+ lower_all1) = retrieve_all_singlepower06(bigInfoFile, datafolder, foldersave, gList)
 
 
 def retrieve_all_singlepower06celerite(bigInfoFile, datafolder, foldersave, gList):
@@ -140,7 +141,7 @@ def retrieve_all_singlepower06celerite(bigInfoFile, datafolder, foldersave, gLis
         for name in files:
             if name.endswith("celerite-matern32-0.6-output-params.txt"):
                 targ = name.split("-")[0][:-4]
-                print(targ)
+                #print(targ)
                 if targ not in gList:
                     continue
                 
@@ -163,8 +164,9 @@ def extract_celerite_all(filepath):
     # target label row 0
     # bic row 1
     # convg row 2
+    #print(filepath)
     filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    print(filerow1)
+    #print("conv", filerow1)
     if "True" in filerow1:
         converg = True
     else:
@@ -172,24 +174,27 @@ def extract_celerite_all(filepath):
     
     #params row 1: 
     filerow1 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
-    
+    #print("params1", filerow1)
     sigsq, rho, t0, A = (np.exp(2*float(filerow1[0])), 
                          np.exp(float(filerow1[1])), 
                          float(filerow1[2]), 
                          float(filerow1[3]))
     
-    filerow2 = np.loadtxt(filepath, skiprows=4, dtype=str, max_rows=1)    
+    filerow2 = np.loadtxt(filepath,  skiprows=4, dtype=str, max_rows=1)  
+    #print("params2", filerow2)
     beta, B = (float(filerow2[0]), float(filerow2[1]))                                    
 
     params = (sigsq, rho, t0, A, beta, B)
     
     #upper error
     filerow1 = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1)
+    #print(filerow1)
     sigsq, rho, t0, A = (float(filerow1[0]), 
                          float(filerow1[1]), 
                          float(filerow1[2]), 
                          float(filerow1[3]))
     filerow2 = np.loadtxt(filepath, skiprows=6, dtype=str, max_rows=1)    
+    #print(filerow2)
     beta, B = (float(filerow2[0]), float(filerow2[1]))                                    
 
     upper_e = (sigsq, rho, t0, A, beta, B)
@@ -207,9 +212,20 @@ def extract_celerite_all(filepath):
     
     return params, upper_e, lower_e, converg
 
-(disc_all, params_all, 
- converged_all, upper_all, 
- lower_all) = retrieve_all_singlepower06celerite(bigInfoFile, datafolder, 
+(disc_all2, params_all2, 
+ converged_all2, upper_all2, 
+ lower_all2) = retrieve_all_singlepower06celerite(bigInfoFile, datafolder, 
                                                  foldersave, gList)
-
-
+#%%
+#print them out in table form:
+for k in params_all2.keys():
+    t0 = np.abs(params_all1[k][0] - params_all2[k][2])
+    A = np.abs(params_all1[k][1] - params_all2[k][3])
+    beta = np.abs(params_all1[k][2] - params_all2[k][4])
+    b = np.abs(params_all1[k][3] - params_all2[k][5])
+    print("{k} & {t0:.2f} & {A:.2f} & {be:.2f} & {b:.2f}".format(k=k,t0=t0, 
+                                                                 A=A, be=beta, b=b))
+    # print(k, params_all[k][2:])
+    # print("{k} & {sig:.2f} & {r} ".format(k=k, sig = params_all2[k][0], 
+    #                                       r=params_all2[k][1]))
+#%%
