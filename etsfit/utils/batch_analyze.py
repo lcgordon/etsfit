@@ -139,7 +139,7 @@ def retrieve_all_singlepower06celerite(bigInfoFile, datafolder, foldersave, gLis
     #retrieve an d print out the things: 
     for root, dirs, files in os.walk(foldersave):
         for name in files:
-            if name.endswith("celerite-matern32-0.6-output-params.txt"):
+            if name.endswith("celerite-matern32-residual-0.6-bounded-output-params.txt"):
                 targ = name.split("-")[0][:-4]
                 #print(targ)
                 if targ not in gList:
@@ -164,7 +164,7 @@ def extract_celerite_all(filepath):
     # target label row 0
     # bic row 1
     # convg row 2
-    #print(filepath)
+    print(filepath)
     filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
     #print("conv", filerow1)
     if "True" in filerow1:
@@ -175,8 +175,8 @@ def extract_celerite_all(filepath):
     #params row 1: 
     filerow1 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
     #print("params1", filerow1)
-    sigsq, rho, t0, A = (np.exp(2*float(filerow1[0])), 
-                         np.exp(float(filerow1[1])), 
+    sigsq, rho, t0, A = (float(filerow1[0]), 
+                         float(filerow1[1]), 
                          float(filerow1[2]), 
                          float(filerow1[3]))
     
@@ -219,13 +219,16 @@ def extract_celerite_all(filepath):
 #%%
 #print them out in table form:
 for k in params_all2.keys():
-    t0 = np.abs(params_all1[k][0] - params_all2[k][2])
-    A = np.abs(params_all1[k][1] - params_all2[k][3])
-    beta = np.abs(params_all1[k][2] - params_all2[k][4])
-    b = np.abs(params_all1[k][3] - params_all2[k][5])
+    t0 = np.abs(params_all1[k][0] - params_all2[k][0])
+    A = np.abs(params_all1[k][1] - params_all2[k][1])
+    beta = np.abs(params_all1[k][2] - params_all2[k][2])
+    b = np.abs(params_all1[k][3] - params_all2[k][3])
     print("{k} & {t0:.2f} & {A:.2f} & {be:.2f} & {b:.2f}".format(k=k,t0=t0, 
-                                                                 A=A, be=beta, b=b))
-    # print(k, params_all[k][2:])
-    # print("{k} & {sig:.2f} & {r} ".format(k=k, sig = params_all2[k][0], 
-    #                                       r=params_all2[k][1]))
+                                                                A=A, be=beta, b=b))
+for k in params_all2.keys():   
+    #print(k, params_all2[k])
+    t0, A, beta, b, sig, rho = params_all2[k]
+    print("{k} & {t0:.2f} & {A:.2f} & {be:.2f} & {b:.2f}".format(k=k,t0=t0, 
+                                                                A=A, be=beta, b=b))
+    print(" & {sig:.2f} & {r:.2f} ".format(k=k, sig = np.exp(2*sig), r=np.exp(rho)))
 #%%

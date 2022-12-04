@@ -262,7 +262,7 @@ def plot_chain_logpost(ets, appendix=""):
     for i in range(ets.ndim):
         ax = axes[i+1]
         ax.plot(samples[:, :, i], "k", alpha=0.3)
-        ax.set_xlim(0, len(ets.samples))
+        ax.set_xlim(0, len(samples))
         ax.set_ylabel(ets.labels[i], fontsize=20)
         ax.yaxis.set_label_coords(-0.1, 0.5)
         ax.tick_params('y', labelsize=18)
@@ -362,8 +362,8 @@ def plot_tinygp_ll(ets):
         - filesavetag (str) filename used for this fit
     """
     fig, ax1 = plt.subplots(figsize=(10,10))
-    x = np.arange(0, len(ets.gpll), 1) * 1000 #x axis
-    ax1.scatter(x, ets.gpll)
+    x = np.arange(0, len(ets.GP_LL_all), 1) * 1000 #x axis
+    ax1.scatter(x, ets.GP_LL_all)
     ax1.set_xlabel("Step")
     ax1.set_ylabel("GP Neg. Log Likelihood")
     ax1.set_title(ets.targetlabel + "  GP log likelihood over MCMC steps")
@@ -467,7 +467,7 @@ def plot_mcmc_GP_celerite_residual(ets):
     
     plot_mcmc_model(ets, tplot, model, dplot, t0plot)
     
-    gp_plots(ets, tplot, model, dplot, t0plot, bg, 
+    gp_plots(ets, tplot, mod, dplot, t0plot, bg, 
              gpfiletag = "MCMC-celerite-residual-TriplePlotResiduals")
     return
 
@@ -481,7 +481,7 @@ def plot_mcmc_GP_tinygp(ets):
         
     """
 
-    t0, A,beta,B = ets.best_mcmc[:4]
+    t0, A,beta,B = ets.best_mcmc[0][:4]
     t1 = ets.time - t0
     mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
 

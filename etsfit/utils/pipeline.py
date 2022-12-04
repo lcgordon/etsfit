@@ -126,7 +126,7 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
     i = 0
     for root, dirs, files in os.walk(data_dir):
         for name in files:
-            if name.endswith(filekey) and i==0:
+            if name.endswith(filekey):
                 fname = root + "/" + name
                 #get stuff
                 (time, flux, error, targetlabel, 
@@ -153,15 +153,16 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                 trlc.run_GP_fit(winfilter, binning=binning, fraction=fraction, 
                                n1=n1, n2=n2, gpUSE=GPtype, bounds=bounds)
 
+                print(trlc.filesavetag, trlc.best_mcmc)
                 gc.collect()
                 i=i+1
 
     return trlc
 
-trlc = run_all_GP('celerite_mean', data_dir, save_dir, TNSFile,
+trlc = run_all_GP('celerite_residual', data_dir, save_dir, TNSFile,
                   filekey = "-tessreduce",
                   goodList=gList, 
-                  fraction=0.6, binning=False, n1=3000, n2=15000, bounds=True)
+                  fraction=0.6, binning=False, n1=5000, n2=25000, bounds=False)
 
 
 def run_all_matern32comp(data_dir, save_dir, TNSFile,

@@ -766,7 +766,7 @@ class etsMAIN(object):
                                        fraction, n1, n2, thinParams, bounds=bounds)
         elif 'celerite_residual' in self.gpUSE:
             self.__run_GP_fit_celerite_residual(flux_mask, binning, 
-                                       fraction, n1, n2, thinParams)
+                                       fraction, n1, n2, thinParams, bounds=bounds)
             
         else: #tinygp options
             ### THEN DO CUSTOM MASKING if both not already cut and indices are given
@@ -812,7 +812,7 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_expsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
-            if bounds is True: #sigma, rho
+            if bounds: #sigma, rho
                 self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
                                              [np.log(21.2), np.log(3)]])
             else: 
@@ -826,7 +826,7 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_matern32 #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
-            if bounds is True: 
+            if bounds: 
                 self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
                                              [np.log(21.2), np.log(3)]])
             else: 
@@ -841,7 +841,7 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_expsinsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscalegamma
-            if bounds is True: #sigma, rho
+            if bounds: #sigma, rho
                 self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1), np.log(1)], 
                                              [np.log(21.2), np.log(3), np.log(3)]])
             else: 
@@ -852,6 +852,10 @@ class etsMAIN(object):
     
         if self.fractiontrimmed and self.fract is not None:
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+            
+        if bounds:
+            self.filesavetag = self.filesavetag + "-bounded"
+            
         return
     
     def __run_GP_fit_celerite_residual(self, flux_mask, binning, fraction=None, 

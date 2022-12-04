@@ -542,6 +542,8 @@ def tr_downloader(file, data_dir, cdir):
             continue
     return failures
 
+    
+
 def tr_load_lc(file, printname=True):
     """
     Given a filename, load in the data. 
