@@ -31,13 +31,13 @@ def load_lygos_csv(file):
     """
     data = pd.read_csv(file, sep = ',', header = 0)
     t = np.asarray(data[data.columns[0]])
-    ints = np.asarray(data[data.columns[1]])
+    flux = np.asarray(data[data.columns[1]])
     error = np.asarray(data[data.columns[2]])
     
     data = pd.read_csv(file.replace("rflxtarg", "rflx"), sep = ',', header = 0)
     bg = np.asarray(data[data.columns[-2]])
     
-    return t, ints, error, bg
+    return t, flux, error, bg
  
 def get_disctime(file, name):
     """
@@ -61,8 +61,6 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
     Runs an RMS filter over the light curve and returns an array of 
     0's (bad) and 1's (good) that can be used in the custom masking
     argument of other functions. 
-    
-    This DOES NOT save the filter output inside the object. 
     
     Defaults the inner window as len(self.time)*0.005 and the outer as
     inner*10.
@@ -145,6 +143,12 @@ def sigmaclip(time, flux,error, bg, axis=0):
 
 
 def data_masking(obj):
+    """ 
+    Mask the data using the object's flux_mask attribute
+    ---------------------------------
+    Params:
+        - obj (ets object)
+    """
     mask = np.nonzero(obj.flux_mask) # which ones you are keeping
     obj.time = obj.time[mask]
     obj.flux = obj.flux[mask]
@@ -574,3 +578,66 @@ def tr_load_lc(file, printname=True):
     time, flux, error, bg = sigmaclip(time, flux, error, None, axis=0)
         
     return time, flux, error, targetlabel, sector, camera, ccd
+
+def mag_convert_file(TNSFile):
+    """ 
+    Convert to filters to convert the magnitude for use in ticgen
+    """
+    return
+
+#%%
+# TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+# tn = pd.read_csv(TNSFile)
+# #print(tn.columns)    
+
+# tn1 = tn[["Name","Discovery Mag/Flux","Discovery Filter"]]
+# #print(tn1.columns)
+
+# # now the issue becomes. what are the filters I need to convert for:
+# filts = np.unique(tn1["Discovery Filter"])
+# print(filts)
+
+# cols = ["Name","Tmag","Vmag","Jmag","Bmag","Bphmag","Ksmag","Hmag","Gmag"]
+# df = pd.DataFrame(columns=cols)
+
+# import pyphot # PYPHOT CONTAINS TESS???? 
+# from pyphot.svo import get_pyphot_filter as get_filter_from_svo # this has rest
+# # get the internal default library of passbands filters
+# lib = pyphot.get_library()
+# print("Library contains: ", len(lib), " filters")
+# # find all filter names that relates to IRAC
+# # and print some info
+# ftess= lib["TESS"]
+# for name in ftess:
+#     lib[name].info(show_zeropoints=True)
+    
+# # for each in the tn1
+# for i in range(len(tn1)):
+#     filteri = tn1["Discovery Filter"][i]
+#     print(filteri)
+#     mags = tn1["Discovery Mag/Flux"][i]
+    
+#     if filteri == 'r-ZTF':
+#         f = lib['ZTF_r']
+        
+        
+#     fluxes = 10**((mags + f.Vega_zero_mag)/-2.5) #flux in that filter's band
+#     # then convert to the tess mag? 
+#     tessflux = 
+#     mags = -2.5 * np.log10(tessflux) - ftess.Vega_zero_mag 
+        
+# # within pyphot: 
+# # get the library for the filter
+# # convert to the correct flux for the filter
+# convert that flux into TESS flux (?)
+# calc tess magnitude    
+        
+        
+        
+    
+    
+# put in name
+# identify what its filter is
+# make appropriate conversion to one of given filts (can convert to gaia G for all? )
+# put into df
+# save df.csv

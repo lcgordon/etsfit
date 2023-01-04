@@ -34,52 +34,43 @@ def beta_histo(save_dir, betaall, convy ):
     plt.show()
     plt.close()
 
-def plot_t0_disc_beta(save_dir, disc_all, params_all, upper_e, lower_e, 
-                      params_all2, upper_e2, lower_e2):
+def plot_A_beta(save_dir, disc_all, params_all, upper_e):
+    """ 
+    give params_all, upper_e as arrays of dictionaries
+    """
     rcParams['figure.figsize'] = 8,8
-    i=1
-    for k in params_all.keys():
-        t_b = disc_all[k] - params_all[k][0]
-        print(k, t_b)
-        beta = params_all[k][2]
-        u_e_t = upper_e[k][0]
-        l_e_t = lower_e[k][0]
-        u_e_b = upper_e[k][2]
-        l_e_b = lower_e[k][2]
-        if i==1:
-            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
-                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
-                         color='blue', label="No GP")
-            i=2
-        else:
-            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
-                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
-                         color='blue')
-    i = 1
-    for k in params_all2.keys():
-        t_b = disc_all[k] - params_all2[k][2]
-        print(k, t_b)
-        beta = params_all2[k][4]
-        u_e_t = upper_e2[k][2]
-        l_e_t = lower_e2[k][2]
-        u_e_b = upper_e2[k][4]
-        l_e_b = lower_e2[k][4]
-        if i==1:
-            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
-                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
-                         color='green', label="With GP")
-            i=2
-        else:
-            plt.errorbar(beta, t_b, xerr=np.asarray([[l_e_b],[u_e_b]]),
-                         yerr=np.asarray([[l_e_t],[u_e_t]]), fmt='o',
-                         color='green')
+    i=0
+    color_arr = ['pink','red', 'orange', 'yellow', 'lime', 
+                 'darkgreen', 'cyan', 'blue', 'purple', 'black']
+    for k in params_all[0].keys(): #for each SN
+        tplot = []
+        tplote = []
+        bplot = []
+        bplote = []
+        for j in range(len(params_all)): #for each input set of parameters
+            # get set of params
+            pall = params_all[j]
+            uall = upper_e[j]
+            # calc the values
+            # put into the arrays
+            #tplot.append( disc_all[k] - pall[k][0] )
+            tplot.append(pall[k][1])
+            tplote.append( uall[k][1])
+            bplot.append(pall[k][2])
+            bplote.append(uall[k][2])
 
-    plt.xlabel(r"$\beta$")
-    plt.ylabel(r"Disc. time. - $t_0$ (JD)")
-    plt.title(r"Time between $t_0$ and Disc. time versus $\beta$")
+        # plot the arrays in one color (only one label)
+        plt.errorbar(tplot, bplot, xerr=np.asarray(tplote), 
+                     yerr=np.asarray(bplote),  fmt='o', color=color_arr[i])
+        i = i + 1
+
+
+    plt.ylabel(r"$\beta$")
+    plt.xlabel(r"A")
+    plt.title(r"A versus $\beta$")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("{f}/disc-t0-beta.png".format(f=save_dir))
+    plt.savefig("{f}/A-beta.png".format(f=save_dir))
     rcParams['figure.figsize'] = 16,6
     return
 
@@ -102,8 +93,9 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
     n = 0
     (disc_all, params_all, 
      converged_all, 
-     upper_all, lower_all) = ba.retrieve_all_singlepower06(TNSFile, data_dir, 
-                                                           save_dir, gList)
+     upper_all, lower_all) = ba.retrieve_all_singlepower(TNSFile, data_dir, save_dir, 
+                                                         targetlist, 
+                                   datatag="-tessreduce", paramstag="singlepower-0.6")
     
     for root, dirs, files in os.walk(data_dir):
         for name in files:
@@ -173,10 +165,8 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
     fig.show()   
     plt.savefig("{f}/collated-single-powerlaws.png".format(f=save_dir))            
     return trlc
-from celerite.modeling import Model
-from scipy.optimize import minimize
-import celerite
-from celerite import terms
+
+
 
 def big_plot_celerite(TNSFile, data_dir, save_dir, targetlist,
                          filetag, 
@@ -186,6 +176,8 @@ def big_plot_celerite(TNSFile, data_dir, save_dir, targetlist,
     """
     import etsfit.utils.batch_analyze as ba
     import etsfit.utils.utilities as ut
+    import celerite
+    from celerite import terms
     ncols = 2
     nrows = int(len(targetlist)/2)
     fig, ax = plt.subplots(nrows, ncols, sharex=False,
@@ -197,8 +189,9 @@ def big_plot_celerite(TNSFile, data_dir, save_dir, targetlist,
     n = 0
     (disc_all, params_all, 
      converged_all, 
-     upper_all, lower_all) = ba.retrieve_all_singlepower06celerite(TNSFile, data_dir, 
-                                                           save_dir, gList)
+     upper_all, lower_all) = ba.retrieve_all_celerite(TNSFile, data_dir, save_dir, 
+                                                         targetlist, 
+                                   datatag="-tessreduce", paramstag="singlepower-0.6")
     
     for root, dirs, files in os.walk(data_dir):
         for name in files:
@@ -244,7 +237,7 @@ def big_plot_celerite(TNSFile, data_dir, save_dir, targetlist,
                 kernel = terms.Matern32Term(log_rho=rho, log_sigma=sig)
                 gp = celerite.GP(kernel, mean=0.0)
                 gp.compute(trlc.time, trlc.error)
-                bg = gp.predict(trlc.flux-mod, trlc.time, return_cov=False)
+                bg = gp.predict(trlc.flux-model, trlc.time, return_cov=False)
                 model = model + bg
                 tplot = trlc.time + trlc.tmin - 2457000
                 
@@ -284,40 +277,40 @@ TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18t
 gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
           "2020zbo", "2020hvq", "2018hzh",
           "2020hdw", "2020bj", "2019gqv"]
-big_plot_celerite(TNSFile, data_dir, save_dir, gList,
-                  " ", fraction = 0.6, binning=False)
+# big_plot_celerite(TNSFile, data_dir, save_dir, gList,
+#                   " ", fraction = 0.6, binning=False)
+import etsfit.utils.batch_analyze as ba
 
-#%%
-gList = ["2020tld"]
+(disc_all1, params_all1, 
+  converged_all1, upper_all1, 
+  lower_all1) = ba.retrieve_all_singlepower(TNSFile, data_dir, save_dir, gList, 
+                                datatag="-tessreduce", paramstag="singlepower-0.6")
 
-p1 = "-celerite-matern32-mean-model-0.6-output-params.txt"
-params1 = [ 15.8931,  5.0456, 1.1874,  8.8434, 1.6000,  -5.2059 ]
-p2 = "-celerite-matern32-mean-model-0.6-bounded-output-params.txt"
-params2 = [ 14.9917,  1.8097, 1.0108,  -12.8727, 1.5498,  0.0117 ]
-p3 = "-celerite-matern32-residual-0.6-output-params.txt"
-params3 = [15.5260,  4.2888,  1.2463,  7.0039, 1.6053,  -5.1970 ]
-p4 = "-celerite-matern32-residual-0.6-bounded-output-params.txt"
-params4 = [15.5231,  4.2843,  1.2485,  6.9995,  1.4976,  0.0004 ]
-    
-pall = [params1, params2, params3, params4]                
-           
-ncols = 4
-nrows = 2
-fig, ax = plt.subplots(nrows, ncols, sharex=True, sharey=True,
-                       figsize=(8*ncols, 3*nrows))
-
-for i in range(4):
-    best_mcmc = pall[i]
-
-    tplot = trlc.time + trlc.tmin - 2457000
-    dplot = trlc.disctime + trlc.tmin - 2457000
-    t0plot = t0 + trlc.tmin - 2457000
-
-
-    t0, A,beta,B = ets.best_mcmc[0][:4]
-    t1 = ets.time - t0
-    mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
-    
-    ets.gp.set_parameter_vector(ets.best_mcmc[0][4:])
-    bg = ets.gp.predict(ets.flux-mod, ets.time, return_cov=False)
+(disc_all2, params_all2, 
+ converged_all2, upper_all2, 
+ lower_all2) = ba.retrieve_all_celerite(TNSFile, data_dir, save_dir, gList,
+                           datatag="-tessreduce", 
+                           paramstag="residual-0.6")
+                                        
+(disc_all3, params_all3, 
+ converged_all3, upper_all3, 
+ lower_all3) = ba.retrieve_all_celerite(TNSFile, data_dir, save_dir, gList,
+                           datatag="-tessreduce", 
+                           paramstag="residual-0.6-bounded-0-25day")     
+                                        
+(disc_all4, params_all4, 
+ converged_all4, upper_all4, 
+ lower_all4) = ba.retrieve_all_celerite(TNSFile, data_dir, save_dir, gList,
+                           datatag="-tessreduce", 
+                           paramstag="residual-0.6-bounded-0-5day") 
+                                        
+(disc_all5, params_all5, 
+ converged_all5, upper_all5, 
+ lower_all5) = ba.retrieve_all_celerite(TNSFile, data_dir, save_dir, gList,
+                           datatag="-tessreduce", 
+                           paramstag="residual-0.6-bounded")                                        
+         
+pall = [params_all1, params_all2, params_all3, params_all4, params_all5]    
+uall = [upper_all1, upper_all2, upper_all3, upper_all4, upper_all5]                          
+plot_t0_disc_beta(save_dir, disc_all1, pall, uall)
 

@@ -87,7 +87,63 @@ class etsMAIN(object):
         self.fractiontrimmed = False #not trimmed
         self.binned = False #not binned
         self.quats_cbvs = None
+        self.using_GP = False
+        self.cleaningdone = False
         return
+    
+    def reset(self):
+        """
+        Removes all settings in the object that may have been overwritten
+        by an MCMC run. 
+        ---------------------------------------------------
+        """
+        print("WARNING")
+        print("reset() will wipe out anything you have loaded into the object! ")
+        self.save_dir = self.save_dir_perm
+        self.cbvquat_access = False #cannot currently access cbvs/quaternions
+        self.fractiontrimmed = False #not trimmed
+        self.binned = False #not binned
+        self.quats_cbvs = None
+        self.using_GP = False
+        self.cleaningdone = False
+        if hasattr(self, 'time'):
+            del self.time
+            del self.flux
+            del self.error
+            del self.BGdata
+            del self.disctime
+            del self.targetlabel
+            del self.sector
+            del self.camera
+            del self.ccd
+            del self.tmin
+            del self.bic_all 
+            del self.params_all 
+            del self.xlabel 
+            del self.ylabel
+        if hasattr(self, 'fitType'):
+            del self.fitType 
+            del self.plotFit
+            del self.args
+            del self.logProbFunc 
+            del self.filesavetag 
+            del self.labels 
+            del self.filelabels
+            del self.init_values 
+        if hasattr(self, 'flux_mask'):  
+            del self.flux_mask 
+        if hasattr(self, 'fract'):
+            del self.fract
+        if hasattr(self, 'parameterSaveFile'):
+            del self.parameterSaveFile
+        if hasattr(self, 'filesavetag'):
+            del self.filesavetag
+        if hasattr(self, 'sampler'):
+            del self.sampler 
+            del self.best_mcmc
+        
+        return
+    
     
     def use_quaternions_cbvs(self, cbv_dir, quaternion_raw_dir, 
                              quaternion_txt_dir):
@@ -204,7 +260,7 @@ class etsMAIN(object):
         self.params_all = []
         self.xlabel = "Time [BJD - 2457000]"
         self.ylabel = "Flux (e-/s)"
-        self.cleaningdone = False
+        
         return
     
     def test_plot(self):
@@ -277,7 +333,7 @@ class etsMAIN(object):
         ### THEN DO CUSTOM MASKING if both not already cut and indices are given
         if flux_mask is not None:
             self.__custom_mask_it()
-       
+            
         # 8hr binning
         if binning: #if need to bin
             self.__8hrbinning()
@@ -296,19 +352,20 @@ class etsMAIN(object):
         return
     
     def __custom_mask_it(self):
-        """remove certain indices from your light curve.
+        """
+        remove certain indices from your light curve.
         flux_mask should be an array of size len(time), 0 = remove, 1=keep
         
-        *****this should NOT be used if using CBVs - that's not set up yet!!
         """
-        if hasattr(self, 'mask'): #if already did a trim
+        if hasattr(self, 'masked'): #if already did a trim
             print("ALREADY TRIMMED - RELOAD AND TRY AGAIN")
             return
-        elif hasattr(self, 'time'): #if something loaded in and going to trim
+        elif hasattr(self, 'time') and hasattr(self, 'flux_mask'): #if something loaded in and going to trim
             ut.data_masking(self)
+            self.masked = True
             return
         else:
-            raise ValueError("No data loaded in yet!! Run again once light curve is loaded")
+            raise ValueError("No data loaded or no flux mask given")
             return   
         
     def __fract_fit(self, fraction):
@@ -365,6 +422,20 @@ class etsMAIN(object):
         print("saving into folder: ",self.save_dir) 
 
         return 
+    
+    def __filetag_update(self, bounds=False):
+        if self.binned: # it has to go in this order - need to load, then set args, then set this
+            self.filesavetag = self.filesavetag + "-8HourBin"
+    
+        if self.fractiontrimmed and self.fract is not None:
+            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
+            
+        if bounds and self.using_GP:
+            self.filesavetag = self.filesavetag + "-bounded"
+        
+        if bounds is False and self.using_GP:
+            self.filesavetag = self.filesavetag + "-noBounds"
+        return
     
  
     def __setup_fittype_params(self, args=None, 
@@ -478,14 +549,9 @@ class etsMAIN(object):
             
         if filesavetag is not None:
             self.filesavetag = filesavetag
-            
-        if self.binned: # it has to go in this order - need to load, then set args, then set this
-            self.filesavetag = self.filesavetag + "-8HourBin"
-    
-        if self.fractiontrimmed:
-            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-        
-        
+          
+        self.__filetag_update(bounds=False)    
+          
         return
    
     
@@ -519,7 +585,6 @@ class etsMAIN(object):
                 than producing a new folder
         
         If you are doing custom priors:
-            - don't
             - run under fitType = 0
             - last items in args must be your priors array -- all probability functions
                 come with a positional argument priors = None that this should override
@@ -535,7 +600,7 @@ class etsMAIN(object):
             self.__gen_output_folder(self.filesavetag) 
                                                         
         # run it
-        self.__mcmc_outer_structure(n1, n2, thinParams)
+        self.__mcmc_inner_structure(n1, n2, thinParams)
         
         if saveBIC:
             self.bic_all.append(self.BIC[0])
@@ -544,7 +609,7 @@ class etsMAIN(object):
         return
       
         
-    def __mcmc_outer_structure(self, n1, n2, thinParams):
+    def __mcmc_inner_structure(self, n1, n2, thinParams):
         """Fitting things that are NOT GP based
         Params:
             - n1 is an integer number of steps for the first chain
@@ -571,7 +636,7 @@ class etsMAIN(object):
         nwalkers = 100
         self.ndim = len(self.labels) # labels are provided when you run it
         p0 = np.zeros((nwalkers, self.ndim)) # init positions
-        for n in range(len(p0)): # add a little spice - YYY gaussian??
+        for n in range(len(p0)): # add a little spice 
             p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
         
         print("Starting burnin chain")
@@ -594,6 +659,13 @@ class etsMAIN(object):
         for i in range(self.ndim):
             mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             best_mcmc_inter[0][i] = mcmc[1]
+          
+        for i in best_mcmc_inter[0]:
+            if i > 50000:
+                print("Something has gone terribly wrong")
+                print(best_mcmc_inter[0])
+                return
+            
             
         # ### Main run
         np.random.seed(50)
@@ -745,41 +817,44 @@ class etsMAIN(object):
         return
    
     
-    def run_GP_fit(self, flux_mask=None, binning=False, fraction=None, 
-                          n1=1000, n2=10000, gpUSE = "expsqr",
-                          thinParams=None, bounds = True):
+    def run_GP_fit(self, n1=1000, n2=10000, gpUSE = "expsqr",
+                          thinParams=None, bounds = True, cbounds=None):
         """
-        GP fitting using tinygp's stuff
-        Update 10-7-22 - GP fit every 1000 steps
-        Update 10-18-22 - GP for different types of fits
-        Update 10-29-22 - BIC now includes tinygp contribution!! 
-        Update 10-31-22 - Switched to scipy.minimize to use bounds
+        Run the GP fitting 
+        allowed runs: ['celerite_mean', 'celerite_residual', 'expsqr', 'expsinsqr', 'matern32']
+        -------------------------
+        Params:
+            - n1 (int) burn in steps
+            - n2 (int) production steps
+            - gpUSE (str) ['celerite_mean', 'celerite_residual', 'expsqr', 'expsinsqr', 'matern32']
+            - thinParams (arr) either None or [int to discard, thinning percent]
+            - bounds (bool) t/f using tight bounds
+            - cbounds (dict/none) custom bounds dict, containing entries for:
+                - log_sigma
+                - log_rho
+                - boundlabel (string)
         
         """
+        self.using_GP = True
+        if not self.cleaningdone:
+            raise ValueError("Need to run pre_run_clean() first!")
+            return
+        
+        
         allowed = ['celerite_mean', 'celerite_residual', 'expsqr', 'expsinsqr', 'matern32']
         self.gpUSE = gpUSE
         if self.gpUSE not in allowed:
             return ValueError("Not a valid gpUSE input!")
         
         if 'celerite_mean' in self.gpUSE:
-            self.__run_GP_fit_celerite_mean(flux_mask, binning, 
-                                       fraction, n1, n2, thinParams, bounds=bounds)
+            self.__run_GP_fit_celerite_mean(n1, n2, thinParams, bounds=bounds,
+                                            cbounds=cbounds)
+            
         elif 'celerite_residual' in self.gpUSE:
-            self.__run_GP_fit_celerite_residual(flux_mask, binning, 
-                                       fraction, n1, n2, thinParams, bounds=bounds)
+            self.__run_GP_fit_celerite_residual(n1, n2, thinParams, bounds=bounds,
+                                                cbounds=cbounds)
             
         else: #tinygp options
-            ### THEN DO CUSTOM MASKING if both not already cut and indices are given
-            if flux_mask is not None:
-                self.flux_mask = flux_mask
-                self.__custom_mask_it()
-                
-            # check for 8hr bin BEFORE trimming to percentages
-            if binning: #if need to bin
-                self.__8hrbinning()
-                                                     
-            #fractional fit code (fraction can be None)                                  
-            self.__fract_fit(fraction)
            
             #set up gpUSE settings
             self.__tinygp_setup(gpUSE=gpUSE, bounds=bounds)                                          
@@ -847,72 +922,62 @@ class etsMAIN(object):
             else: 
                 self.tinygp_bounds = None
         
-        if self.binned: # it has to go in this order - need to load, then set args, then set this
-            self.filesavetag = self.filesavetag + "-8HourBin"
-    
-        if self.fractiontrimmed and self.fract is not None:
-            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-            
-        if bounds:
-            self.filesavetag = self.filesavetag + "-bounded"
+        self.__filetag_update(self, bounds)
             
         return
     
-    def __run_GP_fit_celerite_residual(self, flux_mask, binning, fraction=None, 
-                            n1=1000, n2=10000, thinParams=None, bounds=True):
+
+    
+    def __run_GP_fit_celerite_residual(self, n1=1000, n2=10000, 
+                                       thinParams=None, bounds=True, 
+                                       cbounds=None):
         """
-        Run the GP fitting w/ celerite fitting repeatedly to the residual
-        
-        customSigmaRho must unpack as: [sigma start, rho start, 
-                                        sigma lower, sigma upper,
-                                        rho lower, rho upper, 
-                                        sigma frozen (bool), rho frozen (bool)]
-        the default run of this is [1, 2, 
-                                    sqrt(0.1), sqrt(20), 
-                                    1, 10, 
-                                    0, 0]
+        Run the GP fitting w/ celerite fitting to the residual
+        -------------------------
+        Params:
+            - n1 (int) burn in steps
+            - n2 (int) production steps
+            - thinParams (arr) either None or [int to discard, thinning percent]
+            - bounds (bool) t/f using tight bounds
+            - cbounds (dict/none) custom bounds dict, containing entries for:
+                - log_sigma
+                - log_rho
+                - boundlabel (string)
         
         """
         self.filesavetag = "-celerite-matern32-residual"
+
+        self.__filetag_update(bounds)
         
-        ### custom masking
-        if flux_mask is not None:
-            self.flux_mask = flux_mask
-            self.__custom_mask_it()
-            
-        # check for 8hr bin BEFORE trimming to percentages
-        if binning: #if need to bin
-            self.__8hrbinning()
-                                                 
-        #fractional fit code (fraction can be None)                                  
-        self.__fract_fit(fraction)
         
-        if self.binned: # it has to go in this order - need to load, then set args, then set this
-            self.filesavetag = self.filesavetag + "-8HourBin"
-    
-        if self.fractiontrimmed:
-            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-        
-        if bounds:
-            self.filesavetag = self.filesavetag + "-bounded"
-        
-        #make folders to save into
-        self.__gen_output_folder(self.filesavetag)  
         
         #set up kernel
         start_t = min(self.disctime-3, self.time[-1]-2)
         # set up gp:
         rho = 2 # init value
         sigma = 1
-        if bounds:
+        if bounds and cbounds is None:
             rho_bounds = np.log((1, 10)) #0, 2.302
             sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
             bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
-            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
-                                        bounds=bounds_dict)
-        else:
-            kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho))
             
+        elif bounds and cbounds is not None: 
+            bounds_dict = cbounds.copy()
+            print(bounds_dict)
+            self.filesavetag = self.filesavetag + bounds_dict["boundlabel"]
+            bounds_dict.pop('boundlabel')
+            
+        else: #functionally unbounded
+            rho_bounds = np.log((1e-10, 1e4)) #0, 2.302
+            sigma_bounds = np.log( np.sqrt((1e-10,1e4  )) ) #sigma range 0.316 to 4.47, take log
+            bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
+            
+        kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 
+                                    bounds=bounds_dict)
+        
+        #make folders to save into
+        self.__gen_output_folder(self.filesavetag)  
+        
         self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
         self.gp = celerite.GP(kernel, mean=0.0)
         self.gp.compute(self.time, self.error)
@@ -925,48 +990,28 @@ class etsMAIN(object):
         self.plotFit = 10
         
         #run it
-        self.__mcmc_outer_structure(n1, n2, thinParams)
+        self.__mcmc_inner_structure(n1, n2, thinParams)
         return
     
-    def __run_GP_fit_celerite_mean(self, flux_mask, binning, fraction=None, 
-                            n1=1000, n2=10000, thinParams=None, bounds=False):
+    def __run_GP_fit_celerite_mean(self, n1=1000, n2=10000, 
+                                   thinParams=None, bounds=False, 
+                                   cbounds = None):
         """
         Run the GP fitting w/ celerite and a mean model 
-        
-        customSigmaRho must unpack as: [sigma start, rho start, 
-                                        sigma lower, sigma upper,
-                                        rho lower, rho upper, 
-                                        sigma frozen (bool), rho frozen (bool)]
-        the default run of this is [1, 2, 
-                                    sqrt(0.1), sqrt(20), 
-                                    1, 10, 
-                                    0, 0]
-        
+        -------------------------
+        Params:
+            - n1 (int) burn in steps
+            - n2 (int) production steps
+            - thinParams (arr) either None or [int to discard, thinning percent]
+            - bounds (bool) t/f using tight bounds
+            - cbounds (dict/none) custom bounds dict, containing entries for:
+                - log_sigma
+                - log_rho
+                - boundlabel (string)
         """
         
         self.filesavetag = "-celerite-matern32-mean-model"
-
-        
-        ### custom masking
-        if flux_mask is not None:
-            self.flux_mask = flux_mask
-            self.__custom_mask_it()
-            
-        # check for 8hr bin BEFORE trimming to percentages
-        if binning: #if need to bin
-            self.__8hrbinning()
-                                                 
-        #fractional fit code (fraction can be None)                                  
-        self.__fract_fit(fraction)
-        
-        if self.binned: # it has to go in this order - need to load, then set args, then set this
-            self.filesavetag = self.filesavetag + "-8HourBin"
-    
-        if self.fractiontrimmed:
-            self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-        if bounds:
-            self.filesavetag = self.filesavetag + "-bounded"
-        
+        self.__filetag_update(bounds)
         #make folders to save into
         self.__gen_output_folder(self.filesavetag)  
         
@@ -975,7 +1020,6 @@ class etsMAIN(object):
         import celerite
         from celerite import terms
         
-    
         class MeanModel(Model):
             parameter_names = ("t0", "A", "beta", "b")
 
@@ -1010,11 +1054,17 @@ class etsMAIN(object):
 
         # Set up the GP model
         #presently unbounded
-        if bounds:
-            kbounds = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
+        if bounds and cbounds is None:
+            bounds_dict = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
                        'log_rho':np.log((1,10))}
             kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
-                                        bounds=kbounds)
+                                        bounds=bounds_dict)
+        elif bounds and cbounds is not None:
+            bounds_dict = cbounds.copy()
+            self.filesavetag = self.filesavetag + bounds_dict["boundlabel"]
+            bounds_dict.pop('boundlabel')
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
+                                        bounds=bounds_dict)
         else:
             kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1))
             
@@ -1048,8 +1098,6 @@ class etsMAIN(object):
         # Plot the data + scipy prediction
         sp.plot_scipy_max(self)
 
-
-
         self.init_values = soln.x
         self.args = (self.flux, self.gp)
         self.logProbFunc = mc.log_probability_celerite_mean
@@ -1059,7 +1107,7 @@ class etsMAIN(object):
     
         #emcee section
         #run it
-        self.__mcmc_outer_structure(n1, n2, thinParams)
+        self.__mcmc_inner_structure(n1, n2, thinParams)
            
         return
     
@@ -1278,19 +1326,18 @@ class etsMAIN(object):
     
 
     def run_both_matern32(self, flux_mask, binning=False, fraction=None,
-                          bounds = True):
+                          bounds = True, cbounds=None):
         """ 
-        
         Run concurrent tinygp and celerite fitting to residuals
         ----------------------------
         Params: 
             - flux_mask (array of ints) true/false array of points ot trim
                 default is NONE
-                
             - binning (bool, default NONE) bins to 8 hours if true
-            
             - fraction (default NONE, 0-1 float for percent) trims flux to 
             percent of max. 0.4 is 40% of max, etc.
+            - bounds (bool) whether or not to use bounds
+            - cbounds (dicts/None) custom dict of bounds, optional
         
         """
         def make_residual(x, y, best_mcmc):
@@ -1304,7 +1351,8 @@ class etsMAIN(object):
             return -tinygp.log_probability(y)
         
         #make folder
-        taggy = "-both-celerite-tinygp-matern32"
+        self.filesavetag = "-both-celerite-tinygp-matern32"
+        taggy = self.filesavetag
         
         ### custom masking: 
         if flux_mask is not None:
@@ -1318,18 +1366,27 @@ class etsMAIN(object):
         #fractional fit code (fraction can be None)                                  
         self.__fract_fit(fraction)
         
-        if self.binned: # it has to go in this order - need to load, then set args, then set this
-            #self.filesavetag = self.filesavetag + "-8HourBin"
-            taggy = taggy + "-8HourBin"
-    
-        if self.fractiontrimmed and self.fract is not None:
-            #self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
-            taggy = taggy + "-{fraction}".format(fraction=self.fract)
         
-        if bounds is False:
-            taggy = taggy + "-noBounds"
+        self.__filetag_update(bounds)
+        
+        # Set up the GP model - this goes here to pudate the filesavetag
+        #presently unbounded
+        if bounds and cbounds is None:
+            bounds_dict = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
+                       'log_rho':np.log((1,10))}
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
+                                        bounds=bounds_dict)
+        elif bounds and cbounds is not None:
+            bounds_dict = cbounds.copy()
+            self.filesavetag = self.filesavetag + bounds_dict["boundlabel"]
+            bounds_dict.pop('boundlabel')
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
+                                        bounds=bounds_dict)
+        else:
+            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1))
+    
             
-        self.__gen_output_folder(taggy)
+        self.__gen_output_folder(self.filesavetag)
        
         #SET UP CELERITE   
                                                    
@@ -1368,15 +1425,7 @@ class etsMAIN(object):
         mean_model = MeanModel(t0=t0, A=A, beta=beta, b=b,
                                bounds = bounds_model_dict)
 
-        # Set up the GP model
-        #presently unbounded
-        if bounds:
-            kbounds = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
-                       'log_rho':np.log((1,10))}
-            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
-                                        bounds=kbounds)
-        else:
-            kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1))
+        
             
         self.gp = celerite.GP(kernel, mean=mean_model, fit_mean=True)
         self.gp.compute(self.time, self.error)

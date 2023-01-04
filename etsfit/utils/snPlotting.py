@@ -131,11 +131,7 @@ def plot_param_samples_all(ets):
     Plot all the parameter sampling per parameter from the chains in one big plot
     --------------------------------------
     Params:
-        - flat_samples (array) returned from emcee sampler
-        - labels (array of strings) param names, may use latex formatting
-        - save_dir (str) folder to save plot into
-        - targetlabel (str) target ID
-        - filesavetag (str) filename used for this fit
+        - ets (etsfit obj)
     """
     
     axN = len(ets.labels)
@@ -170,13 +166,7 @@ def fitTypeModel(ets):
     Produces the plotting model for a given fit type (1-7) 
     ------------------------------------------
     Params:
-        - fitType (int) 1-7, which fit is being produced
-        - x (array) x-axis, should start at 0
-        - ets.best_mcmc (array) params for best fit model
-        - QCBVs (either an array [Qall, CBV1, CBV2, CBV3] or just None)
-                only for fit types 2,4,5
-        - lygosBG (array of size x, or None) 
-                only for fit type 6
+        - ets (etsfit obj)
     ------------------------------------------
     Returns:
         - mod (power law model)
@@ -184,54 +174,56 @@ def fitTypeModel(ets):
     """
     x = ets.time
     
-    if ets.fitType in (1,7):
-        t0, A,beta,B = ets.best_mcmc
+    if ets.plotFit in (1,7):
+        t0, A,beta,B = ets.best_mcmc[0]
         t1 = x - t0
         mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
         bg = np.ones(len(x)) + B
-    elif ets.fitType == 2: 
-        t0, A, beta, B, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc
+    elif ets.plotFit == 2: 
+        t0, A, beta, B, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc[0]
         t1 = x - t0
         Qall, CBV1, CBV2, CBV3 = ets.quats_cbvs
         mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta))
         bg = cQ * Qall + cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3 + 1 + B
         
-    elif ets.fitType == 3:
+    elif ets.plotFit == 3:
         def func1(x, t0, t1, A1, A2, beta1, beta2):
             return A1 *(x-t0)**beta1
         def func2(x, t0, t1, A1, A2, beta1, beta2):
             return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
-        t0, t1, A1, A2, beta1, beta2, B = ets.best_mcmc
+        t0, t1, A1, A2, beta1, beta2, B = ets.best_mcmc[0]
         mod = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
                              t0, t1, A1, A2, beta1, beta2) 
         bg = np.ones(len(x)) + B
-    elif ets.fitType ==4:
+    elif ets.plotFit ==4:
         def func1(x, t0, t1, A1, A2, beta1, beta2):
             return A1 *(x-t0)**beta1
         def func2(x, t0, t1, A1, A2, beta1, beta2):
             return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
         
         Qall, CBV1, CBV2, CBV3 = ets.quats_cbvs
-        t0, t1, A1, A2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc#[0]
+        t0, t1, A1, A2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc[0]
         mod = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
                              t0, t1, A1, A2, beta1, beta2)
         bg = cQ * Qall + cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3 + 1
         
-    elif ets.fitType ==5:
+    elif ets.plotFit ==5:
         Qall, CBV1, CBV2, CBV3 = ets.quats_cbvs
-        b, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc#[0]
+        b, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc[0]
         mod = np.zeros(len(x))
         bg = (b + np.ones(len(x)) + cQ * Qall + 
               cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3)
         print("background starts with", bg[0:5])
     
-    elif ets.fitType == 6:
-        t0, A,beta,B, LBG = ets.best_mcmc
+    elif ets.plotFit == 6:
+        t0, A,beta,B, LBG = ets.best_mcmc[0]
         t1 = x - t0
         mod = (np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta)))
         bg = 1 + B + ets.BGdata * LBG
+    else:
+        raise ValueError("No valid plot Fit value given")
     
     return mod, bg
 
@@ -283,12 +275,7 @@ def plot_chain(ets, appendix=""):
     Plots MCMC chain trace plots for all parameters and the log posterior
     --------------------------------------
     Params:
-        - save_dir (str) folder to save plot into
-        - targetlabel (str) target ID
-        - filesavetag (str) filename used for this fit
-        - sampler (emcee obj) the sampler object produced by emcee
-        - labels (array of strings) param names, may use latex formatting
-        - ndim (int) number of parameters
+        - ets (etsfit obj)
         - appendix (str) tail end string for the filename - usually "burnin" 
                 or "production"
     
@@ -356,10 +343,7 @@ def plot_tinygp_ll(ets):
     with the MCMC modelling
     ----------------------------------------
     Params:
-        - save_dir (str) folder to save plot into
-        - gpll (array) each log likelihood estimate in time
-        - targetlabel (str) target ID
-        - filesavetag (str) filename used for this fit
+        - ets (etsfit obj)
     """
     fig, ax1 = plt.subplots(figsize=(10,10))
     x = np.arange(0, len(ets.GP_LL_all), 1) * 1000 #x axis
@@ -394,28 +378,17 @@ def plot_mcmc(ets):
     #plot corner
     plot_corner(ets)
     #plot model
-    plot_mcmc_model(ets, tplot, model, dplot, t0plot)
+    plot_2panel_model(ets, tplot, model, dplot, t0plot)
     
     return
 
 def plot_mcmc_GP_celerite_mean(ets):
     """
     Plots the best fit model from MCMC with a celerite background
-    Calls plot_mcmc_model() and gp_plots()
+    Calls plot_2panel_model() and gp_plots()
     ---------------------------------------------
     Params:
-        - save_dir (str) folder to save plot into
-        - time (array) time axis of data, starts at 0
-        - flux (array) relative flux data
-        - error (array) error on the flux data
-        - best_mcmc (array) best fit output parameters
-        - gp (celerite object)
-        - disctime (float) ground discovery time, with the sector start time
-                subtracted off
-        - xlabel (str) generated by etsMAIN, of the style "Time [BJD-2457000]"
-        - tmin (float) start time for sector
-        - targetlabel (str) target ID
-        - filesavetag (str) filename used for this fit
+        - ets (etsfit obj)
     """
     
     t0, A,beta,B = ets.best_mcmc[0][2:]
@@ -434,7 +407,7 @@ def plot_mcmc_GP_celerite_mean(ets):
     
     plot_corner(ets)
     
-    plot_mcmc_model(ets, tplot, model, dplot, t0plot)
+    plot_2panel_model(ets, tplot, model, dplot, t0plot)
     
     gp_plots(ets, tplot, justmod, dplot, t0plot, bg, 
              gpfiletag="MCMC-celerite-mean-TriplePlotResiduals")
@@ -443,10 +416,10 @@ def plot_mcmc_GP_celerite_mean(ets):
 def plot_mcmc_GP_celerite_residual(ets):
     """
     Plots the best fit model from MCMC with a celerite background
-    Calls plot_mcmc_model() and gp_plots()
+    Calls plot_2panel_model() and gp_plots()
     ---------------------------------------------
     Params:
-        - ets
+        - ets (etsfit object)
     """
     
     t0, A,beta,B = ets.best_mcmc[0][:4]
@@ -465,7 +438,7 @@ def plot_mcmc_GP_celerite_residual(ets):
     
     plot_corner(ets)
     
-    plot_mcmc_model(ets, tplot, model, dplot, t0plot)
+    plot_2panel_model(ets, tplot, model, dplot, t0plot)
     
     gp_plots(ets, tplot, mod, dplot, t0plot, bg, 
              gpfiletag = "MCMC-celerite-residual-TriplePlotResiduals")
@@ -474,10 +447,10 @@ def plot_mcmc_GP_celerite_residual(ets):
 def plot_mcmc_GP_tinygp(ets):
     """
     Plots the best fit model from MCMC with a tinygp background
-    Calls plot_mcmc_model() and gp_plots()
+    Calls plot_2panel_model() and gp_plots()
     ---------------------------------------------
     Params:
-        - ets
+        - ets (etsfit obj)
         
     """
 
@@ -496,23 +469,23 @@ def plot_mcmc_GP_tinygp(ets):
     dplot = ets.disctime + ets.tmin - 2457000
     t0plot = t0 + ets.tmin - 2457000
     
-    plot_mcmc_model(ets, tplot, model, dplot, t0plot)
+    plot_2panel_model(ets, tplot, model, dplot, t0plot)
     gp_plots(ets, tplot, model, dplot, t0plot, bg, 
              gpfiletag = "MCMC-tinyGP-TriplePlotResiduals")
              
     return
 
-def plot_mcmc_model(ets, tplot, model, dplot, t0plot):
+def plot_2panel_model(ets, tplot, model, dplot, t0plot):
     """ 
     Produces two panel plot of output model. 
     Top panel gives the data + model, bottom panel gives the residual. 
     ---------------------------------------------
     Params:
-        - ets
-        - tplot
-        - model
-        - dplot
-        - t0plot
+        - ets (etsfit obj)
+        - tplot (time axis to plot)
+        - model (complete model)
+        - dplot (disc. time to plot)
+        - t0plot (t0 to plot)
     """
     nrows = 2
     ncols = 1
@@ -549,6 +522,17 @@ def plot_mcmc_model(ets, tplot, model, dplot, t0plot):
                                                       t=ets.targetlabel,
                                                       f=ets.filesavetag))
     plt.close()
+    
+    fig, ax1 = plt.subplots(figsize=(10,10))
+    n_in, bins, patches = ax1.hist(residuals, int(len(residuals)/25))
+    ax1.set_xlabel("Rel. Flux")
+    ax1.set_title("Histogram of Residual Flux")
+    plt.tight_layout()
+    plt.savefig('{p}{t}{f}-residual-histogram.png'.format(p=ets.save_dir,
+                                                          t=ets.targetlabel,
+                                                          f=ets.filesavetag))
+
+    plt.close()
     return
 
 def gp_plots(ets, tplot, model, dplot, t0plot, bg, gpfiletag):
@@ -556,14 +540,16 @@ def gp_plots(ets, tplot, model, dplot, t0plot, bg, gpfiletag):
     Produces three panel plot of output model including GP
     Top panel gives the data + power law, middle panel gives power law residual,
     bottom panel gives GP residual. 
+    
+    Also produces a histogram of the GP residual fluxes 
     ---------------------------------------------
     Params:
-        - ets
-        - tplot
-        - model
-        - dplot
-        - t0plot
-        - bg
+        - ets (etsfit obj)
+        - tplot (time axis to plot)
+        - model (power law model)
+        - dplot (disc. time to plot)
+        - t0plot (t0 to plot)
+        - bg (separate background)
         - gpfiletag (str) tag added on to the end to indicate which gp model
             was used (ie, "MCMC-tinyGP-TriplePlotResiduals")
     """
@@ -612,6 +598,17 @@ def gp_plots(ets, tplot, model, dplot, t0plot, bg, gpfiletag):
     plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=ets.save_dir,t=ets.targetlabel,
                                              f=ets.filesavetag,
                                              gpf=gpfiletag))
+
+    plt.close()
+    
+    # residual histo
+    fig, ax1 = plt.subplots(figsize=(10,10))
+    n_in, bins, patches = ax1.hist(residual2, int(len(residual2)/25))
+    ax1.set_xlabel("Rel. Flux")
+    ax1.set_title("Histogram of GP Residual Flux")
+    plt.tight_layout()
+    plt.savefig('{p}{t}{f}-residual-histogram.png'.format(p=ets.save_dir,t=ets.targetlabel,
+                                             f=ets.filesavetag))
 
     plt.close()
     return
@@ -691,6 +688,16 @@ def plot_celerite_tinygp_comp(ets):
                                                       t=ets.targetlabel,
                                                       f=ets.filesavetag))
     plt.close()
+    
+    fig, ax1 = plt.subplots(figsize=(10,10))
+    n_in, bins, patches = ax1.hist(ets.flux-mod-tinygp_bg, int(len(ets.flux-mod-tinygp_bg)/25))
+    ax1.set_xlabel("Rel. Flux")
+    ax1.set_title("Histogram of GP Residual Flux")
+    plt.tight_layout()
+    plt.savefig('{p}{t}{f}-residual-histogram.png'.format(p=ets.save_dir,t=ets.targetlabel,
+                                             f=ets.filesavetag))
+
+    plt.close()
     return
 
 def plot_scipy_max(ets):
@@ -757,3 +764,5 @@ def celerite_post_pred(ets):
     #plt.show()
     plt.close()
     return
+
+    
