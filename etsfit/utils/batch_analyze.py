@@ -141,7 +141,6 @@ def extract_celerite_all(filepath):
     # target label row 0
     # bic row 1
     # convg row 2
-    print(filepath)
     filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
     #print("conv", filerow1)
     if "True" in filerow1:

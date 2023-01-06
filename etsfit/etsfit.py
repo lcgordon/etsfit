@@ -32,7 +32,7 @@ from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
 rcParams["font.size"] = 20
 
-#from celerite.modeling import Model
+from celerite.modeling import Model
 import celerite
 from celerite import terms
 
@@ -957,8 +957,9 @@ class etsMAIN(object):
         rho = 2 # init value
         sigma = 1
         if bounds and cbounds is None:
-            rho_bounds = np.log((1, 10)) #0, 2.302
+           
             sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
+            rho_bounds = np.log((1, 10)) #0, 2.302
             bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
             
         elif bounds and cbounds is not None: 
@@ -968,8 +969,9 @@ class etsMAIN(object):
             bounds_dict.pop('boundlabel')
             
         else: #functionally unbounded
-            rho_bounds = np.log((1e-10, 1e4)) #0, 2.302
+            
             sigma_bounds = np.log( np.sqrt((1e-10,1e4  )) ) #sigma range 0.316 to 4.47, take log
+            rho_bounds = np.log((1e-10, 1e4)) #0, 2.302
             bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
             
         kernel = terms.Matern32Term(log_sigma=np.log(sigma), log_rho=np.log(rho), 

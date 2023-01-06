@@ -13,14 +13,14 @@ from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
 
 
-# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-# TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-# save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
-# quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
-# quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
-# gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
-#           "2020hdw", "2020bj", "2019gqv"]
+data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
+quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
+quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
+          "2020hdw", "2020bj", "2019gqv"]
 
 
 def run_all_fits(fitType, data_dir, save_dir, TNSFile,
@@ -183,6 +183,16 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
 
     return trlc
 
+import numpy as np
+rho_bounds = np.log((0.25, 10)) #0, 2.302
+sigma_bounds = np.log( np.sqrt((0.1, 20)) ) #sigma range 0.316 to 4.47, take log
+bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds, boundlabel="-0-25day")
+
+trlc = run_all_GP('celerite_residual', data_dir, save_dir, TNSFile,
+                  filekey = "-tessreduce",
+                  goodList=gList, 
+                  fraction=0.6, binning=False, n1=5000, n2=25000, bounds=True,
+                  cbounds=bounds_dict)
 
 
 
