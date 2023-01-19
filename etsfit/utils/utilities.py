@@ -16,6 +16,23 @@ from astropy.time import Time
 import tessreduce as tr
 import time
 
+def get_sublist(TNSFile, gList, outFile):
+    """ 
+    Get list of only the SN on your gList
+    """
+    info = pd.read_csv(TNSFile)
+    for i in range(len(info)):
+        sn = info["Name"][i][3:]
+        print(sn)
+        if sn not in gList:
+            info.drop(i, inplace=True)
+    
+    info.reset_index(inplace=True)
+    del info["Unnamed: 0"]
+    info.to_csv(outFile)
+    return
+
+
 def load_lygos_csv(file):
     """
     Load data from a lygos rflxtarg csv file 

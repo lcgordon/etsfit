@@ -23,6 +23,10 @@ gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020
           "2020hdw", "2020bj", "2019gqv"]
 
 
+
+
+
+
 def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                  filekey = "-tessreduce",
                  goodList=None, cbv_dir=None, quaternion_raw_dir=None,
@@ -183,16 +187,16 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
 
     return trlc
 
-import numpy as np
-rho_bounds = np.log((0.25, 10)) #0, 2.302
-sigma_bounds = np.log( np.sqrt((0.1, 20)) ) #sigma range 0.316 to 4.47, take log
-bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds, boundlabel="-0-25day")
+# import numpy as np
+# rho_bounds = np.log((0.25, 10)) #0, 2.302
+# sigma_bounds = np.log( np.sqrt((0.1, 20)) ) #sigma range 0.316 to 4.47, take log
+# bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds, boundlabel="-0-25day")
 
-trlc = run_all_GP('celerite_residual', data_dir, save_dir, TNSFile,
-                  filekey = "-tessreduce",
-                  goodList=gList, 
-                  fraction=0.6, binning=False, n1=5000, n2=25000, bounds=True,
-                  cbounds=bounds_dict)
+# trlc = run_all_GP('celerite_residual', data_dir, save_dir, TNSFile,
+#                   filekey = "-tessreduce",
+#                   goodList=gList, 
+#                   fraction=0.6, binning=False, n1=5000, n2=25000, bounds=True,
+#                   cbounds=bounds_dict)
 
 
 
