@@ -3,20 +3,7 @@
 Created on Fri Apr 22 12:14:13 2022
 
 @author: lcgordon
-
-todo list:
-    - double check GP stuff is working [seems fine as of 05092022]
-    - save a plot of trimmed regions for when doing custom masking. [done 05092022]
-    - set up GP parameter scan function
-    - TEST GP CUSTOM PRIOR/INPUTS 
 """
-
-#import etsfit.utils.utilities as ut
-#import etsfit.utils.snPlotting as sp
-#import etsfit.utils.MCMC as mc
-#import utils.utilities as ut
-#import utils.snPlotting as sp
-#import utils.MCMC as mc
 
 from etsfit.utils import utilities as ut
 from etsfit.utils import snPlotting as sp

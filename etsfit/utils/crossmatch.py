@@ -22,6 +22,77 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 
 
+def URL_gen(date_start = None, date_end = None, discovered_within = None, 
+            discovered_within_units = None, unclassified_at = False, 
+            classified_sne = True):
+    """ Produces a URL for searching TNS
+    - date_start and date_end in format: "2020-12-11" 
+    - discovered within is "2" and units for it is "days" "months" or "years"
+    - coords_units is 'arcsec', 'arcmin', or 'deg'
+    
+    """
+    
+    query = ""
+    if date_start is not None and date_end is not None:
+        query = query + "&date_start%5Bdate%5D=" + date_start
+        query = query + "&date_end%5Bdate%5D=" + date_end
+    
+    if discovered_within is not None and discovered_within_units is not None:
+        query = query + "&discovered_period_value=" + discovered_within
+        query = query + "&discovered_period_units=" + discovered_within_units
+    
+    if unclassified_at: #include them
+        query = query + "&unclassified_at=1"
+            
+    if classified_sne: #only classified supernovae
+        query = query + "&classified_sne=1"
+    
+    url = ("https://www.wis-tns.org/search?" + query + 
+           "&num_page=500&format=csv") #+ page_suffix
+    
+    return url
+
+def add_sector(file, folder, sector):
+    """ 
+    for a given sector's csv file, add a column to all rows with the sector
+    save into new file
+    """
+    df = pd.read_csv(file)
+    sectorcolumn = np.zeros(len(df)) + int(sector)
+    df["Sector"] = sectorcolumn
+    outfile = "{f}sector{a}_tns.csv".format(f=folder, a=str(sector))
+    df.to_csv(outfile)
+    return
+
+def compile_csvs(folder, suffix, savefilename = None):
+    """
+    Compile all CSV's in a folder 
+    Parameters:
+        - folder: containing all csv files
+        - suffix: ending to search for on end of all files (probably -tesscut.csv)
+        - savefilename: if not none, will save output of this into this file
+        
+    Returns: concatenated pandas data frame containing all info from the csv files"""
+    all_info = pd.DataFrame()
+    for root, dirs, files in os.walk(folder):
+        for f in files:
+            if f.endswith((suffix)):
+                filepath = root  + f
+                p = pd.read_csv(filepath)
+                
+                if all_info.empty:
+                    all_info = p #first load
+                else:
+                    all_info = pd.concat((all_info, p)) #other ones
+                    
+    if savefilename is not None:
+        print(folder + savefilename + ".csv")
+        del all_info["Unnamed: 0"]
+        all_info.to_csv(folder + savefilename + ".csv", index=False)
+        
+    return #all_info.reset_index()
+ 
+
 def reduce_list(csvall, filesave, typeKey, fluxLim):
     """
     Given a path to a file containing a TNS output of SN, save a new csv file
@@ -52,7 +123,7 @@ def prep_WTV_file(tnsfile, outputfile):
     from astropy.coordinates import Angle
     import astropy.units as u
     df = pd.read_csv(tnsfile)
-    print (df)
+    #print (df)
     
     for n in range(len(df)):
         a = Angle(df['RA'][n], u.degree)
@@ -63,11 +134,11 @@ def prep_WTV_file(tnsfile, outputfile):
         df['DEC'][n] = b
     
     new = df[['RA', 'DEC']].copy()
-    print(new)
+    #print(new)
     new.to_csv(outputfile, index = False)
     return
 
-def process_WTV_results(TNS_file, WTV_file, output_file):
+def process_WTV_results(TNS_file, WTV_file, output_file, skiprows=76):
     """
     Go through the WTV output file and compare with the TNS sector to ID those
     that WTV thinks TESS should have found
@@ -79,14 +150,15 @@ def process_WTV_results(TNS_file, WTV_file, output_file):
     
     """
     all_tns = pd.read_csv(TNS_file)
-    all_wtv = pd.read_csv(WTV_file, skiprows=61)
+    all_wtv = pd.read_csv(WTV_file, skiprows=skiprows)
+    all_wtv.dropna(inplace=True)   #remove nan row if exists
+    all_wtv.reset_index(inplace=True)
 
     just_sectors = all_tns["Sector"]
-    #counter = 0
     WTV_confirmed =  pd.DataFrame(columns = all_tns.columns)
     for n in range(len(all_wtv)-1):
         correct_sector = all_tns["Sector"][n]
-        columnname = "S" + str(correct_sector)
+        columnname = "S" + str(int(correct_sector))
         if all_wtv[columnname][n] != 0.0: 
             WTV_confirmed = WTV_confirmed.append(all_tns.iloc[[n]])
             
@@ -95,63 +167,37 @@ def process_WTV_results(TNS_file, WTV_file, output_file):
     return WTV_confirmed
 
 
-
-def add_sector(file, sector):
+def run_all_tesscut_matches(folderIn, folderOut, start=0, verbose=False):
     """ 
-    for a given sector's csv file, add a column to all rows with the sector
+    For a folder full of TNS files with sectors attached, run tesscut
     """
-    listy = pd.read_csv(file)
-    sectorcolumn = np.zeros(len(listy)) + sector
-    listy["Sector"] = sectorcolumn
-    outfile = file[:-4] + "-sectorAdded.csv"
-    listy.to_csv(outfile)
+    for i in range(start, 50):
+        file = "{f}sector{i}_tns.csv".format(f=folderIn, i=i)
+        if verbose:
+            print(file)
+        if os.path.exists(file):
+            fileout = "{f}sector{i}_tesscut.csv".format(f=folderOut, i=i)
+            sectorfile_tesscut_match(file, fileout, i)
+        else:
+            if verbose:
+                print("no such file exists")
     return
 
-def compile_csvs(folder, suffix, savefilename = None):
-    """
-    Compile all CSV's in a folder 
-    Parameters:
-        - folder: containing all csv files
-        - suffix: ending to search for on end of all files (probably -tesscut.csv)
-        - savefilename: if not none, will save output of this into this file
-        
-    Returns: concatenated pandas data frame containing all info from the csv files"""
-    all_info = pd.DataFrame()
-    for root, dirs, files in os.walk(folder):
-        for f in files:
-            if f.endswith((suffix)):
-                filepath = root  + f
-                p = pd.read_csv(filepath)
-                
-                if all_info.empty:
-                    all_info = p #first load
-                else:
-                    all_info = pd.concat((all_info, p)) #other ones
-                    
-    if savefilename is not None:
-        print(folder + savefilename + ".csv")
-        del all_info["Unnamed: 0"]
-        all_info.to_csv(folder + savefilename + ".csv", index=False)
-        
-    return all_info.reset_index()
- 
  
 def sectorfile_tesscut_match(TNSfile, savefile, sector):
     """
     For a given CSV file (TNS format) with sectors attached to each target,
     run tesscut on coordinates to see if it was observed in that sector
     """
-    clist = pd.read_csv(TNSfile)
-    del clist["Unnamed: 0"]
+    df = pd.read_csv(TNSfile)
+    del df["Unnamed: 0"]
     goodIndices = []
 
     #for each, get ra/dec, run thru tesscut
-    for n in range(len(clist)):
-        cutout_coord = SkyCoord(clist["RA"].iloc[n], clist["DEC"].iloc[n], 
+    for n in range(len(df)):
+        cutout_coord = SkyCoord(df["RA"].iloc[n], df["DEC"].iloc[n], 
                                 unit=(u.hourangle, u.deg))
-        #print(cutout_coord)
         sector_table = Tesscut.get_sectors(coordinates=cutout_coord)
-        #print(sector_table)
         #traverse the table
         for i in range(len(sector_table)):
             if sector_table[i][1] == sector:
@@ -159,31 +205,11 @@ def sectorfile_tesscut_match(TNSfile, savefile, sector):
         
         time.sleep(3)
     print(goodIndices)
-    #retrieve clipped clist, save into savefile
-    clist_clipped = clist.iloc[goodIndices]
-    clist_clipped.to_csv(savefile)
+    #clip df, save
+    df = df.iloc[goodIndices]
+    df.to_csv(savefile)
     return
 
-def run_all_tesscut_matches(folderIn, folderOut, startsat=None):
-    """ 
-    For a folder full of cycle-sorted sectorized csv files, run tesscut mtching and 
-    save the results
-    """
-    k = 0
-    for i in (1,2,3):
-        folderIn2 = folderIn + "CYCLE{num}/".format(num=i)
-        print(folderIn2)
-        for n in range(1,14):
-            if startsat is not None and (n+k < startsat):
-                continue
-            folderIn3 = folderIn2 + "Sector{numb}-sectored.csv".format(numb=n+k)
-            print(folderIn3)
-            print(n+k)
-            fileout = folderOut + "sector{numb}-tesscut.csv".format(numb=n+k)
-            sectorfile_tesscut_match(folderIn3, fileout, n+k)
-            
-        k += 13
-    return
 
 
 def get_not_in_common_entries(file1, file2):
@@ -192,8 +218,8 @@ def get_not_in_common_entries(file1, file2):
     the left file will be the file1, file2 is right (for merge)
     """
 
-    file1 = pd.read_csv(tesscut_all)
-    file2 = pd.read_csv(wtv_all)
+    file1 = pd.read_csv(file1)
+    file2 = pd.read_csv(file2)
     
     df_all_left = file1.merge(file2.drop_duplicates(), on=["Name", "Name"], how="left", indicator=True)
     df_ind_left = df_all_left[df_all_left["_merge"] != "both"]
@@ -206,27 +232,6 @@ def number_Ias(file):
     f = pd.read_csv(file)
     return len(f[f["Obj. Type"] == "SN Ia"])
 
-import ticgen as tg
-import pandas as pd
-
-tesscut_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
-wtv_all = "/Users/lindseygordon/research/urop/august2022crossmatch/all_WTV_SN_matches.csv"
-
-f = pd.read_csv(tesscut_all)
-#rcParams['figure.figsize'] = 10,10
-
-# convert using ticgen
 
 
 
-
-plt.hist(f["Discovery Mag/Flux"], 10, color="black")
-plt.axvline(20.5, color="red", label="TESS Mag. Limit")
-plt.axvline(18, color="blue", label="Paper Cutoff")
-plt.ylabel('Number of SN')
-plt.xlabel("Disc Mag")
-plt.legend(loc="upper left")
-plt.savefig("/Users/lindseygordon/research/urop/august2022crossmatch/tesscut_histogram.png")
-plt.show()
-plt.close()
-rcParams['figure.figsize'] = 16,6
