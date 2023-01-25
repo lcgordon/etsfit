@@ -26,6 +26,12 @@ class artificial_lc(object):
         
         
     def gen_fakes(self, n):
+        """ 
+        
+        Note to self: for paper purposes, expand out the limits on the 
+        params to go past the priors
+        
+        """
         print("making parameter vectors")
         def func1(x, t0, t1, A1, A2, beta1, beta2):
             return A1 *(x-t0)**beta1
@@ -35,9 +41,10 @@ class artificial_lc(object):
         self.n = n
         #t0, t1, A0, A1, beta0, beta1, B
         self.params_all = np.zeros((self.n, 7))
-        self.l = 10_000
+        self.l = 1_000
         self.x = np.linspace(0, 28, self.l)
-        self.flux_fake = np.ones((self.n, self.l))
+        self.flux_fake = np.ones((self.n, (self.l-100)))
+        self.error_fake = np.ones((self.n, (self.l-100)))
         
         self.params_all[:,0] = np.random.uniform(1, 28, self.n) #t0
         self.params_all[:,2] = np.random.uniform(0.01, 5, self.n) #A1
@@ -45,6 +52,14 @@ class artificial_lc(object):
         self.params_all[:,4] = np.random.uniform(0.5, 3, self.n) #beta1
         
         self.params_all[:,6] = np.random.uniform(-30, 30, self.n) #B
+        
+        #remove the middles like it's an orbit gap
+        #indexes 475 (13.31) to 575 (16.11)
+        mask = np.ones(self.l)
+        mask[475:575] = 0
+        mask = np.nonzero(mask) # which ones you are keeping
+        #mask x as well
+        self.x = self.x[mask]
         
         for i in range(self.n):
             if not i%4: #do like a quarter of them
@@ -59,22 +74,74 @@ class artificial_lc(object):
                 t0, t1, A1, A2, beta1, beta2, B = self.params_all[i]
                 t_ = self.x - t0
                 self.flux_fake[i] = (np.heaviside((t_), 1) * A1 *np.nan_to_num((t_**beta1))) + 1 + B
+        
+            #put some noise on those guys:
+            #gaussian white noise + uniform white noise
+            #uniform noise: 5% max
+            unif = np.random.uniform(0,0.05*max(self.flux_fake[i]), self.l-100)
+            # gaussian noise: gaussian * 5% of max
+            gauss = np.random.normal(loc=0,
+                                     scale = 1, size=self.l-100) * 0.05*max(self.flux_fake[i])
+            #error? 
+            err = unif + gauss
+            expectation_val = np.mean(err)
+            self.flux_fake[i] = self.flux_fake[i] + err
+            self.error_fake[i] = expectation_val
+            
+            #end for
+
+        
+        #we also assign an arbitrary discovery time as being 0.5-6 days post-t0. 
+        #dict: 
+        self.disctimes = {}
+        #labels
+        labels = list(range(self.n))
+        dtimes = self.params_all[:,0] + np.random.uniform(0.5, 6, self.n)
+        for i in range(self.n):
+            self.disctimes[labels[i]] = dtimes[i]
+        
+        
         return
+    
+    
     def plot_fake(self, index):
         
-        plt.scatter(self.x, self.flux_fake[index], color='k', s=2)
+        plt.scatter(self.x, self.flux_fake[index], color='k', s=0.5)
+        plt.errorbar(self.x, self.flux_fake[index], 
+                     self.error_fake[index], color='k', markersize=0.5)
         plt.axvline(self.params_all[index][0], color='r')
         plt.axvline(self.params_all[index][1], color='r')
+        plt.axvline(self.disctimes[index], color='g')
         plt.xlabel("time")
         plt.ylabel('fake flux')
         plt.title("index:{}, 2 components:{}".format(index, not bool(index%4)))
         plt.show()
-            
-            
+        return
+
+    def fit_fakes(self, fitType=1, start=0, n1=500, n2=5000):   
+        
+        for i in range(start, self.n):
+            dt = self.disctimes[i]
+            trlc = etsMAIN(self.save_dir, 'nofile')
+        
+            trlc.load_single_lc(self.x, self.flux_fake[i], self.error_fake[i], 
+                                dt, 
+                                "index{}".format(i), "00", "0", "0")
+        
+        
+        
+            trlc.pre_run_clean(fitType)
+            #trlc.test_plot()
+            trlc.run_MCMC(n1, n2)
+        return
+        
+   
+        
             
         
  
-lc = artificial_lc(".")
+lc = artificial_lc("./research/urop/fake_data/")
 lc.gen_fakes(10)
-lc.plot_fake(1)
+# lc.plot_fake(1)
+lc.fit_fakes()
         
