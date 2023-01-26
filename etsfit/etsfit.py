@@ -545,7 +545,8 @@ class etsMAIN(object):
     def run_MCMC(self, n1=1000, n2=10000, thinParams = None,
                  saveBIC=False, args=None, logProbFunc = None, plotFit = None,
                  filesavetag=None,
-                 labels=None, init_values=None, mu=2, sigma=1, local_dir=False):
+                 labels=None, init_values=None, mu=2, sigma=1, local_dir=False,
+                 quiet=False):
         """
         Run one MCMC instance - non GP fits
         
@@ -587,7 +588,7 @@ class etsMAIN(object):
             self.__gen_output_folder(self.filesavetag) 
                                                         
         # run it
-        self.__mcmc_inner_structure(n1, n2, thinParams)
+        self.__mcmc_inner_structure(n1, n2, thinParams, quiet=quiet)
         
         if saveBIC:
             self.bic_all.append(self.BIC[0])
@@ -596,7 +597,7 @@ class etsMAIN(object):
         return
       
         
-    def __mcmc_inner_structure(self, n1, n2, thinParams):
+    def __mcmc_inner_structure(self, n1, n2, thinParams, quiet=False):
         """Fitting things that are NOT GP based
         Params:
             - n1 is an integer number of steps for the first chain
@@ -604,9 +605,9 @@ class etsMAIN(object):
             - thinParams is EITHER NONE (default thinning is used, 1/4 for the first run,
                                          15% thinning) or [int to discard, thinning percent]
         """
-        
-        print(" *** \n *** \n *** \n ***")
-        print("Beginning MCMC run")
+        if not quiet:
+            print(" *** \n *** \n *** \n ***")
+            print("Beginning MCMC run")
          
         timeModule.sleep(3) # this keeps things running orderly
         
@@ -626,7 +627,8 @@ class etsMAIN(object):
         for n in range(len(p0)): # add a little spice 
             p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
         
-        print("Starting burnin chain")
+        if not quiet:
+            print("Starting burnin chain")
         # ### Initial run
         self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, 
                                         self.logProbFunc,args=self.args) # setup
@@ -677,6 +679,7 @@ class etsMAIN(object):
             # Compute the autocorrelation time so far
             tau = self.sampler.get_autocorr_time(tol=0) # tol=0 always get estimate
             if np.any(tau == np.nan) or np.any(tau == np.inf) or np.any(tau == -np.inf):
+                
                 print("autocorr is nan or inf")
                 print(tau)
             self.autocorr[self.index] = np.mean(tau) # save mean autocorr time
@@ -687,7 +690,8 @@ class etsMAIN(object):
             self.converged = np.all((tau * 100) < self.sampler.iteration)
             self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
             if self.converged:
-                print("Converged, ending chain")
+                if not quiet:
+                    print("Converged, ending chain")
                 break
             old_tau = tau
         
@@ -707,8 +711,8 @@ class etsMAIN(object):
 
         self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         sp.plot_param_samples_all(self)
-        
-        print(len(self.flat_samples), "samples post second run")
+        if not quiet:
+            print(len(self.flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
         self.best_mcmc = np.zeros((1,self.ndim))
@@ -717,7 +721,8 @@ class etsMAIN(object):
         for i in range(self.ndim):
             mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             q = np.diff(mcmc)
-            print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
+            if not quiet:
+                print(self.labels[i], mcmc[1], -1 * q[0], q[1] )
             self.best_mcmc[0][i] = mcmc[1]
             self.upper_error[0][i] = q[1]
             self.lower_error[0][i] = q[0]
@@ -727,9 +732,11 @@ class etsMAIN(object):
 
         # ### BIC
         #print(np.log(len(self.time)))
-        print("log prob:", logprob)
+        
         self.BIC = (self.ndim * np.log(len(self.time)) - 2 * (logprob * -1.0))[0]
-        print("BAYESIAN INF CRIT: ", self.BIC)
+        if not quiet:
+            print("log prob:", logprob)
+            print("BAYESIAN INF CRIT: ", self.BIC)
         if np.isnan(np.float64(self.BIC)): # if it's a nan
             self.BIC = 500000
              
@@ -767,9 +774,7 @@ class etsMAIN(object):
         THstring = ""
         #save parameters in rows of 4: 
         self.ndim = len(self.best_mcmc[0])
-        #print(self.best_mcmc[0])
         for n in range(self.ndim):
-            print(self.best_mcmc[0][n])
             BPstring = BPstring + " {A:.4f} ".format(A=self.best_mcmc[0][n])
             UEstring = UEstring + " {A:.4f} ".format(A=self.upper_error[0][n])
             LEstring = LEstring + " {A:.4f} ".format(A=self.lower_error[0][n])
@@ -782,8 +787,6 @@ class etsMAIN(object):
         BPstring = BPstring + "\n"
         UEstring = UEstring + "\n"
         LEstring = LEstring + "\n"
-        
-        #print(BPstring)
         
         #save theta values for tinygp
         if hasattr(self, 'theta'):
