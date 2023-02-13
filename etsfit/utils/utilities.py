@@ -201,6 +201,7 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
     fractionalBright = flux.max() - (((flux.max() - flux.min())) * (1-fraction))
     
     p = 0 # if you hit 10 in a row brighter than cutoff, you can stop there
+    cutoffindex = len(flux)
     for n in range(len(flux)):
         if flux[n] >= fractionalBright:
             p+=1

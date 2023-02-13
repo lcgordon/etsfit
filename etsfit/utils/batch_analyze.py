@@ -15,16 +15,16 @@ import os
 from astropy.time import Time
 import etsfit.utils.utilities as ut
 
-data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-params_dir = "/Users/lindseygordon/research/urop/paperOutput/"
-quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
-quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
-TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+# CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+# params_dir = "/Users/lindseygordon/research/urop/paperOutput/"
+# quaternion_folder_raw = "/Users/lindseygordon/research/urop/quaternions-raw/"
+# quaternion_folder_txt = "/Users/lindseygordon/research/urop/quaternions-txt/"
+# TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
 
-gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
-          "2020zbo", "2020hvq", "2018hzh",
-          "2020hdw", "2020bj", "2019gqv"]
+# gList = ["2018exc", "2018fhw", "2018fub", "2020tld", 
+#           "2020zbo", "2020hvq", "2018hzh",
+#           "2020hdw", "2020bj", "2019gqv"]
 
 
 def retrieve_disctimes(data_dir, tns_info, gList, datatag):
@@ -101,14 +101,23 @@ def extract_singlepower_all(filepath):
     return params, upper_e, lower_e, converg
 
 
-(disc_all1, params_all1, 
-  converged_all1, upper_all1, 
-  lower_all1) = retrieve_all_singlepower(TNSFile, data_dir, params_dir, gList, 
-                                datatag="-tessreduce", paramstag="singlepower-0.6")
+# (disc_all1, params_all1, 
+#   converged_all1, upper_all1, 
+#   lower_all1) = retrieve_all_singlepower(TNSFile, data_dir, params_dir, gList, 
+#                                 datatag="-tessreduce", paramstag="singlepower-0.6")
 
 
 def retrieve_all_celerite(TNSFile, data_dir, params_dir, gList,
-                          datatag="-tessreduce", paramstag="residual-0.6-bounded"):
+                          datatag="-tessreduce", 
+                          paramstag="celerite-matern32-residual-0.6-bounded"):
+    """ 
+    TNSFile = big csv file
+    data_dir = path to data
+    params_dir = where are all of the output files saved
+    gList = list of targets to get
+    datatag = what is the target labelled as (ie, '-tessreduce')
+    paramstag = the celerite tag being used, ie, "celerite-matern32-residual-0.6-bounded"
+    """
     tns_info = pd.read_csv(TNSFile)
     disc_all = retrieve_disctimes(data_dir, tns_info, gList, datatag)
     params_all = {}
@@ -119,7 +128,7 @@ def retrieve_all_celerite(TNSFile, data_dir, params_dir, gList,
     #retrieve an d print out the things: 
     for root, dirs, files in os.walk(params_dir):
         for name in files:
-            if name.endswith("celerite-matern32-"+paramstag+"-output-params.txt"):
+            if name.endswith(paramstag+"-output-params.txt"):
                 targ = name.split("-")[0][:-4]
 
                 if targ not in gList:
@@ -188,11 +197,11 @@ def extract_celerite_all(filepath):
     
     return params, upper_e, lower_e, converg
 
-(disc_all2, params_all2, 
- converged_all2, upper_all2, 
- lower_all2) = retrieve_all_celerite(TNSFile, data_dir, params_dir, gList,
-                           datatag="-tessreduce", 
-                           paramstag="residual-0.6")
+# (disc_all2, params_all2, 
+#  converged_all2, upper_all2, 
+#  lower_all2) = retrieve_all_celerite(TNSFile, data_dir, params_dir, gList,
+#                            datatag="-tessreduce", 
+#                            paramstag="residual-0.6")
 
 def table_singlepower(params_all):
     for k in params_all.keys():
@@ -218,4 +227,4 @@ def table_celerite(params_all):
                                                                     A=A, be=beta, b=b))
         print(" & {sig:.2f} & {r:.2f} ".format(sig = np.exp(2*sig), r=np.exp(rho)))
 
-table_differences(params_all1, params_all2)
+#table_differences(params_all1, params_all2)

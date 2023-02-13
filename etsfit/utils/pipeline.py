@@ -99,11 +99,17 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                 trlc.pre_run_clean(fitType, flux_mask=winfilter, 
                                    binning = binning, fraction = fraction)
                 #trlc.test_plot()
-                trlc.run_MCMC(n1, n2)
+                trlc.run_MCMC(n1, n2, quiet=True)
                 #del(trlc)
                 gc.collect()
                 i=i+1
     return trlc
+
+run_all_fits(1, data_dir, save_dir, TNSFile,
+                  filekey = "-tessreduce",
+                  goodList=gList, cbv_dir=None, quaternion_raw_dir=None,
+                  quaternion_txt_dir=None, 
+                  fraction=0.8, binning=False, n1=5_000, n2=40_000)
 
 
 def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
@@ -188,15 +194,15 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
     return trlc
 
 # import numpy as np
-# rho_bounds = np.log((0.25, 10)) #0, 2.302
-# sigma_bounds = np.log( np.sqrt((0.1, 20)) ) #sigma range 0.316 to 4.47, take log
-# bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds, boundlabel="-0-25day")
+# # rho_bounds = np.log((0.25, 10)) #0, 2.302
+# # sigma_bounds = np.log( np.sqrt((0.1, 20)) ) #sigma range 0.316 to 4.47, take log
+# # bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds, boundlabel="-0-25day")
 
 # trlc = run_all_GP('celerite_residual', data_dir, save_dir, TNSFile,
 #                   filekey = "-tessreduce",
 #                   goodList=gList, 
-#                   fraction=0.6, binning=False, n1=5000, n2=25000, bounds=True,
-#                   cbounds=bounds_dict)
+#                   fraction=0.6, binning=False, n1=1000, n2=15000, bounds=True,
+#                   cbounds=None)
 
 
 

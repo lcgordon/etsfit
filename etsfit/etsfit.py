@@ -36,7 +36,7 @@ jax.config.update("jax_enable_x64", True)
 class etsMAIN(object):
     """Make one of these for the light curve you're going to fit!"""
     
-    def __init__(self, save_dir, TNSFile):
+    def __init__(self, save_dir, TNSFile, plot=True):
         """
         Initialize an etsfit object
         
@@ -76,6 +76,7 @@ class etsMAIN(object):
         self.quats_cbvs = None
         self.using_GP = False
         self.cleaningdone = False
+        self.plot = plot
         return
     
     def reset(self):
@@ -170,8 +171,7 @@ class etsMAIN(object):
         return
 
     
-    def window_rms_filt(self, innerfilt = None, outerfilt = None,
-                        plot=True):
+    def window_rms_filt(self, innerfilt = None, outerfilt = None):
         """ 
         Runs an RMS filter over the light curve and returns an array of 
         0's (bad) and 1's (good) that can be used in the custom masking
@@ -193,7 +193,7 @@ class etsMAIN(object):
         
         """
         return ut.window_rms(self.time, self.flux, innerfilt = innerfilt, 
-                        outerfilt = outerfilt, plot=plot)
+                        outerfilt = outerfilt, plot=self.plot)
     
     def load_single_lc(self, time, flux, error, discoverytime, 
                        targetlabel, sector, camera, ccd, BGdata=None):
@@ -296,13 +296,9 @@ class etsMAIN(object):
         # handle CBVs+quats
         if self.cbvquat_access and fitType in (2,4,5):
             print("Loading in quaternions and CBVs")
-            (self.time, 
-             self.flux, 
-             self.error,
-             self.quatTime, 
-             self.quaternions, 
-             self.CBV1, 
-             self.CBV2, 
+            (self.time, self.flux, self.error,
+             self.quatTime, self.quaternions, 
+             self.CBV1, self.CBV2, 
              self.CBV3) = ut.generate_clip_quats_cbvs(self.sector, 
                                                       self.time,
                                                       self.flux,
@@ -635,9 +631,9 @@ class etsMAIN(object):
         self.sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        if self.plotFit < 10:
+        if self.plotFit < 10 and self.plot:
             sp.plot_chain_logpost(self, appendix = "burnin")
-        elif self.plotFit == 10:
+        elif self.plotFit == 10 and self.plot:
             sp.plot_chain(self, appendix = "burnin")
             
     
@@ -698,7 +694,8 @@ class etsMAIN(object):
         # ######
         #plot autocorr things
         ########
-        sp.plot_autocorr_all(self)
+        if self.plot:
+            sp.plot_autocorr_all(self)
         
             
         #thin and burn out dump
@@ -710,7 +707,8 @@ class etsMAIN(object):
             burnin = int(n2/4)
 
         self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
-        sp.plot_param_samples_all(self)
+        if self.plot:
+            sp.plot_param_samples_all(self)
         if not quiet:
             print(len(self.flat_samples), "samples post second run")
     
@@ -741,10 +739,10 @@ class etsMAIN(object):
             self.BIC = 500000
              
         
-        if self.plotFit < 10:
+        if self.plotFit < 10 and self.plot:
             sp.plot_chain_logpost(self, appendix = "production")
             sp.plot_mcmc(self)
-        elif self.plotFit == 10:
+        elif self.plotFit == 10 and self.plot:
             sp.plot_chain(self, appendix = "production")
             if 'mean' in self.gpUSE:
                 # Plot the data.
@@ -912,7 +910,7 @@ class etsMAIN(object):
             else: 
                 self.tinygp_bounds = None
         
-        self.__filetag_update(self, bounds)
+        self.__filetag_update(bounds)
             
         return
     
@@ -1088,7 +1086,8 @@ class etsMAIN(object):
         self.std = np.sqrt(var)
 
         # Plot the data + scipy prediction
-        sp.plot_scipy_max(self)
+        if self.plot:
+            sp.plot_scipy_max(self)
 
         self.init_values = soln.x
         self.args = (self.flux, self.gp)
@@ -1180,7 +1179,8 @@ class etsMAIN(object):
         self.sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain
-        sp.plot_chain_logpost(self, appendix = "burnin")
+        if self.plot:
+            sp.plot_chain_logpost(self, appendix = "burnin")
     
         self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
         
@@ -1212,7 +1212,7 @@ class etsMAIN(object):
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
-        solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+        solver = jaxopt.ScipyBoundedMinimize(fun=neg_log_likelihood)
         soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
@@ -1231,7 +1231,7 @@ class etsMAIN(object):
                     best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
                     
                 res = make_residual(self.time, self.flux, best_mcmc_inter[0])
-                solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+                #solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
                 soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
                 self.update_theta(soln.params)
@@ -1260,10 +1260,11 @@ class etsMAIN(object):
         #save output gp params:
         self.update_theta(soln.params)
         #plot gp log likelihood over steps
-        sp.plot_tinygp_ll(self)
+        if self.plot:
+            sp.plot_tinygp_ll(self)
         
-        #plot autocorrelation times 
-        sp.plot_autocorr_all(self)
+            #plot autocorrelation times 
+            sp.plot_autocorr_all(self)
             
         #thin and burn out dump
         tau = self.sampler.get_autocorr_time(tol=0)
@@ -1276,9 +1277,10 @@ class etsMAIN(object):
         self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self, appendix = "production")
-        
-        sp.plot_param_samples_all(self)
+        if self.plot:
+            sp.plot_chain_logpost(self, appendix = "production")
+            
+            sp.plot_param_samples_all(self)
         
         print(len(self.flat_samples), "samples post second run")
     
@@ -1310,7 +1312,8 @@ class etsMAIN(object):
 
          
         self.gp = self.build_gp(self.theta, self.time)
-        sp.plot_mcmc_GP_tinygp(self)
+        if self.plot:
+            sp.plot_mcmc_GP_tinygp(self)
 
         self.__fileparamsave()
         
@@ -1447,7 +1450,8 @@ class etsMAIN(object):
         self.std = np.sqrt(var)
 
         # Plot the data + scipy prediction
-        sp.plot_scipy_max(self)
+        if self.plot:
+            sp.plot_scipy_max(self)
 
         self.init_values = soln.x
         self.args = (self.flux, self.gp)
@@ -1498,7 +1502,8 @@ class etsMAIN(object):
         
         #plot burn in chain
         self.filesavetag = self.filesavetag1
-        sp.plot_chain_logpost(self, appendix = "burnin")
+        if self.plot:
+            sp.plot_chain_logpost(self, appendix = "burnin")
         self.filesavetag = taggy
     
         self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
@@ -1532,7 +1537,7 @@ class etsMAIN(object):
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
         print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
-        solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+        solver = jaxopt.ScipyBoundedMinimize(fun=neg_log_likelihood)
         soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
         print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
@@ -1552,7 +1557,7 @@ class etsMAIN(object):
                     best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
                     
                 res = make_residual(self.time, self.flux, best_mcmc_inter[0])
-                solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
+                #solver = jaxopt.ScipyMinimize(fun=neg_log_likelihood)
                 soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
                 self.GP_LL_all.append(soln.state.fun_val)
                 self.update_theta(soln.params)
@@ -1582,7 +1587,8 @@ class etsMAIN(object):
         self.update_theta(soln.params)
         
         self.filesavetag = self.filesavetag2
-        sp.plot_tinygp_ll(self)
+        if self.plot:
+            sp.plot_tinygp_ll(self)
         self.filesavetag = taggy
         
         #plot autocorr things
@@ -1599,9 +1605,10 @@ class etsMAIN(object):
         self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         
         # plot chains, parameters
-        sp.plot_chain_logpost(self, appendix = "production")
-        
-        sp.plot_param_samples_all(self)
+        if self.plot:
+            sp.plot_chain_logpost(self, appendix = "production")
+            
+            sp.plot_param_samples_all(self)
         
         print(len(self.flat_samples), "samples post second run")
     
@@ -1646,7 +1653,8 @@ class etsMAIN(object):
         self.gpcelerite.compute(self.time, self.error)
         self.gptinygp = self.build_gp(self.theta, self.time)
         
-        sp.plot_celerite_tinygp_comp(self)
+        if self.plot:
+            sp.plot_celerite_tinygp_comp(self)
 
         self.__fileparamsave()
         return
