@@ -180,6 +180,77 @@ def data_masking(obj):
         obj.CBV3 = obj.CBV3[mask]
         obj.quats_cbvs = [obj.quaternions, obj.CBV1, obj.CBV2, obj.CBV3]
     return 
+
+def param_save(obj):
+    """ 
+    Save output parameter files
+    """
+    if hasattr(obj, 'BIC_celerite'):
+        BICstring = "BIC celerite:{b1:.3f}\nBIC tinygp{b2:.3f}\n".format(b1=obj.BIC_celerite[0],
+                                                                         b2=obj.BIC_tinygp[0])
+    else:
+        BICstring = "BIC:{bicy:.3f}\n".format(bicy=obj.BIC)
+    
+    CONVstring = "Converged:{conv} \n".format(conv=obj.converged)
+    BPstring = ""
+    UEstring = ""
+    LEstring = ""
+    THstring = ""
+    #save parameters in rows of 4: 
+    obj.ndim = len(obj.best_mcmc[0])
+    for n in range(obj.ndim):
+        BPstring = BPstring + " {A:.4f} ".format(A=obj.best_mcmc[0][n])
+        UEstring = UEstring + " {A:.4f} ".format(A=obj.upper_error[0][n])
+        LEstring = LEstring + " {A:.4f} ".format(A=obj.lower_error[0][n])
+        if not (n+1) % 4: #every 4, make a new line
+            BPstring = BPstring + "\n"
+            UEstring = UEstring + "\n"
+            LEstring = LEstring + "\n"
+            
+    #then add another gap after that
+    BPstring = BPstring + "\n"
+    UEstring = UEstring + "\n"
+    LEstring = LEstring + "\n"
+    
+    #save theta values for tinygp
+    if hasattr(obj, 'theta'):
+        for k in obj.theta.keys():
+            THstring = THstring + "{key} \n {val:.4f} \n".format(key=k, 
+                                                                 val = obj.theta[k])
+    
+    #write into file:
+    with open(obj.parameterSaveFile, 'w') as file:
+        file.write(obj.targetlabel + "\n")
+        file.write(BICstring)
+        file.write(CONVstring)
+        file.write(BPstring)
+        file.write(UEstring)
+        file.write(LEstring)
+        file.write(THstring)
+    
+    return
+
+def gen_output_folder(obj, filesavetag):
+    # check for an output folder's existence, if not, put it in. 
+    if (obj.save_dir is None or 
+        obj.targetlabel is None or 
+        obj.sector is None
+        or obj.camera is None or 
+        obj.ccd is None):
+        raise ValueError("Cannot generate output folders, one of the parameters is None")
+    
+    internaluse = obj.targetlabel + str(obj.sector) + str(obj.camera) + str(obj.ccd)
+    newfolderpath = (obj.save_dir + internaluse)
+    if not os.path.exists(newfolderpath):
+        os.mkdir(newfolderpath)
+
+    subfolderpath = newfolderpath + "/" + filesavetag[1:]
+    if not os.path.exists(subfolderpath):
+        os.mkdir(subfolderpath)
+    obj.save_dir = subfolderpath + "/"
+    obj.parameterSaveFile = obj.save_dir + internaluse + filesavetag + "-output-params.txt"
+    print("saving into folder: ", obj.save_dir) 
+    return
     
 
 def fractionalfit(time, flux, error, bg, fraction, QCBVALL):

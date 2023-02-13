@@ -384,39 +384,28 @@ class etsMAIN(object):
         Internal function, sets up output folder for files
         
         """
-        # check for an output folder's existence, if not, put it in. 
-        if (self.save_dir is None or 
-            self.targetlabel is None or 
-            self.sector is None
-            or self.camera is None or 
-            self.ccd is None):
-            raise ValueError("Cannot generate output folders, one of the parameters is None")
-        
-        internaluse = self.targetlabel + str(self.sector) + str(self.camera) + str(self.ccd)
-        newfolderpath = (self.save_dir + internaluse)
-        if not os.path.exists(newfolderpath):
-            os.mkdir(newfolderpath)
-    
-        subfolderpath = newfolderpath + "/" + filesavetag[1:]
-        if not os.path.exists(subfolderpath):
-            os.mkdir(subfolderpath)
-        self.save_dir = subfolderpath + "/"
-        self.parameterSaveFile = self.save_dir + internaluse + filesavetag + "-output-params.txt"
-        print("saving into folder: ",self.save_dir) 
-
+        ut.gen_output_folder(self, filesavetag)
         return 
     
-    def __filetag_update(self, bounds=False):
+    def __fileparamsave(self):
+        """ 
+        Internal function to save parameters into txt file 
+        """
+        ut.param_save(self)
+        return
+   
+    
+    def __filetag_update(self, usebounds=False):
         if self.binned: # it has to go in this order - need to load, then set args, then set this
             self.filesavetag = self.filesavetag + "-8HourBin"
     
         if self.fractiontrimmed and self.fract is not None:
             self.filesavetag = self.filesavetag + "-{fraction}".format(fraction=self.fract)
             
-        if bounds and self.using_GP:
+        if usebounds and self.using_GP:
             self.filesavetag = self.filesavetag + "-bounded"
         
-        if bounds is False and self.using_GP:
+        if usebounds is False and self.using_GP:
             self.filesavetag = self.filesavetag + "-noBounds"
         return
     
@@ -533,7 +522,7 @@ class etsMAIN(object):
         if filesavetag is not None:
             self.filesavetag = filesavetag
           
-        self.__filetag_update(bounds=False)    
+        self.__filetag_update(usebounds=False)    
           
         return
    
@@ -594,7 +583,8 @@ class etsMAIN(object):
       
         
     def __mcmc_inner_structure(self, n1, n2, thinParams, quiet=False):
-        """Fitting things that are NOT GP based
+        """
+        Fitting things that are NOT GP based
         Params:
             - n1 is an integer number of steps for the first chain
             - n2 is an integer number of steps for the second chain
@@ -608,10 +598,10 @@ class etsMAIN(object):
         timeModule.sleep(3) # this keeps things running orderly
         
         if thinParams is None:
-            discard1 = int(n1/4)
+            discard_ = int(n1/4)
             thinning = 15
         else:
-            discard1, thinning = thinParams
+            discard_, thinning = thinParams
                               
 
         # ### MCMC setup
@@ -619,9 +609,8 @@ class etsMAIN(object):
         
         nwalkers = 100
         self.ndim = len(self.labels) # labels are provided when you run it
-        p0 = np.zeros((nwalkers, self.ndim)) # init positions
-        for n in range(len(p0)): # add a little spice 
-            p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
+        p0 = (np.ones((nwalkers, self.ndim)) * self.init_values + 
+              np.random.uniform(0, 0.1, (nwalkers, self.ndim)))
         
         if not quiet:
             print("Starting burnin chain")
@@ -637,7 +626,7 @@ class etsMAIN(object):
             sp.plot_chain(self, appendix = "burnin")
             
     
-        self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=discard_, flat=True, thin=thinning)
         
         # get intermediate best
         best_mcmc_inter = np.zeros((1,self.ndim))
@@ -653,10 +642,8 @@ class etsMAIN(object):
             
             
         # ### Main run
-        np.random.seed(50)
-        p0 = np.zeros((nwalkers, self.ndim))
-        for i in range(nwalkers): # reinitialize the walkers around prev. best
-            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, self.ndim)
+        p0 = (np.ones((nwalkers, self.ndim)) * best_mcmc_inter[0] + 
+              np.random.uniform(0, 0.1, (nwalkers, self.ndim)))
            
         self.sampler.reset()
         
@@ -754,59 +741,12 @@ class etsMAIN(object):
         #save output parameters
         self.__fileparamsave()
         
-        return self.best_mcmc, self.upper_error, self.lower_error, self.BIC
-    
-    def __fileparamsave(self):
-        """ 
-        Internal function to save parameters into txt file 
-        """
-        if hasattr(self, 'BIC_celerite'):
-            BICstring = "BIC celerite:{b1:.3f}\nBIC tinygp{b2:.3f}\n".format(b1=self.BIC_celerite[0],
-                                                                             b2=self.BIC_tinygp[0])
-        else:
-            BICstring = "BIC:{bicy:.3f}\n".format(bicy=self.BIC)
-        CONVstring = "Converged:{conv} \n".format(conv=self.converged)
-        BPstring = ""
-        UEstring = ""
-        LEstring = ""
-        THstring = ""
-        #save parameters in rows of 4: 
-        self.ndim = len(self.best_mcmc[0])
-        for n in range(self.ndim):
-            BPstring = BPstring + " {A:.4f} ".format(A=self.best_mcmc[0][n])
-            UEstring = UEstring + " {A:.4f} ".format(A=self.upper_error[0][n])
-            LEstring = LEstring + " {A:.4f} ".format(A=self.lower_error[0][n])
-            if not (n+1) % 4: #every 4, make a new line
-                BPstring = BPstring + "\n"
-                UEstring = UEstring + "\n"
-                LEstring = LEstring + "\n"
-                
-        #then add another gap after that
-        BPstring = BPstring + "\n"
-        UEstring = UEstring + "\n"
-        LEstring = LEstring + "\n"
-        
-        #save theta values for tinygp
-        if hasattr(self, 'theta'):
-            for k in self.theta.keys():
-                THstring = THstring + "{key} \n {val:.4f} \n".format(key=k, 
-                                                                     val = self.theta[k])
-        
-        #write into file:
-        with open(self.parameterSaveFile, 'w') as file:
-            file.write(self.targetlabel + "\n")
-            file.write(BICstring)
-            file.write(CONVstring)
-            file.write(BPstring)
-            file.write(UEstring)
-            file.write(LEstring)
-            file.write(THstring)
-        
-        return
-   
+        return 
+
     
     def run_GP_fit(self, n1=1000, n2=10000, gpUSE = "expsqr",
-                          thinParams=None, bounds = True, cbounds=None):
+                          thinParams=None, usebounds = True, 
+                          custom_bounds=None, quiet=False):
         """
         Run the GP fitting 
         allowed runs: ['celerite_mean', 'celerite_residual', 'expsqr', 'expsinsqr', 'matern32']
@@ -816,11 +756,12 @@ class etsMAIN(object):
             - n2 (int) production steps
             - gpUSE (str) ['celerite_mean', 'celerite_residual', 'expsqr', 'expsinsqr', 'matern32']
             - thinParams (arr) either None or [int to discard, thinning percent]
-            - bounds (bool) t/f using tight bounds
-            - cbounds (dict/none) custom bounds dict, containing entries for:
+            - usebounds (bool) t/f using tight bounds
+            - custom_bounds (dict/none) custom bounds dict, containing entries for:
                 - log_sigma
                 - log_rho
                 - boundlabel (string)
+            - quiet = bool yes/no printing
         
         """
         self.using_GP = True
@@ -835,25 +776,25 @@ class etsMAIN(object):
             return ValueError("Not a valid gpUSE input!")
         
         if 'celerite_mean' in self.gpUSE:
-            self.__run_GP_fit_celerite_mean(n1, n2, thinParams, bounds=bounds,
-                                            cbounds=cbounds)
+            self.__run_GP_fit_celerite_mean(n1, n2, thinParams, bounds=usebounds,
+                                            custom_bounds=custom_bounds, quiet=quiet)
             
         elif 'celerite_residual' in self.gpUSE:
-            self.__run_GP_fit_celerite_residual(n1, n2, thinParams, bounds=bounds,
-                                                cbounds=cbounds)
+            self.__run_GP_fit_celerite_residual(n1, n2, thinParams, bounds=usebounds,
+                                                custom_bounds=custom_bounds, quiet=quiet)
             
         else: #tinygp options
            
             #set up gpUSE settings
-            self.__tinygp_setup(gpUSE=gpUSE, bounds=bounds)                                          
+            self.__tinygp_setup(gpUSE=gpUSE, bounds=usebounds)                                          
             #make folders to save into
             
             self.__gen_output_folder(self.filesavetag)   
             #print("entering mcmc + gp concurrent fitting")
-            self.__mcmc_concurrent_gp(n1, n2, thinParams)
+            self.__mcmc_concurrent_gp(n1, n2, thinParams, quiet)
         return
    
-    def __tinygp_setup(self, gpUSE='expsqr', bounds=True):
+    def __tinygp_setup(self, gpUSE='expsqr', usebounds=True):
         """ 
         Internal function to set up the tinygp run
         """
@@ -875,7 +816,7 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_expsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
-            if bounds: #sigma, rho
+            if usebounds: #sigma, rho
                 self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
                                              [np.log(21.2), np.log(3)]])
             else: 
@@ -889,7 +830,7 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_matern32 #no quotes on it
             self.update_theta = self.__update_theta_ampsscale
-            if bounds: 
+            if usebounds: 
                 self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
                                              [np.log(21.2), np.log(3)]])
             else: 
@@ -904,21 +845,21 @@ class etsMAIN(object):
             }
             self.build_gp = self.__build_tinygp_expsinsqr #no quotes on it
             self.update_theta = self.__update_theta_ampsscalegamma
-            if bounds: #sigma, rho
+            if usebounds: #sigma, rho
                 self.tinygp_bounds = np.asarray([[np.log(1.1), np.log(1), np.log(1)], 
                                              [np.log(21.2), np.log(3), np.log(3)]])
             else: 
                 self.tinygp_bounds = None
         
-        self.__filetag_update(bounds)
+        self.__filetag_update(usebounds)
             
         return
     
 
     
     def __run_GP_fit_celerite_residual(self, n1=1000, n2=10000, 
-                                       thinParams=None, bounds=True, 
-                                       cbounds=None):
+                                       thinParams=None, usebounds=True, 
+                                       custom_bounds=None, quiet=True):
         """
         Run the GP fitting w/ celerite fitting to the residual
         -------------------------
@@ -926,16 +867,17 @@ class etsMAIN(object):
             - n1 (int) burn in steps
             - n2 (int) production steps
             - thinParams (arr) either None or [int to discard, thinning percent]
-            - bounds (bool) t/f using tight bounds
-            - cbounds (dict/none) custom bounds dict, containing entries for:
+            - usebounds (bool) t/f using tight bounds
+            - custom_bounds (dict/none) custom bounds dict, containing entries for:
                 - log_sigma
                 - log_rho
                 - boundlabel (string)
+            - quiet bool print
         
         """
         self.filesavetag = "-celerite-matern32-residual"
 
-        self.__filetag_update(bounds)
+        self.__filetag_update(usebounds)
         
         
         
@@ -944,15 +886,16 @@ class etsMAIN(object):
         # set up gp:
         rho = 2 # init value
         sigma = 1
-        if bounds and cbounds is None:
+        if usebounds and custom_bounds is None:
            
             sigma_bounds = np.log( np.sqrt((0.1,20  )) ) #sigma range 0.316 to 4.47, take log
             rho_bounds = np.log((1, 10)) #0, 2.302
             bounds_dict = dict(log_sigma=sigma_bounds, log_rho=rho_bounds)
             
-        elif bounds and cbounds is not None: 
-            bounds_dict = cbounds.copy()
-            print(bounds_dict)
+        elif usebounds and custom_bounds is not None: 
+            bounds_dict = custom_bounds.copy()
+            if not quiet:
+                print(bounds_dict)
             self.filesavetag = self.filesavetag + bounds_dict["boundlabel"]
             bounds_dict.pop('boundlabel')
             
@@ -971,7 +914,8 @@ class etsMAIN(object):
         self.init_values = np.array((start_t, 0.1, 1.8, 0,np.log(sigma), np.log(rho)))
         self.gp = celerite.GP(kernel, mean=0.0)
         self.gp.compute(self.time, self.error)
-        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
+        if not quiet:
+            print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
         # set up arguments etc.
         self.args = (self.time,self.flux, self.error, self.gp)
         self.logProbFunc = mc.log_probability_celerite_residual
@@ -980,12 +924,12 @@ class etsMAIN(object):
         self.plotFit = 10
         
         #run it
-        self.__mcmc_inner_structure(n1, n2, thinParams)
+        self.__mcmc_inner_structure(n1, n2, thinParams, quiet=quiet)
         return
     
     def __run_GP_fit_celerite_mean(self, n1=1000, n2=10000, 
-                                   thinParams=None, bounds=False, 
-                                   cbounds = None):
+                                   thinParams=None, usebounds=False, 
+                                   custom_bounds = None, quiet=False):
         """
         Run the GP fitting w/ celerite and a mean model 
         -------------------------
@@ -993,15 +937,15 @@ class etsMAIN(object):
             - n1 (int) burn in steps
             - n2 (int) production steps
             - thinParams (arr) either None or [int to discard, thinning percent]
-            - bounds (bool) t/f using tight bounds
-            - cbounds (dict/none) custom bounds dict, containing entries for:
+            - usebounds (bool) t/f using tight bounds
+            - custom_bounds (dict/none) custom bounds dict, containing entries for:
                 - log_sigma
                 - log_rho
                 - boundlabel (string)
         """
         
         self.filesavetag = "-celerite-matern32-mean-model"
-        self.__filetag_update(bounds)
+        self.__filetag_update(usebounds)
         #make folders to save into
         self.__gen_output_folder(self.filesavetag)  
         
@@ -1044,13 +988,13 @@ class etsMAIN(object):
 
         # Set up the GP model
         #presently unbounded
-        if bounds and cbounds is None:
+        if usebounds and custom_bounds is None:
             bounds_dict = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
                        'log_rho':np.log((1,10))}
             kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
                                         bounds=bounds_dict)
-        elif bounds and cbounds is not None:
-            bounds_dict = cbounds.copy()
+        elif usebounds and custom_bounds is not None:
+            bounds_dict = custom_bounds.copy()
             self.filesavetag = self.filesavetag + bounds_dict["boundlabel"]
             bounds_dict.pop('boundlabel')
             kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
@@ -1060,7 +1004,8 @@ class etsMAIN(object):
             
         self.gp = celerite.GP(kernel, mean=mean_model, fit_mean=True)
         self.gp.compute(self.time, self.error)
-        print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
+        if not quiet:
+            print("Initial log-likelihood: {0}".format(self.gp.log_likelihood(self.flux)))
 
         # Define a cost function
         def neg_log_like(params, y, gp):
@@ -1074,8 +1019,8 @@ class etsMAIN(object):
         # Fit for the maximum likelihood parameters
         initial_params = self.gp.get_parameter_vector()
         bounds = self.gp.get_parameter_bounds()
-
-        print("Running scipy maximizer")
+        if not quiet:
+            print("Running scipy maximizer")
         soln = minimize(neg_log_like, initial_params, jac=grad_neg_log_like,
                         method="L-BFGS-B", bounds=bounds, args=(self.flux, self.gp))
 
@@ -1098,7 +1043,7 @@ class etsMAIN(object):
     
         #emcee section
         #run it
-        self.__mcmc_inner_structure(n1, n2, thinParams)
+        self.__mcmc_inner_structure(n1, n2, thinParams, quiet=quiet)
            
         return
     
@@ -1134,7 +1079,7 @@ class etsMAIN(object):
         return
     
     
-    def __mcmc_concurrent_gp(self, n1, n2, thinParams):
+    def __mcmc_concurrent_gp(self, n1, n2, thinParams, quiet=False):
         """Fitting things that are NOT GP based
         Params:
             - n1 is an integer number of steps for the first chain
@@ -1152,16 +1097,17 @@ class etsMAIN(object):
             gp = self.build_gp(theta, X)
             return -gp.log_probability(y)
         
-        print(" *** \n *** \n *** \n ***")
-        print("Beginning MCMC + GP run")
+        if not quiet:
+            print(" *** \n *** \n *** \n ***")
+            print("Beginning MCMC + GP run")
          
         timeModule.sleep(3) # this keeps things running orderly
         
         if thinParams is None:
-            discard1 = int(n1/4)
+            discard_ = int(n1/4)
             thinning = 15
         else:
-            discard1, thinning = thinParams
+            discard_, thinning = thinParams
                               
 
         # ### MCMC setup
@@ -1169,11 +1115,11 @@ class etsMAIN(object):
         
         nwalkers = 100
         self.ndim = len(self.labels) # labels are provided when you run it
-        p0 = np.zeros((nwalkers, self.ndim)) # init positions
-        for n in range(len(p0)): # add a little spice
-            p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
+        p0 = (np.ones((nwalkers, self.ndim)) * self.init_values + 
+              np.random.uniform(0, 0.1, (nwalkers, self.ndim)))
         
-        print("Starting burn-in chain")
+        if not quiet:
+            print("Starting burn-in chain")
         # ### Initial run
         self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.logProbFunc,args=self.args) # setup
         self.sampler.run_mcmc(p0, n1, progress=True) # run it
@@ -1182,7 +1128,7 @@ class etsMAIN(object):
         if self.plot:
             sp.plot_chain_logpost(self, appendix = "burnin")
     
-        self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=discard_, flat=True, thin=thinning)
         
         # get intermediate best
         best_mcmc_inter = np.zeros((1,self.ndim))
@@ -1190,10 +1136,8 @@ class etsMAIN(object):
             best_mcmc_inter[0][i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
             
         # ### Main run
-        np.random.seed(50)
-        p0 = np.zeros((nwalkers, self.ndim))
-        for i in range(nwalkers): # reinitialize the walkers around prev. best
-            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, self.ndim)
+        p0 = (np.ones((nwalkers, self.ndim)) * best_mcmc_inter[0] + 
+              np.random.uniform(0, 0.1, (nwalkers, self.ndim)))
            
         self.sampler.reset()
         
@@ -1210,11 +1154,13 @@ class etsMAIN(object):
         #print("created residual")
         
         obj = jax.jit(jax.value_and_grad(neg_log_likelihood))
-        print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
+        if not quiet:
+            print(f"Initial negative log likelihood: {obj(self.theta, self.time, res)[0]}")
 
         solver = jaxopt.ScipyBoundedMinimize(fun=neg_log_likelihood)
         soln = solver.run(self.theta, self.tinygp_bounds, X=self.time, y=res)
-        print(f"Final negative log likelihood: {soln.state.fun_val}")
+        if not quiet:
+            print(f"Final negative log likelihood: {soln.state.fun_val}")
         #set theta to new values
         self.update_theta(soln.params)
         self.GP_LL_all = [soln.state.fun_val]
@@ -1251,7 +1197,7 @@ class etsMAIN(object):
             # Check convergence
             self.converged = np.all((tau * 100) < self.sampler.iteration)
             self.converged &= np.all((np.abs(old_tau - tau) / tau) < 0.01) # normally 0.01
-            if self.converged:
+            if self.converged and not quiet:
                 print("Converged, ending chain")
                 break
             old_tau = tau
@@ -1281,8 +1227,8 @@ class etsMAIN(object):
             sp.plot_chain_logpost(self, appendix = "production")
             
             sp.plot_param_samples_all(self)
-        
-        print(len(self.flat_samples), "samples post second run")
+        if not quiet:
+            print(len(self.flat_samples), "samples post second run")
     
         # ### BEST FIT PARAMS
         self.best_mcmc = np.zeros((1,self.ndim))
@@ -1290,7 +1236,8 @@ class etsMAIN(object):
         self.lower_error = np.zeros((1,self.ndim))
         for i in range(self.ndim):
             mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
-            print(self.labels[i], mcmc[1], -1 * np.diff(mcmc)[0], np.diff(mcmc)[1] )
+            if not quiet:
+                print(self.labels[i], mcmc[1], -1 * np.diff(mcmc)[0], np.diff(mcmc)[1] )
             self.best_mcmc[0][i] = mcmc[1]
             self.upper_error[0][i] = np.diff(mcmc)[1]
             self.lower_error[0][i] = np.diff(mcmc)[0]
@@ -1300,13 +1247,17 @@ class etsMAIN(object):
         # ### BIC
         #so have logprob from the self.sampler (just model)
         # want to add the log prob from the tinygp model
-        print("negative log prob, no GP: ", logprob) #this spits out a negative value
+        
         negll = -1.0 * float(self.GP_LL_all[-1]) #neg ll
-        print("negative log like,  GP: ", negll)
         logprob = -1.0 * (logprob+negll)
         
+        if not quiet:
+            print("negative log prob, no GP: ", logprob) #this spits out a negative value
+            print("negative log like,  GP: ", negll)
+        
         self.BIC = (self.ndim * np.log(len(self.time)) - 2 * logprob)[0]
-        print("BAYESIAN INF CRIT: ", self.BIC)
+        if not quiet:
+            print("BAYESIAN INF CRIT: ", self.BIC)
         if np.isnan(np.float64(self.BIC)): # if it's a nan
             self.BIC = 500000
 
@@ -1321,7 +1272,7 @@ class etsMAIN(object):
     
 
     def run_both_matern32(self, flux_mask, binning=False, fraction=None,
-                          bounds = True, cbounds=None):
+                          usebounds = True, custom_bounds=None):
         """ 
         Run concurrent tinygp and celerite fitting to residuals
         ----------------------------
@@ -1331,8 +1282,8 @@ class etsMAIN(object):
             - binning (bool, default NONE) bins to 8 hours if true
             - fraction (default NONE, 0-1 float for percent) trims flux to 
             percent of max. 0.4 is 40% of max, etc.
-            - bounds (bool) whether or not to use bounds
-            - cbounds (dicts/None) custom dict of bounds, optional
+            - usebounds (bool) whether or not to use bounds
+            - custom_bounds (dicts/None) custom dict of bounds, optional
         
         """
         def make_residual(x, y, best_mcmc):
@@ -1362,17 +1313,17 @@ class etsMAIN(object):
         self.__fract_fit(fraction)
         
         
-        self.__filetag_update(bounds)
+        self.__filetag_update(usebounds)
         
         # Set up the GP model - this goes here to pudate the filesavetag
         #presently unbounded
-        if bounds and cbounds is None:
+        if usebounds and custom_bounds is None:
             bounds_dict = {'log_sigma':np.log(np.sqrt((0.1,20  ))), 
                        'log_rho':np.log((1,10))}
             kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
                                         bounds=bounds_dict)
-        elif bounds and cbounds is not None:
-            bounds_dict = cbounds.copy()
+        elif usebounds and custom_bounds is not None:
+            bounds_dict = custom_bounds.copy()
             self.filesavetag = self.filesavetag + bounds_dict["boundlabel"]
             bounds_dict.pop('boundlabel')
             kernel = terms.Matern32Term(log_rho=np.log(2), log_sigma=np.log(1),
@@ -1482,7 +1433,7 @@ class etsMAIN(object):
         #run parameters
         n1 = 10000
         n2 = 20000
-        discard1 = int(n1/4)
+        discard_ = int(n1/4)
         thinning = 5
        
 
@@ -1491,9 +1442,8 @@ class etsMAIN(object):
         
         nwalkers = 100
         self.ndim = len(self.labels) # labels are provided when you run it
-        p0 = np.zeros((nwalkers, self.ndim)) # init positions
-        for n in range(len(p0)): # add a little spice
-            p0[n] = self.init_values + (np.ones(self.ndim) - 0.9) * np.random.rand(self.ndim) 
+        p0 = (np.ones((nwalkers, self.ndim)) * self.init_values + 
+              np.random.uniform(0, 0.1, (nwalkers, self.ndim)))
         
         print("Starting burn-in chain")
         # ### Initial run
@@ -1506,7 +1456,7 @@ class etsMAIN(object):
             sp.plot_chain_logpost(self, appendix = "burnin")
         self.filesavetag = taggy
     
-        self.flat_samples = self.sampler.get_chain(discard=discard1, flat=True, thin=thinning)
+        self.flat_samples = self.sampler.get_chain(discard=discard_, flat=True, thin=thinning)
         
         # get intermediate best
         best_mcmc_inter = np.zeros((1,self.ndim))
@@ -1515,10 +1465,8 @@ class etsMAIN(object):
         print(best_mcmc_inter)
             
         # ### Main run
-        np.random.seed(50)
-        p0 = np.zeros((nwalkers, self.ndim))
-        for i in range(nwalkers): # reinitialize the walkers around prev. best
-            p0[i] = best_mcmc_inter[0] + 0.1 * np.random.rand(1, self.ndim)
+        p0 = (np.ones((nwalkers, self.ndim)) * best_mcmc_inter[0] + 
+             np.random.uniform(0, 0.1, (nwalkers, self.ndim)))
            
         self.sampler.reset()
         

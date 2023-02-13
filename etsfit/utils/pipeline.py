@@ -13,20 +13,6 @@ from etsfit import etsMAIN
 import etsfit.utils.utilities as ut
 
 
-data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
-quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
-quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
-gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
-          "2020hdw", "2020bj", "2019gqv"]
-
-
-
-
-
-
 def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                  filekey = "-tessreduce",
                  goodList=None, cbv_dir=None, quaternion_raw_dir=None,
@@ -88,7 +74,7 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                     trlc.use_quaternions_cbvs(cbv_dir, quaternion_raw_dir, 
                                               quaternion_txt_dir)
                 
-                winfilter = trlc.window_rms_filt(plot=False)
+                winfilter = trlc.window_rms_filt()
                 
                 if "2018fhw" in targetlabel:
                     winfilter[1040:1080] = 0.0
@@ -105,16 +91,26 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                 i=i+1
     return trlc
 
+
+data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
+quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
+quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
+gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
+          "2020hdw", "2020bj", "2019gqv"]
+
 run_all_fits(1, data_dir, save_dir, TNSFile,
                   filekey = "-tessreduce",
-                  goodList=gList, cbv_dir=None, quaternion_raw_dir=None,
+                  goodList=[gList[0]], cbv_dir=None, quaternion_raw_dir=None,
                   quaternion_txt_dir=None, 
                   fraction=0.8, binning=False, n1=5_000, n2=40_000)
 
 
 def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                filekey = "-tessreduce", goodList=None, fraction=None, 
-               binning=False, n1=10000, n2=40000, bounds=True,
+               binning=False, n1=10000, n2=40000, usebounds=True,
                cbounds=None):
     """ 
     Run a certain GP fit all light curves in a given folder
@@ -184,7 +180,7 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
                 trlc.pre_run_clean(11, flux_mask=winfilter, 
                                    binning = binning, fraction = fraction)
                 
-                trlc.run_GP_fit(n1=n1, n2=n2, gpUSE=GPtype, bounds=bounds, 
+                trlc.run_GP_fit(n1=n1, n2=n2, gpUSE=GPtype, usebounds=bounds, 
                                cbounds=cbounds)
 
                 print(trlc.filesavetag, trlc.best_mcmc)

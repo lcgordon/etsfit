@@ -28,11 +28,9 @@ class artificial_lc(object):
         self.save_dir = save_dir
         
         
-    def gen_fakes(self, n, tessreducefile, TNSFile, tess_background=True):
+    def generate_doublerise_fakes(self, n, tessreducefile, TNSFile, tess_background=True):
         """ 
-        
-        Note to self: for paper purposes, expand out the limits on the 
-        params to go past the priors
+        double power law artifiical light curves (multiple competing processes)
         n = # to make
         tessreducefile = Ia whose noise model ur gonna generate
         TNSFile = u know
@@ -40,13 +38,104 @@ class artificial_lc(object):
         
         """
         
-        print("Generating {} Artificial Light Curves".format(n))
+        print("Generating {} Double Power Artificial Light Curves".format(n))
         
         # make the noise model - even if you won't use it
         self.__tess_noise(tessreducefile, TNSFile)
+        
+        self.tag = "doublepower"
+
+        self.save_dir = self.save_dir + "{n}-artificial-{tag}-tessbg-{tb}/".format(tag=self.tag,
+                                                                              n = n, 
+                                                                              tb = tess_background)
+        if not os.path.exists(self.save_dir):
+            os.mkdir(self.save_dir)
+        
+        self.n = n
+        self.params_true = np.zeros((self.n, 7)) ##t0 t1 A1 A2 beta1 beta2 B
+        
+        # x axis with a fake orbit gap of size 1/10th array
+        tenth = int(self.l / 10)
+        start_ = int(self.l / 2) - int(tenth/2)
+        end_ = start_ + tenth
+        self.x = np.linspace(0, 28, (self.l+tenth))
+        
+        mask = np.ones(self.l+tenth)
+        mask[start_:end_] = 0
+        mask = np.nonzero(mask) # which ones you are keeping
+        self.x = self.x[mask]
+        
+        self.flux_fake = np.zeros((self.n, (self.l))) # n l-length arrays
+        self.error_fake = np.zeros((self.n, (self.l)))
+        
+        self.params_true[:,0] = np.random.uniform(1, 20, self.n) #t0
+        self.params_true[:,1] = np.random.uniform(self.params_true[:,0], 25, self.n) #t1 defined by t0
+        self.params_true[:,2] = np.random.uniform(0.001, 3, self.n) #A1
+        self.params_true[:,3] = np.random.uniform(0.001, 3, self.n) #A2
+        self.params_true[:,6] = np.random.uniform(-20, 20, self.n) #B
+        # beta is pulled from a unif distro on the arctans
+        self.params_true[:,4] = np.tan(np.random.uniform(np.arctan(0.5), np.arctan(4), self.n))
+        self.params_true[:,5] = np.tan(np.random.uniform(np.arctan(0.5), np.arctan(4), self.n))
+        
+        
+        def func1(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 *(x-t0)**beta1
+        def func2(x, t0, t1, A1, A2, beta1, beta2):
+            return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
+        
+        
+        
+        for i in range(self.n):
+            t0, t1, A1, A2, beta1, beta2, B = self.params_true[i]
+            self.flux_fake[i] = np.piecewise(self.x, [(t0 <= self.x)*(self.x < t1), t1 <= self.x], 
+                                             [func1, func2],
+                                             t0, t1, A1, A2, beta1, beta2) + 1 + B
+            
+            #attach noise: 
+            if tess_background:
+                self.flux_fake[i] = self.flux_fake[i] + self.noise_model
+                # set error = expectation value of noise model
+                self.error_fake[i] += np.mean(self.noise_model)
+            else:
+                self.error_fake[i] += 0.01 #uniform error
 
         
-        self.save_dir = self.save_dir + "{}-fake-lc-tessbg-{}/".format(n, tess_background)
+        self.x += 2457000 #reset time axis because it will get subtracted
+        #we also assign an arbitrary discovery time as being 0.5-6 days post-t0. 
+        #dict version required to run unfortch
+        self.disctimes = {}
+        #labels
+        labels = list(range(self.n))
+        self.dtimes = self.params_true[:,0] + np.random.uniform(0.5, 6, self.n) + 2457000
+        for i in range(self.n):
+            self.disctimes[labels[i]] = self.dtimes[i]
+        
+        self.__save_true_params(tess_background)
+        self.__save_all_lc(tess_background)
+        
+        return
+    
+    def generate_singlerise_fakes(self, n, tessreducefile, TNSFile, tess_background=True):
+        """ 
+        
+        single power laws 
+        n = # to make
+        tessreducefile = Ia whose noise model ur gonna generate
+        TNSFile = u know
+        tess_backgrounds = true/false using them
+        
+        """
+        
+        print("Generating {} two-Power Artificial Light Curves".format(n))
+        
+        # make the noise model - even if you won't use it
+        self.__tess_noise(tessreducefile, TNSFile)
+        self.tag = 'singlepower'
+        
+        self.save_dir = self.save_dir + "{n}-artificial-{tag}-tessbg-{tb}/".format(tag=self.tag,
+                                                                              n = n, 
+                                                                              tb = tess_background)
+        
         if not os.path.exists(self.save_dir):
             os.mkdir(self.save_dir)
         
@@ -102,6 +191,7 @@ class artificial_lc(object):
         self.__save_all_lc(tess_background)
         
         return
+    
     
     def __tess_noise(self, tessreducefile, TNSFile):
         """ 
@@ -174,8 +264,8 @@ class artificial_lc(object):
               'disc':self.dtimes}
         
         df = pd.DataFrame(di)
-        df.to_csv("{s}{n}-true-params-tessbg-{t}.csv".format(s=self.save_dir, n=self.n,
-                                                            t=tess_background))
+        df.to_csv("{s}{n}-{tag}-true-params-tessbg-{t}.csv".format(s=self.save_dir, n=self.n,
+                                                            t=tess_background, tag=self.tag))
         return
     
     def __save_all_lc(self, tess_background):
@@ -190,8 +280,8 @@ class artificial_lc(object):
             
             
         df = pd.DataFrame(di)
-        df.to_csv("{s}{n}-fake-fluxes-tessbg-{t}.csv".format(s=self.save_dir, n=self.n,
-                                                            t=tess_background))
+        df.to_csv("{s}{n}-{tag}-artificial-flux-tessbg-{t}.csv".format(s=self.save_dir, n=self.n,
+                                                            t=tess_background, tag=self.tag))
         
         return
     
@@ -231,7 +321,7 @@ class artificial_lc(object):
             #trlc.test_plot()
             trlc.run_MCMC(n1, n2, quiet=True)
             
-            self.output_p_1[i] = trlc.best_mcmc[0]
+            self.output_params_1[i] = trlc.best_mcmc[0]
             self.upper_error_1[i] = trlc.upper_error[0]
             self.lower_error_1[i] = trlc.lower_error[0]
             print(trlc.BIC)
@@ -240,7 +330,35 @@ class artificial_lc(object):
             #self.precision_accuracy_1()
         return
     
-    
+    def fit_fakes_celerite(self, start=0, n1=500, n2=5000):
+        """ 
+        fit to fake single powers using celerite model
+        """
+        self.output_params_cel = np.zeros((self.n, 4)) #always going to be t0, a , beta, b
+        self.upper_error_cel = np.zeros((self.n, 4)) #upper error
+        self.lower_error_cel = np.zeros((self.n, 4)) #lower error
+        self.bic_cel = np.zeros((self.n, 1))
+        
+        for i in range(start, self.n):
+            dt = self.disctimes[i]
+        
+            trlc = etsMAIN(self.save_dir, 'nofile')
+            trlc.load_single_lc(self.x, self.flux_fake[i], self.error_fake[i], 
+                                dt, "index{}".format(i), "00", "0", "0")
+            
+                
+            trlc.pre_run_clean(11)
+            
+            trlc.run_GP_fit(n1=n1, n2=n2, gpUSE='celerite_residual', usebounds=True, 
+                           custom_bounds=None, quiet=True)
+        
+            self.output_params_cel[i] = trlc.best_mcmc[0]
+            self.upper_error_cel[i] = trlc.upper_error[0]
+            self.lower_error_cel[i] = trlc.lower_error[0]
+            #print(trlc.BIC)
+            self.bic_cel[i] = trlc.BIC
+        
+        return
 
     def precision_accuracy(self, sigma=5):
         """ 
@@ -251,10 +369,10 @@ class artificial_lc(object):
         Accuracy: error / true
         """
         
-        self.accuracy = np.abs(self.output_p_1 - self.params_true)/self.params_true
-        #self.precision = np.abs(self.output_p_1 - self.params_true)/self.params_true
+        self.accuracy = np.abs(self.output_params_1 - self.params_true)/self.params_true
+        #self.precision = np.abs(self.output_params_1 - self.params_true)/self.params_true
         #self.precision = 0.5 * (np.abs(self.lower_error_1) + np.abs(self.upper_error_1))/self.params_true
-        self.precision = np.abs(self.output_p_1 - self.params_true)/self.lower_error_1
+        self.precision = np.abs(self.output_params_1 - self.params_true)/self.lower_error_1
         return
         
 
@@ -305,11 +423,10 @@ class artificial_lc(object):
 
     def fit_fakes_3(self, start=0, n1=500, n2=5000):  
         
-        self.output_p_3 = np.zeros((self.n, 7)) #always going to be 7 params
-        self.output_u_3 = np.zeros((self.n, 7)) #upper error
-        self.output_l_3 = np.zeros((self.n, 7)) #lower error
+        self.output_params_3 = np.zeros((self.n, 7)) #always going to be 7 params
+        self.upper_error_3 = np.zeros((self.n, 7)) #upper error
+        self.lower_error_3 = np.zeros((self.n, 7)) #lower error
         self.bic_3 = np.zeros((self.n, 1))
-        self.isright_3 = np.zeros((self.n, 7))
         for i in range(start, self.n):
             dt = self.disctimes[i]
             trlc = etsMAIN(self.save_dir, 'nofile')
@@ -324,21 +441,12 @@ class artificial_lc(object):
             #trlc.test_plot()
             trlc.run_MCMC(n1, n2, quiet=True)
             
-            self.output_p_3[i] = trlc.best_mcmc[0]
-            self.output_u_3[i] = trlc.upper_error[0]
-            self.output_l_3[i] = trlc.lower_error[0]
+            self.output_params_3[i] = trlc.best_mcmc[0]
+            self.upper_error_3[i] = trlc.upper_error[0]
+            self.lower_error_3[i] = trlc.lower_error[0]
             self.bic_3[i] = trlc.BIC
-            
-            #comp with true
-            for j in range(4):
-                low = self.output_p_3[i][j]-self.output_l_3[i][j]
-                high = self.output_p_3[i][j]+self.output_u_3[i][j]
-                tru = self.params_true[i][j]
-                if (tru <= high) and (tru >= low) :
-                    self.isright_3[i][j] = 1
+
         return
-    
-   
     
     def retrieve_calculated_params(self):
         import etsfit.utils.batch_analyze as ba
@@ -384,16 +492,16 @@ TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18t
 tessreducefile = "/Users/lindseygordon/research/urop/tessreduce_lc/2020tld2921/2020tld2921-tessreduce"        
  
 lc = artificial_lc("./research/urop/fake_data/")
-lc.gen_fakes(5, tessreducefile, TNSFile, True)
+lc.generate_singlerise_fakes(1_000, tessreducefile, TNSFile, False)
 #lc.plot_fake(1)
 
 lc.fit_fakes_1(n1=5_000, n2=70_000)
-lc.precision_accuracy()
+#lc.precision_accuracy()
 
 
 #%%
-acc = np.abs(lc.output_p_1 - lc.params_true)/lc.params_true
-prec = np.abs(lc.output_p_1 - lc.params_true)/lc.lower_error_1
+acc = np.abs(lc.output_params_1 - lc.params_true)/lc.params_true
+prec = np.abs(lc.output_params_1 - lc.params_true)/lc.lower_error_1
 
 
 fig, ax = plt.subplots(1,1, figsize=(5,5))

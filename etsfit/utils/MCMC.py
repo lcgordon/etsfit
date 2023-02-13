@@ -81,6 +81,8 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, priors=None):
         
         yerr2 = yerr**2.0
         return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp
+    
+
         
 def log_probability_singlepower_withCBV(theta, x, y, yerr, 
                                         Qall, CBV1, CBV2, CBV3, 
