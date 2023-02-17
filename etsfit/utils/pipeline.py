@@ -101,11 +101,14 @@ quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
 gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
           "2020hdw", "2020bj", "2019gqv"]
 
-run_all_fits(1, data_dir, save_dir, TNSFile,
-                  filekey = "-tessreduce",
-                  goodList=[gList[0]], cbv_dir=None, quaternion_raw_dir=None,
-                  quaternion_txt_dir=None, 
-                  fraction=0.8, binning=False, n1=5_000, n2=40_000)
+outFile = "/Users/lindseygordon/research/urop/paper10.csv"
+ut.get_sublist(TNSFile, gList, outFile)
+
+# run_all_fits(1, data_dir, save_dir, TNSFile,
+#                   filekey = "-tessreduce",
+#                   goodList=[gList[0]], cbv_dir=None, quaternion_raw_dir=None,
+#                   quaternion_txt_dir=None, 
+#                   fraction=0.8, binning=False, n1=5_000, n2=40_000)
 
 
 def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
@@ -200,64 +203,4 @@ def run_all_GP(GPtype, data_dir, save_dir, TNSFile,
 #                   fraction=0.6, binning=False, n1=1000, n2=15000, bounds=True,
 #                   cbounds=None)
 
-
-
-def run_all_matern32comp(data_dir, save_dir, TNSFile,
-                         filekey = "-tessreduce", goodList=None, fraction=None, 
-                         binning=False, n1=10000, n2=40000, bounds=True):
-    """ 
-    Run the matern-3/2 comparison for all light curves in a given folder
-    ----------------------------
-    Params:
-        - fitType (str) ie, 'matern32', 'expsinsqr', 'expsqr', 'celerite'
-        - data_dir (str) path to directory holding all data
-            *** assumes files are formatted in the given tessreduce manner
-        - save_dir (str) path to directory to put all outputs into
-        - TNSfile (str) path to file containing TNS target information
-        - filekey (str) end-of-file identifier for which data to use
-            program will not attempt to open files without this appendix
-        *
-        *
-        - goodList (array, optional) names of just the files to be run on
-            (targets in folder not on list will be skipped)
-        - fraction (float 0-1, optional) percent to crop data to
-        - binning (bool) whether or not to bin to 8 hours
-        - n1 (int) steps for burn in (default 10k)
-        - n2 (int) steps for production (default 40k)
-        - bounds (bool) whether or not to bound the GP values
-    """
-    i=0
-    for root, dirs, files in os.walk(data_dir):
-        for name in files:
-            if name.endswith(filekey) and i==0:
-                fname = root + "/" + name
-
-                (time, flux, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(fname)
-
-                if goodList is not None and targetlabel not in goodList:
-                        continue
-                #get discovery time
-                discoverytime = ut.get_disctime(TNSFile, targetlabel)
-                #run it
-                trlc = etsMAIN(save_dir, TNSFile)
-                
-                trlc.load_single_lc(time, flux, error, discoverytime, 
-                                   targetlabel, sector, camera, ccd)
-                
-                winfilter = trlc.window_rms_filt(plot=False)
-                
-                if "2018fhw" in targetlabel:
-                    winfilter[1040:1080] = 0.0
-                if "2020hdw" in targetlabel:
-                    winfilter[0:45] = 0.0
-                    winfilter[610:685] = 0.0
-                    
-                trlc.run_both_matern32(winfilter, binning=binning, fraction=fraction,
-                                       bounds=bounds)
-            
-                gc.collect()
-                i=i+1
-
-    return trlc
 
