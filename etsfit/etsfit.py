@@ -598,8 +598,8 @@ class etsMAIN(object):
         timeModule.sleep(3) # this keeps things running orderly
         
         if thinParams is None:
-            discard_ = int(n1/4)
-            thinning = 15
+            discard_ = 0#int(n1/4)
+            thinning = 1
         else:
             discard_, thinning = thinParams
                               
@@ -689,9 +689,10 @@ class etsMAIN(object):
         tau = self.sampler.get_autocorr_time(tol=0)
         if (np.max(tau) < (self.sampler.iteration/50)):
             burnin = int(2 * np.max(tau))
-            thinning = int(0.5 * np.min(tau))
+            thinning = 1#int(0.5 * np.min(tau))
         else:
             burnin = int(n2/4)
+            thinning = 1
 
         self.flat_samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thinning)
         if self.plot:
@@ -711,6 +712,12 @@ class etsMAIN(object):
             self.best_mcmc[0][i] = mcmc[1]
             self.upper_error[0][i] = q[1]
             self.lower_error[0][i] = q[0]
+            
+            
+        # GR corrections 
+        self.calc_gelmanrubin()
+        self.upper_error = np.sqrt(self.upper_error**2 * self.GR)
+        self.lower_error = np.sqrt(self.lower_error**2 * self.GR)
      
 
         logprob, blob = self.sampler.compute_log_prob(self.best_mcmc)
@@ -743,6 +750,23 @@ class etsMAIN(object):
         
         return 
 
+    def calc_gelmanrubin(self):
+
+        tau = self.sampler.get_autocorr_time(tol=0)
+        burnin = int(2 * np.max(tau))
+        samples = self.sampler.get_chain(discard=burnin, flat=False)
+        
+        N = samples.shape[0]
+        M = samples.shape[1] #nchains
+        variances = np.var(samples, axis=0) #shape (100, 4)
+        chain_means = np.mean(samples, axis=0) #shape 100 x 4
+        total_means = np.mean(chain_means, axis=0) #shape 4
+        
+        W = (1/M) * np.sum(variances, axis=0) #shape 4
+        B = (N / (M-1)) * np.sum((chain_means-total_means), axis=0)
+        v_ = ( 1 - (1/N))* W + (B/N)
+        self.GR = np.sqrt(v_/W)
+        return
     
     def run_GP_fit(self, n1=1000, n2=10000, gpUSE = "expsqr",
                           thinParams=None, usebounds = True, 
@@ -1105,7 +1129,7 @@ class etsMAIN(object):
         
         if thinParams is None:
             discard_ = int(n1/4)
-            thinning = 15
+            thinning = 1
         else:
             discard_, thinning = thinParams
                               
@@ -1216,7 +1240,7 @@ class etsMAIN(object):
         tau = self.sampler.get_autocorr_time(tol=0)
         if (np.max(tau) < (self.sampler.iteration/50)):
             burnin = int(2 * np.max(tau))
-            thinning = int(0.5 * np.min(tau))
+            thinning = 1#int(0.5 * np.min(tau))
         else:
             burnin = int(n2/4)
 

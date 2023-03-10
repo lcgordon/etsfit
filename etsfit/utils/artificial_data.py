@@ -18,6 +18,7 @@ from pylab import rcParams
 import os
 import pandas as pd
 rcParams['figure.figsize'] = 8,3
+rcParams['font.family'] = 'serif'
 
 
 
@@ -32,7 +33,7 @@ class artificial_lc(object):
         rise_ (int) 1 or 2 
         """
         self.save_dir = save_dir
-        self.bg_ = ["FlatBG", "2018fvi0233", "2018fhw0141", "2020azn2112", "2020vem3012"]
+        self.bg_ = ["NoTESS", "2018fvi0233", "2018fhw0141", "2020azn2112", "2020vem3012"]
     
         
         self.n = n
@@ -74,11 +75,12 @@ class artificial_lc(object):
         
             if self.rise_== 1:
                 self.params_true = np.zeros((self.n, 4)) ##t0 A beta B
-                self.params_true[:,0] = np.random.uniform(1, 20, self.n) #t0
+                self.params_true[:,0] = np.random.uniform(5, 20, self.n) #t0
                 self.params_true[:,1] = np.random.uniform(0.001, 3, self.n) #A1
                 # beta is pulled from a unif distro on the arctans
                 self.params_true[:,2] = np.tan(np.random.uniform(np.arctan(0.5), np.arctan(4), self.n))
-                self.params_true[:,3] = np.random.uniform(-20, 20, self.n) #B
+                self.params_true[:,3] = np.random.uniform(1, 20, self.n) *  np.random.choice((-1,1), self.n)
+                #B can't get to close to 0 or summary stats look like trash
                 
                 self.disctimes = {}
                 labels = list(range(self.n))
@@ -92,7 +94,7 @@ class artificial_lc(object):
                 self.params_true[:,1] = np.random.uniform(self.params_true[:,0], 25, self.n) #t1 defined by t0
                 self.params_true[:,2] = np.random.uniform(0.001, 3, self.n) #A1
                 self.params_true[:,3] = np.random.uniform(0.001, 3, self.n) #A2
-                self.params_true[:,6] = np.random.uniform(-20, 20, self.n) #B
+                self.params_true[:,6] = np.random.uniform(1, 20, self.n) *  np.random.choice((-1,1), self.n) #B
                 # beta is pulled from a unif distro on the arctans
                 self.params_true[:,4] = np.tan(np.random.uniform(np.arctan(0.5), np.arctan(4), self.n))
                 self.params_true[:,5] = np.tan(np.random.uniform(np.arctan(0.5), np.arctan(4), self.n))
@@ -120,6 +122,8 @@ class artificial_lc(object):
         end_ = start_ + tenth
         self.x = np.linspace(0, 28, (self.l+tenth))
         
+        self.orbit_gap = [self.x[start_], self.x[end_]]
+        
         mask = np.ones(self.l+tenth)
         mask[start_:end_] = 0
         mask = np.nonzero(mask) # which ones you are keeping
@@ -138,7 +142,7 @@ class artificial_lc(object):
         if bg == 0:
             self.l = 1500
             self.noise_model = np.zeros(self.l)
-            self.targetlabel = "FlatBG"
+            self.targetlabel = "NoTESS"
         elif bg == 1: # 2018fvi
             tr = "/Users/lindseygordon/research/urop/tessreduce_lc/2018fvi0233/2018fvi0233-tessreduce" 
             self.__tess_noise(tr, TNSFile)
@@ -312,16 +316,29 @@ class artificial_lc(object):
 
     def fit_fakes_type1(self, start=0, n1=500, n2=5000):  
         
+        self.s_3 = np.zeros((self.n, 4))
         for i in range(start, self.n):
             dt = self.disctimes[i]
-            trlc = etsMAIN(self.subfolder, 'nofile', plot=False)
+            self.trlc = etsMAIN(self.subfolder, 'nofile', plot=False)
         
-            trlc.load_single_lc(self.x, self.flux_fake[i], self.error_fake[i], 
+            self.trlc.load_single_lc(self.x, self.flux_fake[i], self.error_fake[i], 
                                 dt, "index{}".format(i), "", "", "")
 
-            trlc.pre_run_clean(fitType=1)
-            trlc.run_MCMC(n1, n2, quiet=True)
-            del(trlc)
+            self.trlc.pre_run_clean(fitType=1)
+            self.trlc.run_MCMC(n1, n2, quiet=True)
+            self.s_3[i] = self.trlc.sampler.get_autocorr_time(tol=0)
+            
+        #save file:
+        di = {'act_t':self.s_3[:,0],
+              'act_a':self.s_3[:,1],
+              'act_beta':self.s_3[:,2],
+              'act_B':self.s_3[:,3]}
+        df = pd.DataFrame(di)
+        filename = "{s}{n}-allfluxes-{tl}-{r}-autocorr.csv".format(s=self.subfolder, 
+                                              n=self.n,
+                                              tl=self.targetlabel,
+                                              r=self.rise_)
+        df.to_csv(filename)
             
         return
     
@@ -355,50 +372,59 @@ class artificial_lc(object):
         
         return
 
-    def precision_accuracy(self):
+    def s_stats(self):
         """ 
-        Calculating precision + accuracy of output params
-        
-        Precision: error normalized by the true value
-        
-        Accuracy: error / true
+        Calculating s-stats as given in the paper
         """
+        max_err = np.maximum(self.upper_error.round(3), self.lower_error.round(3))
+        #self.s_1 = np.abs(self.output_params.round(3) / max_err)
+        self.s_1 = np.abs(max_err / self.output_params.round(3) )
+        self.s_2 = np.abs(np.abs(self.output_params.round(3) - 
+                          self.params_true.round(3))/self.params_true.round(3))
         
-        self.accuracy = np.abs(self.output_params - self.params_true)/self.params_true
-        #self.precision = np.abs(self.output_params_1 - self.params_true)/self.params_true
-        #self.precision = 0.5 * (np.abs(self.lower_error_1) + np.abs(self.upper_error_1))/self.params_true
-        self.precision = np.abs(self.output_params - self.params_true)/self.lower_error
         return
         
 
-    def plot_prec_acc(self):
+    def plot_s12(self):
         """ 
         plot the precision and accuracy for the loaded values
         """
         
         
-        fig, ax = plt.subplots(4,2, figsize=(10,10))
-        labels = ['t0', 'A', 'beta', 'B']
-        c = ['blue', 'green', 'red', 'purple']
+        fig, ax = plt.subplots(2,2, figsize=(10,10))
+
+
+        labels = [r'$t_0$', 'A', r'$\beta$', 'B']
+        c = ['black', 'red']
         for i in range(4):
-            ax[i][0].scatter(self.params_true[:,i], self.accuracy[:,i], label=labels[i], 
-                             color=c[i], s=4)
-            ax[i][0].set_xlabel(labels[i])
-            ax[i][1].set_xlabel(labels[i])
-            ax[i][0].set_ylabel('accuracy')
-            ax[i][1].set_ylabel('precision')
-            ax[i][1].scatter(self.params_true[:,i], self.precision[:,i], label=labels[i], 
-                             color=c[i], s=4)
-        
-        
-        ax[0][0].set_title("accuracy: (pred-true)/err")
+            ax1 = ax[int(i/2), i%2]
             
-        ax[0][1].set_title("precision: error/true")
-        
-        fig.suptitle("Precision + Accuracy for Background: "+ self.bg_[self.bg])
+            ax1.scatter(self.params_true[:,i], (self.s_1*100)[:,i], 
+                         color=c[0], s=12,
+                        marker="<", label=r'$S_1$')
+            #ax1.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+            ax1.set_xlabel(labels[i])
             
-        plt.tight_layout()
-        plt.savefig("{s}/prec_acc.png".format(s=self.subfolder))
+            ax2 = ax1.twinx()
+            #ax2.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+            ax2.scatter(self.params_true[:,i], (self.s_2*100)[:,i], 
+                        label = r'$S_2$', color=c[1], s=12, marker="x")
+            ax2.tick_params(axis='y', labelcolor=c[1])
+            
+            lines, labels1 = ax1.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax2.legend(lines + lines2, labels1 + labels2, loc=0, fontsize=16)
+
+        #plot orbit gap linse: 
+        ax = ax[0,0]
+        ax.axvline(self.orbit_gap[0], color='grey', linestyle='dashed')
+        ax.axvline(self.orbit_gap[1], color='grey', linestyle='dashed')
+            
+
+        plt.suptitle(r"$S_1$ & $S_2$; Background Model: "+ self.bg_[self.bg])
+        plt.tight_layout()  # otherwise the right y-label is slightly clipped
+        plt.savefig("{s}/s1s2.png".format(s=self.subfolder))
+        plt.show()
         return
         
 
@@ -438,6 +464,14 @@ class artificial_lc(object):
         #load in true: 
         f = "{s}true-params.csv".format(s=self.save_dir) 
         true_p = pd.read_csv(f)
+        self.subfolder = "{s}{tl}/".format(s=self.save_dir, tl = self.bg_[bg])
+        #print(subfolder)
+        
+        f2 = "{s}{n}-allfluxes-{tl}-{r}-autocorr.csv".format(s=self.subfolder, 
+                                              n=self.n,
+                                              tl=self.bg_[bg],
+                                              r=self.rise_)
+        self.s_3_ = pd.read_csv(f2)
         
         # load in calculated params
         import etsfit.utils.batch_analyze as ba
@@ -448,8 +482,7 @@ class artificial_lc(object):
         
         
         
-        self.subfolder = "{s}{tl}/".format(s=self.save_dir, tl = self.bg_[bg])
-        #print(subfolder)
+        
         
         for root, dirs, files in os.walk(self.subfolder):
             for name in files:
@@ -495,17 +528,25 @@ class artificial_lc(object):
 # save_dir = "./research/urop/fake_data/"
 
 
-# lc = artificial_lc(save_dir, 10, rise_=1 )
+# lc = artificial_lc(save_dir, 50, rise_=1)
 # lc.gen_params()
 # lc.gen_lc(bg=2)
-# lc.fit_fakes_type1(n1=5000, n2=50_000)
+# lc.fit_fakes_type1(n1=1000, n2=50_000)
+# lc.retrieve_params(bg=2)
 
-# lc.retrieve_params(bg=0)
-# lc.precision_accuracy()
-# lc.plot_prec_acc()
-
+# lc.s_stats()
+# lc.plot_s12()
 
 #%%
+
+# df = pd.read_csv("/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv")
+
+# bright_ = df[df["Discovery Mag/Flux"] < 17.5]
+
+# print(bright_)
+# i = 24 #2019fcc might work (23)
+
+
 
 def mag_plot_download(i, df):
     sec = int(df["Sector"].iloc[i])
@@ -572,6 +613,8 @@ def mag_plot_download(i, df):
     time = l_mag[0]
     flux = l_mag[1]
     
+    #plt.scatter(time, flux)
+    
     
     from astropy.stats import SigmaClip
     sigclip = SigmaClip(sigma=3, maxiters=None, cenfunc='median')
@@ -606,4 +649,37 @@ def mag_plot_download(i, df):
     
     
     print(np.nanmean(flux))
-    return
+    return tess, ddate
+
+# t, d = mag_plot_download(i, bright_)
+
+# #%%
+# from astropy.time import Time
+# time = Time(t.lc[0], format='mjd').jd
+# flux = t.lc[1]
+
+# plt.scatter(time, flux)
+# plt.axvline(d)
+# plt.show()
+# l_mag = t.to_mag()
+# plt.scatter(time, l_mag[1])
+
+#%%
+# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+# file_TNS = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
+# #df = pd.read_csv(file_TNS)
+# #print(df)
+# #import etsfit.util.utilities as ut
+# for root, dirs, files in os.walk(data_dir):
+#     for name in files:
+#         if name.endswith("-tessreduce"):
+#             holder = root + "/" + name
+#             #print(holder)
+#             (time, flux, error, 
+#              targetlabel, sector, 
+#              camera, ccd) = ut.tr_load_lc(holder)
+#             fig, ax = plt.subplots(1, figsize=(8, 3))
+#             ax.scatter(time, flux, s=2)
+#             dd_ = ut.get_disctime(file_TNS, targetlabel)
+#             ax.axvline(dd_, color='red')
+#             ax.set_title(targetlabel)

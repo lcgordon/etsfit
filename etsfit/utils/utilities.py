@@ -651,15 +651,13 @@ def tr_load_lc(file, printname=True):
     flux = loadedraw["flux"].to_numpy()
     error = loadedraw["flux_err"].to_numpy()
     #
-    fulllabel = file.split("/")[-1].split("-")[0]
-    targetlabel = fulllabel[0:7]
-    if targetlabel[-1].isdigit():
-        targetlabel=targetlabel[0:6]
-    sector = fulllabel[-4:-2]
-    camera = fulllabel[-2]
-    ccd = fulllabel[-1]
-    if targetlabel[-1].isdigit():
-        targetlabel=targetlabel[0:6]
+    fh = file.split("/")[-1].split("-")[0]
+    
+    ccd = fh[-1]
+    camera = fh[-2]
+    sector = fh[-4:-2]
+    targetlabel = fh[:-4] #this fixes issues of varying name length
+    
     
     if printname:
         print(targetlabel, sector, camera, ccd)
@@ -668,65 +666,3 @@ def tr_load_lc(file, printname=True):
         
     return time, flux, error, targetlabel, sector, camera, ccd
 
-def mag_convert_file(TNSFile):
-    """ 
-    Convert to filters to convert the magnitude for use in ticgen
-    """
-    return
-
-#%%
-# TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-# tn = pd.read_csv(TNSFile)
-# #print(tn.columns)    
-
-# tn1 = tn[["Name","Discovery Mag/Flux","Discovery Filter"]]
-# #print(tn1.columns)
-
-# # now the issue becomes. what are the filters I need to convert for:
-# filts = np.unique(tn1["Discovery Filter"])
-# print(filts)
-
-# cols = ["Name","Tmag","Vmag","Jmag","Bmag","Bphmag","Ksmag","Hmag","Gmag"]
-# df = pd.DataFrame(columns=cols)
-
-# import pyphot # PYPHOT CONTAINS TESS???? 
-# from pyphot.svo import get_pyphot_filter as get_filter_from_svo # this has rest
-# # get the internal default library of passbands filters
-# lib = pyphot.get_library()
-# print("Library contains: ", len(lib), " filters")
-# # find all filter names that relates to IRAC
-# # and print some info
-# ftess= lib["TESS"]
-# for name in ftess:
-#     lib[name].info(show_zeropoints=True)
-    
-# # for each in the tn1
-# for i in range(len(tn1)):
-#     filteri = tn1["Discovery Filter"][i]
-#     print(filteri)
-#     mags = tn1["Discovery Mag/Flux"][i]
-    
-#     if filteri == 'r-ZTF':
-#         f = lib['ZTF_r']
-        
-        
-#     fluxes = 10**((mags + f.Vega_zero_mag)/-2.5) #flux in that filter's band
-#     # then convert to the tess mag? 
-#     tessflux = 
-#     mags = -2.5 * np.log10(tessflux) - ftess.Vega_zero_mag 
-        
-# # within pyphot: 
-# # get the library for the filter
-# # convert to the correct flux for the filter
-# convert that flux into TESS flux (?)
-# calc tess magnitude    
-        
-        
-        
-    
-    
-# put in name
-# identify what its filter is
-# make appropriate conversion to one of given filts (can convert to gaia G for all? )
-# put into df
-# save df.csv

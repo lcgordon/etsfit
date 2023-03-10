@@ -92,17 +92,17 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
     return trlc
 
 
-data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
-TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
-save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
-quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
-quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
-gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
-          "2020hdw", "2020bj", "2019gqv"]
+# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+# cbv_dir = "/Users/lindseygordon/research/urop/eleanor_cbv/"
+# TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/tesscut-Ia18th.csv"
+# save_dir = "/Users/lindseygordon/research/urop/paperOutput/"
+# quaternion_raw_dir = "/Users/lindseygordon/research/urop/quaternions-raw/"
+# quaternion_txt_dir = "/Users/lindseygordon/research/urop/quaternions-txt/"
+# gList = ["2018exc", "2018fhw", "2018fub", "2020tld", "2020zbo", "2018hzh", "2020hvq", 
+#           "2020hdw", "2020bj", "2019gqv"] #2018hkx
 
-outFile = "/Users/lindseygordon/research/urop/paper10.csv"
-ut.get_sublist(TNSFile, gList, outFile)
+# outFile = "/Users/lindseygordon/research/urop/paper10.csv"
+# ut.get_sublist(TNSFile, gList, outFile)
 
 # run_all_fits(1, data_dir, save_dir, TNSFile,
 #                   filekey = "-tessreduce",
