@@ -33,7 +33,8 @@ class artificial_lc(object):
         rise_ (int) 1 or 2 
         """
         self.save_dir = save_dir
-        self.bg_ = ["NoTESS", "2018fvi0233", "2018fhw0141", "2020azn2112", "2020vem3012"]
+        self.noise_dir = save_dir
+        self.bg_ = ["NoTESS", "2020tld2921", "2018fhw0141", "2020vem3012"]
     
         
         self.n = n
@@ -43,17 +44,126 @@ class artificial_lc(object):
             print('NOT A VALID RISE_')
             return 
         
+        #GEN BACKGROUNDS HERE IF NOT IN EXISTENCE
+        self.generate_all_backgrounds()
+        
         dir_ = "{s}{n}-rise-{r}/".format(s=self.save_dir,
                                          n=self.n, r=self.rise_)
         
         if not os.path.exists(dir_):
-            print("making new save folder")
+            print("Making new save folder")
             os.mkdir(dir_)
             
         self.save_dir = dir_
+        self.l = 1500
+        self.__gen_x()
         
         return
+    
+    def generate_all_backgrounds(self): 
+        """ 
+        Make the global files containing the TESS noise to draw from
+        Should go in the top directory for all fake data
+        this is hardcoded because I am lazy
         
+        """
+        self.noise_f = "{s}/tess_noise_models.csv".format(s=self.noise_dir)
+        
+        if os.path.exists(self.noise_f):
+            print("Background models to draw from already exist!")
+            return
+        
+        bg1 = "/Users/lindseygordon/research/urop/tessreduce_lc/2020tld2921/2020tld2921-tessreduce" 
+        bg2 = "/Users/lindseygordon/research/urop/tessreduce_lc/2018fhw0141/2018fhw0141-tessreduce" 
+        bg3 = "/Users/lindseygordon/research/urop/tessreduce_lc/2020vem3012/2020vem3012-tessreduce" 
+        bgs = [bg1, bg2, bg3]
+        
+        di = {}
+        t_cuts = [2100.507, 1337.969, 2128.120] #tld, fhw, vem
+        #generate models
+        from astropy.time import Time
+        from astropy.stats import SigmaClip
+        for i in range(3): 
+            tessreducefile = bgs[i]
+            targetlabel = tessreducefile.split("/")[-1].split("-")[0]
+            print(targetlabel)
+            self.targetlabel = targetlabel
+            #load tess data
+            (time, flux, error, targetlabel, 
+             sector, camera, ccd) = ut.tr_load_lc(tessreducefile)
+            t_c = t_cuts[i] #which to use
+            plt.scatter(time, flux, color='black')
+            index_ = np.abs(time - t_c - 2457000).argmin()
+            plt.axvline(time[index_], color='red')
+            cut_time = time[0:index_]
+            cut_flux = flux[0:index_]
+            plt.scatter(cut_time, cut_flux, color='blue')
+            
+            dt = Time(cut_time[1], format='jd') - Time(cut_time[0], format='jd')
+            
+            if dt.sec > 1700:
+                print(dt.sec, "in the okay cadence! ")
+            else: 
+                print(dt.sec, "need to bin this ")
+                n_pts = int(np.rint(1800/dt.sec)) #3 ten minutes = 30 minutes
+                t_ = []
+                f_ = []
+                
+                n = int(0)
+                m = int(n_pts+1)
+                
+                while m<len(cut_time):
+                    t_.append(cut_time[n])
+                    rang = cut_flux[n:m][~np.ma.masked_invalid(cut_flux[n:m]).mask]
+                    if len(cut_flux) == 0:
+                        f_.append(np.nan)
+                    else: 
+                        f_.append(np.nanmean(rang))
+                
+                    n+= n_pts
+                    m+= n_pts  
+             
+                cut_time = np.asarray(t_)
+                cut_flux = np.asarray(f_)
+            plt.scatter(cut_time, cut_flux, color='green')    
+            cut_flux -= np.mean(cut_flux)
+            
+            sigclip = SigmaClip(sigma=5, maxiters=None, cenfunc='median')
+            mask = np.ma.getmask(sigclip(cut_flux))
+            cut_flux = cut_flux[~mask]
+            cut_time = cut_time[~mask]
+            plt.scatter(cut_time,cut_flux,  s=2, color='hotpink')
+            plt.show()
+            
+            h = np.full(700, np.nan)
+            h[0:len(cut_flux)] = cut_flux
+            
+            di[self.targetlabel] = h
+            #put models into dict
+        #put dict into csv
+        df = pd.DataFrame(di)
+        df.to_csv(self.noise_f)
+        
+        return
+      
+    def __gen_x(self):
+        """ 
+        Make x-axis with orbit gap
+        """
+        # x axis with a fake orbit gap of size 1/10th array
+        tenth = int(self.l / 10)
+        start_ = int(self.l / 2) - int(tenth/2)
+        end_ = start_ + tenth
+        self.x = np.linspace(0, 28, (self.l+tenth))
+        
+        self.orbit_gap = [self.x[start_], self.x[end_]]
+        
+        mask = np.ones(self.l+tenth)
+        mask[start_:end_] = 0
+        mask = np.nonzero(mask) # which ones you are keeping
+        self.x = self.x[mask]
+        return
+    
     def gen_params(self):
         """ 
         Produce the true parameter set + save
@@ -112,62 +222,61 @@ class artificial_lc(object):
             
         return
     
-    def __gen_x(self):
+    def __save_true_params(self, f):
         """ 
-        Make x-axis with orbit gap
+        Put the real values into a file for access later
         """
-        # x axis with a fake orbit gap of size 1/10th array
-        tenth = int(self.l / 10)
-        start_ = int(self.l / 2) - int(tenth/2)
-        end_ = start_ + tenth
-        self.x = np.linspace(0, 28, (self.l+tenth))
+        di = {'t0':self.params_true[:,0], 
+              'A':self.params_true[:,1],
+              'beta':self.params_true[:,2],
+              'B':self.params_true[:,3], 
+              'disc':self.dtimes}
         
-        self.orbit_gap = [self.x[start_], self.x[end_]]
-        
-        mask = np.ones(self.l+tenth)
-        mask[start_:end_] = 0
-        mask = np.nonzero(mask) # which ones you are keeping
-        self.x = self.x[mask]
+        df = pd.DataFrame(di)
+        df.to_csv(f)
         return
- 
+    
+
     def gen_lc(self, bg=0):
         """ 
         Make LC using given bg + subfolder + save LC into file
         bg = 0-4 
         """
-        
-        # generate lc set from true params and given bg
-        TNSFile = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"  
         self.bg = bg
-        if bg == 0:
-            self.l = 1500
-            self.noise_model = np.zeros(self.l)
-            self.targetlabel = "NoTESS"
-        elif bg == 1: # 2018fvi
-            tr = "/Users/lindseygordon/research/urop/tessreduce_lc/2018fvi0233/2018fvi0233-tessreduce" 
-            self.__tess_noise(tr, TNSFile)
-        elif bg == 2: # 2018fhw
-            tr = "/Users/lindseygordon/research/urop/tessreduce_lc/2018fhw0141/2018fhw0141-tessreduce" 
-            self.__tess_noise(tr, TNSFile)
-        elif bg == 3: #2020azn
-            tr = "/Users/lindseygordon/research/urop/tessreduce_lc/2020azn2112/2020azn2112-tessreduce" 
-            self.__tess_noise(tr, TNSFile)
-        elif bg == 4: #2020vem
-            tr = "/Users/lindseygordon/research/urop/tessreduce_lc/2020vem3012/2020vem3012-tessreduce" 
-            self.__tess_noise(tr, TNSFile)
-        else: 
-            print("not a valid background code (0-4")
-            return
-            
+        self.targetlabel = self.bg_[bg]
         # make new subfolder for this run
         self.subfolder = "{s}{tl}/".format(s=self.save_dir, tl = self.targetlabel)
         
         if not os.path.exists(self.subfolder):
             os.mkdir(self.subfolder)
         else:
-            print("SUBFOLDER ALREADY EXISTS _ YOU MAY BE OVERWRITING RESULTS")
+            print("SUBFOLDER ALREADY EXISTS - YOU MAY BE OVERWRITING RESULTS")
             
-        self.__gen_x()    #make x-axis 
+        if bg == 0: # no tess noise    
+            self.noise_model = np.zeros(self.l)
+        else:
+            # file to load if it exists: 
+            f_noise_run = "{s}{tl}-background.csv".format(s=self.subfolder, tl = self.targetlabel)
+            if os.path.exists(f_noise_run):
+                #load it
+                print("loading existing noise model")
+                self.noise_model = pd.read_csv(f_noise_run)['noise_model']
+                print("noise shape", self.noise_model.shape)
+            else: 
+                #generate it
+                print("generating noise model for this run")
+                # load in the TESS bg file: 
+                noise_all = pd.read_csv(self.noise_f)
+                noise_use = noise_all[self.bg_[self.bg]]
+                #mask nans: 
+                noise_use = noise_use[~np.ma.masked_invalid(noise_use).mask]
+                self.noise_model = np.random.choice(noise_use, self.l)
+                print("noise shape", self.noise_model.shape)
+                #save
+                di = {'noise_model':self.noise_model}
+                df = pd.DataFrame(di)
+                df.to_csv(f_noise_run)
+
         self.flux_fake = np.zeros((self.n, (self.l))) # n l-length arrays
         self.error_fake = np.zeros((self.n, (self.l)))
         
@@ -198,107 +307,9 @@ class artificial_lc(object):
                 self.error_fake[i] += 0.01 * np.mean(self.flux_fake[i])
                     
         self.x += 2457000 #reset time axis because it will get subtracted
-        
-        # save fake lc for later
-        self.__save_all_lc()
-        
-        
+        #no need to save lc - always the same when generated
         return
-    
-    def __tess_noise(self, tessreducefile, TNSFile):
-        """ 
-        Generate a noise model to use for each target that you have
-        """
-        
-        targetlabel = tessreducefile.split("/")[-1].split("-")[0]
-        print(targetlabel)
-        self.targetlabel = targetlabel
-        filename = self.save_dir + targetlabel + "-tessnoise.csv"
-        
-        if os.path.exists(filename):
-            print("noise model exists, loading: ")
-            read = pd.read_csv(filename)
-            self.cut_flux = read['flux']
-            self.l = int(read['orig length'][0])
-        else: 
-            print('no saved file, generating ')
-            print("Making noise model from data (STOP FREAKING OUT ITS SUPPOSED TO RUN MCMC HERE)")
-            #load tess data
-            (time, flux, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(tessreducefile)
-            
-            discoverytime = ut.get_disctime(TNSFile, targetlabel)
-            #run it once with a type 1
-            self.trlc = etsMAIN(self.save_dir, TNSFile)
-            
-            self.trlc.load_single_lc(time, flux, error, discoverytime, 
-                               targetlabel, sector, camera, ccd)
-    
-            winfilter = self.trlc.window_rms_filt()
-            self.trlc.pre_run_clean(1, flux_mask=winfilter)
-            #trlc.test_plot()
-            self.trlc.run_MCMC(5000, 25000, quiet=True)
-            #cut to just data prior to the t0 
-            print("t0 is: ", self.trlc.best_mcmc[0][0])
-            self.t_lim = np.nonzero(np.where(self.trlc.time <= self.trlc.best_mcmc[0][0], 1, 0))
-    
-            self.cut_time = self.trlc.time[self.t_lim]
-            self.cut_flux = self.trlc.flux[self.t_lim]
-            #relocate to mean=0
-            self.cut_flux -= np.mean(self.cut_flux)
-            
-            #trim to 3sigma
-            from astropy.stats import SigmaClip
-            sigclip = SigmaClip(sigma=3, maxiters=None, cenfunc='median')
-            clipped_inds = np.nonzero(np.ma.getmask(sigclip(self.cut_flux)))
-            self.cut_time = np.delete(self.cut_time, clipped_inds)
-            self.cut_flux = np.delete(self.cut_flux, clipped_inds)
-            
-            #draw samples from that to fill in a full fake light curve
-            self.l = len(time)
-            
-            #save file:
-            di = {'flux':self.cut_flux, 
-                  'orig length': (self.l +np.ones(len(self.cut_flux)))}
-            df = pd.DataFrame(di)
-            df.to_csv(filename)
-            
-         #make noise model:  
-        self.noise_model = np.random.choice(self.cut_flux, self.l)
-        return
-    
-    def __save_true_params(self, f):
-        """ 
-        Put the real values into a file for access later
-        """
-        di = {'t0':self.params_true[:,0], 
-              'A':self.params_true[:,1],
-              'beta':self.params_true[:,2],
-              'B':self.params_true[:,3], 
-              'disc':self.dtimes}
-        
-        df = pd.DataFrame(di)
-        df.to_csv(f)
-        return
-    
-    def __save_all_lc(self):
-        """ 
-        Put fake LC into a file for later
-        """
-        di = {'t':self.x}
-            
-        for i in range(self.n):
-            s_ = "{}".format(i)
-            di[s_] = self.flux_fake[i].T
-            
-        df = pd.DataFrame(di)
-        f = "{s}{n}-allfluxes-{tl}-{r}.csv".format(s=self.subfolder, 
-                                              n=self.n,
-                                              tl=self.targetlabel,
-                                              r=self.rise_)
-        df.to_csv(f)
-        
-        return
+
     
     def plot_fake(self, index):
         
@@ -392,6 +403,9 @@ class artificial_lc(object):
         
         
         fig, ax = plt.subplots(2,2, figsize=(10,10))
+        
+        if not hasattr(self, 'noise_model'):
+            self.__retrieve_noisemodel()
 
 
         labels = [r'$t_0$', 'A', r'$\beta$', 'B']
@@ -416,9 +430,14 @@ class artificial_lc(object):
             ax2.legend(lines + lines2, labels1 + labels2, loc=0, fontsize=16)
 
         #plot orbit gap linse: 
-        ax = ax[0,0]
-        ax.axvline(self.orbit_gap[0], color='grey', linestyle='dashed')
-        ax.axvline(self.orbit_gap[1], color='grey', linestyle='dashed')
+        axy = ax[0,0]
+        axy.axvline(self.orbit_gap[0], color='grey', linestyle='dashed')
+        axy.axvline(self.orbit_gap[1], color='grey', linestyle='dashed')
+        
+        #plot noise limits on B:
+        axy = ax[1,1]
+        axy.axvline(self.noise_model.min(), color='grey', linestyle='dashed')
+        axy.axvline(self.noise_model.max(), color='grey', linestyle='dashed')
             
 
         plt.suptitle(r"$S_1$ & $S_2$; Background Model: "+ self.bg_[self.bg])
@@ -479,10 +498,7 @@ class artificial_lc(object):
         converged_all = {}
         upper_all = {}
         lower_all = {}
-        
-        
-        
-        
+
         
         for root, dirs, files in os.walk(self.subfolder):
             for name in files:
@@ -520,41 +536,40 @@ class artificial_lc(object):
 
         return 
     
-        
-   
+    def __retrieve_noisemodel(self):
+        f_noise_run = "{s}{tl}-background.csv".format(s=self.subfolder, tl = self.targetlabel)
+        if os.path.exists(f_noise_run):
+            #load it
+            print("loading existing noise model")
+            self.noise_model = pd.read_csv(f_noise_run)['noise_model']
+            print("noise shape", self.noise_model.shape)
+        else:
+            print("cannot load drawn noise model, file does not exist!")
+    
 
 
 #%%
-# save_dir = "./research/urop/fake_data/"
+save_dir = "./research/urop/fake_data/"
 
 
-# lc = artificial_lc(save_dir, 50, rise_=1)
-# lc.gen_params()
-# lc.gen_lc(bg=2)
-# lc.fit_fakes_type1(n1=1000, n2=50_000)
-# lc.retrieve_params(bg=2)
+lc = artificial_lc(save_dir, 5, rise_=1)
+lc.gen_params()
+lc.gen_lc(bg=0)
+lc.fit_fakes_type1(n1=1000, n2=50_000)
+lc.retrieve_params(bg=0)
 
-# lc.s_stats()
-# lc.plot_s12()
+lc.s_stats()
+lc.plot_s12()
 
 #%%
-
-# df = pd.read_csv("/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv")
-
-# bright_ = df[df["Discovery Mag/Flux"] < 17.5]
-
-# print(bright_)
-# i = 24 #2019fcc might work (23)
-
-
-
+import tessreduce as tr
 def mag_plot_download(i, df):
     sec = int(df["Sector"].iloc[i])
-    print(i)
+    #print(i)
     #time.sleep(40)
     print(df['Name'].iloc[i][3:])
     targ = df['Name'].iloc[i][3:]
-    import tessreduce as tr
+    
     try:
         obs = tr.sn_lookup(targ)
         lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]
@@ -591,9 +606,7 @@ def mag_plot_download(i, df):
                 print("eek")
                 os.remove(holder)
                 continue
-    print(sector)
-    print(camera)
-    print(ccd)
+    #print(sector, camera, ccd)
     
     data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
     
@@ -611,75 +624,129 @@ def mag_plot_download(i, df):
     targlabel = targ + sector + camera + ccd 
     l_mag = tess.to_mag()
     time = l_mag[0]
-    flux = l_mag[1]
-    
-    #plt.scatter(time, flux)
-    
-    
-    from astropy.stats import SigmaClip
-    sigclip = SigmaClip(sigma=3, maxiters=None, cenfunc='median')
+    mag = l_mag[1]
+
+    # from astropy.stats import SigmaClip
+    # sigclip = SigmaClip(sigma=3, maxiters=None, cenfunc='median')
     
     
-    m = int(len(time)/2 ) -30 
+    m = int(len(time)/2 ) - 40 
     
-    region = flux[0:m ]
-    time = time[0:m]
-    mask = region != np.inf
+    # region = mag[0:m ]
+    # time = time[0:m]
+    # mask = region != np.inf
     
-    time = time[mask]
-    flux = region[mask]
+    # time = time[mask]
+    # mag = region[mask]
     
     
-    clipped_inds = np.nonzero(np.ma.getmask(sigclip(flux)))
-    time = np.delete(time, clipped_inds)
-    flux = np.delete(flux, clipped_inds)
+    # clipped_inds = np.nonzero(np.ma.getmask(sigclip(mag)))
+    # time = np.delete(time, clipped_inds)
+    # mag = np.delete(mag, clipped_inds)
     
     
     fig, ax = plt.subplots(1,1, figsize=(8,3))
     from astropy.time import Time
     time = Time(time, format='mjd').jd
     ddate = Time(df["Discovery Date (UT)"].iloc[i]).jd
-    print(ddate)
+    #print(ddate)
     
-    ax.scatter(time, flux)
+    ax.scatter(time, mag)
     ax.invert_yaxis()
-    
-    
     ax.axvline(ddate, color='green')
+    ax.axvline(time[m], color='red')
+    ax.set_title(targlabel)
     
     
-    print(np.nanmean(flux))
+    print(targlabel, "Mean Mag:", np.ma.masked_invalid(mag[0:m]).mean())
     return tess, ddate
 
-# t, d = mag_plot_download(i, bright_)
+# df = pd.read_csv("/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv")
+data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
+file_TNS = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
 
-# #%%
-# from astropy.time import Time
-# time = Time(t.lc[0], format='mjd').jd
-# flux = t.lc[1]
+df = pd.read_csv(file_TNS)
 
-# plt.scatter(time, flux)
-# plt.axvline(d)
-# plt.show()
-# l_mag = t.to_mag()
-# plt.scatter(time, l_mag[1])
+candidate_backgrounds = ["2018fhw", "2020vem", #"2019esa", "2020aakp", 
+                         "2020tld"]
+
+i = 2
+ind = 0
+df2 = df[df["Name"].str.contains(candidate_backgrounds[i])]
+#print(df2)
+tess_, dd_ = mag_plot_download(ind, df2)
 
 #%%
-# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# file_TNS = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
-# #df = pd.read_csv(file_TNS)
-# #print(df)
-# #import etsfit.util.utilities as ut
-# for root, dirs, files in os.walk(data_dir):
-#     for name in files:
-#         if name.endswith("-tessreduce"):
-#             holder = root + "/" + name
-#             #print(holder)
-#             (time, flux, error, 
-#              targetlabel, sector, 
-#              camera, ccd) = ut.tr_load_lc(holder)
-#             fig, ax = plt.subplots(1, figsize=(8, 3))
-#             ax.scatter(time, flux, s=2)
-#             dd_ = ut.get_disctime(file_TNS, targetlabel)
-#             ax.axvline(dd_, color='red')
-#             ax.set_title(targetlabel)
+l_mag = tess_.to_mag()
+time = l_mag[0]
+mag = l_mag[1]
+
+
+fig, ax = plt.subplots(1,1, figsize=(8,3))
+from astropy.time import Time
+time = Time(time, format='mjd').jd
+ddate = Time(df2["Discovery Date (UT)"].iloc[ind]).jd
+#print(ddate)
+m = int(len(time)/2 ) - 30
+ax.scatter(time, mag, color='black')
+ax.invert_yaxis()
+ax.axvline(ddate, color='green')
+ax.axvline(time[m], color='red')
+#ax.set_title(targlabel)
+print("Mean Mag:", np.ma.masked_invalid(mag[0:m]).mean())
+     
+dt = Time(time[1], format='jd') - Time(time[0], format='jd')
+print(dt.sec)
+
+if dt.sec > 1700:
+    print("in the okay cadence! ")
+else: 
+    print("need to bin this ")
+    n_pts = int(np.rint(1800/dt.sec)) #3 ten minutes = 30 minutes
+    t_ = []
+    f_ = []
+    
+    n = int(0)
+    m = int(n_pts+1)
+    
+    while m<len(time):
+        t_.append(time[n])
+        rang = mag[n:m][~np.ma.masked_invalid(mag[n:m]).mask]
+        if len(rang) == 0:
+            f_.append(np.nan)
+        else: 
+            f_.append(np.nanmean(rang))
+    
+        n+= n_pts
+        m+= n_pts  
+ 
+    time = np.asarray(t_)
+    mag = np.asarray(f_)
+
+    m = int(len(time)/2 ) - 10
+
+ax.scatter(time, mag, color='blue')
+
+mag2 = mag[0:m]
+mag2 = mag2[~np.ma.masked_invalid(mag[0:m]).mask]
+t2 = time[0:m]
+t2 = t2[~np.ma.masked_invalid(mag[0:m]).mask]
+ax.scatter(t2, mag2, color='blue')
+
+
+
+
+
+from astropy.stats import SigmaClip
+sigclip = SigmaClip(sigma=5, maxiters=None, cenfunc='median')
+
+mask = np.ma.getmask(sigclip(mag2))
+#print("masking: ", len(mask))
+mag3 = mag2[~mask]
+print("masking", len(mag3) - len(mag2))
+t3 = t2[~mask]
+ax.scatter(t3, mag3, color='green')
+
+print("mean mag post cleaning: ", mag3.mean())
+print("m:", m, "time", t3[-1]-2457000)
+print("range:", mag3.max() - mag3.min())

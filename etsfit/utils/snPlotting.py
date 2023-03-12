@@ -765,4 +765,25 @@ def celerite_post_pred(ets):
     plt.close()
     return
 
-    
+def plot_all_in_folder(data_dir, file_TNS):
+    """ 
+    Plots all tessreduce light curves saved in a given directory w/
+    their discovery time
+    """
+    import os
+    import etsfit.util.utilities as ut
+    for root, dirs, files in os.walk(data_dir):
+        for name in files:
+            if name.endswith("-tessreduce"):
+                holder = root + "/" + name
+                #print(holder)
+                (time, flux, error, 
+                  targetlabel, sector, 
+                  camera, ccd) = ut.tr_load_lc(holder)
+                fig, ax = plt.subplots(1, figsize=(4, 1.5))
+                ax.scatter(time, flux, s=2, color='black')
+                dd_ = ut.get_disctime(file_TNS, targetlabel)
+                ax.axvline(dd_, color='red')
+                ax.set_title(targetlabel)
+                plt.tight_layout()
+    return
