@@ -1145,7 +1145,7 @@ class etsMAIN(object):
         if not quiet:
             print("Starting burn-in chain")
         # ### Initial run
-        self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.logProbFunc,args=self.args) # setup
+        self.sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.logProbFunc, args=self.args) # setup
         self.sampler.run_mcmc(p0, n1, progress=True) # run it
         
         #plot burn in chain

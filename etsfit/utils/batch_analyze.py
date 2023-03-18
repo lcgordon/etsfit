@@ -101,12 +101,46 @@ def extract_singlepower_all(filepath):
     return params, upper_e, lower_e, converg
 
 
-# (disc_all1, params_all1, 
-#   converged_all1, upper_all1, 
-#   lower_all1) = retrieve_all_singlepower(TNSFile, data_dir, params_dir, gList, 
-#                                 datatag="-tessreduce", paramstag="singlepower-0.6")
-
-
+def extract_doublepower_all(filepath):
+    """ 
+    Function to pull double power fitted (type 3) parameters from the output files
+    Params:
+        - filepath (str)
+    """
+    
+    # target label row 0, bic row 1
+    
+    # convg row 2:
+    filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+    if "True" in filerow1:
+        converg = True
+    else:
+        converg = False
+        
+    #main params:
+    p3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+    p4 = np.loadtxt(filepath, skiprows=4, dtype=str, max_rows=1)
+    params = [float(p3[0]),float(p3[1]),float(p3[2]),float(p3[3]),
+              float(p4[0]),float(p4[1]),float(p4[2])]
+    
+    #upper errrors: 
+    p3 = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1)
+    p4 = np.loadtxt(filepath, skiprows=6, dtype=str, max_rows=1)
+    upper_e = [float(p3[0]),float(p3[1]),float(p3[2]),float(p3[3]),
+              float(p4[0]),float(p4[1]),float(p4[2])]
+    
+    #upper errrors: 
+    p3 = np.loadtxt(filepath, skiprows=7, dtype=str, max_rows=1)
+    p4 = np.loadtxt(filepath, skiprows=8, dtype=str, max_rows=1)
+    lower_e = [float(p3[0]),float(p3[1]),float(p3[2]),float(p3[3]),
+              float(p4[0]),float(p4[1]),float(p4[2])]
+    
+    return params, upper_e, lower_e, converg
+    
+    
+    
+    
+    
 def retrieve_all_celerite(TNSFile, data_dir, params_dir, gList,
                           datatag="-tessreduce", 
                           paramstag="celerite-matern32-residual-0.6-bounded"):
