@@ -82,7 +82,7 @@ def extract_singlepower_all(filepath):
     # bic row 1
     # convg row 2
     filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    if "True" in filerow1:
+    if "True" in str(filerow1):
         converg = True
     else:
         converg = False
@@ -112,10 +112,12 @@ def extract_doublepower_all(filepath):
     
     # convg row 2:
     filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
-    if "True" in filerow1:
+    if "True" in str(filerow1):
         converg = True
     else:
         converg = False
+        
+    #print(filerow1, converg)
         
     #main params:
     p3 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)

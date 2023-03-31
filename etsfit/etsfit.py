@@ -651,7 +651,7 @@ class etsMAIN(object):
         self.index = 0 # number of checks
         self.autocorr = np.empty(n2) # total possible checks
         old_tau = np.inf
-        self.autoStep = 100 # how often to check
+        self.autoStep = 1000 # how often to check
         self.autocorr_all = np.empty((int(n2/self.autoStep) + 2,len(self.labels))) # save all autocorr times
         
         # sample up to n2 steps
@@ -753,7 +753,12 @@ class etsMAIN(object):
     def calc_gelmanrubin(self):
 
         tau = self.sampler.get_autocorr_time(tol=0)
-        burnin = int(2 * np.max(tau))
+        if np.any(np.isnan(tau)) or np.any(np.isinf(tau)):
+            burnin = 1
+            print(f"Autocorr time is a nana or inf - rerun {self.targetlabel} light curve! ")
+            print("Setting burnin to 1")
+        else:    
+            burnin = int(2 * np.max(tau))
         samples = self.sampler.get_chain(discard=burnin, flat=False)
         
         N = samples.shape[0]
