@@ -27,7 +27,7 @@ class artificial_lc(object):
     
     def __init__(self, save_dir, n, rise_=1):
         """ 
-        Init and produce the subfolder for this n and rise
+        Init all 
         save_dir (str) path
         n (int) # LC to make
         rise_ (int) 1 or 2 
@@ -52,9 +52,6 @@ class artificial_lc(object):
             self.dim = 7
             self.labels = [r'$t_0$', r'$t_1$', r'$A_1$', r'$A_2$', 
                            r'$\beta_1$', r'$\beta_2$', 'B']
-        
-        
-        
         
         #GEN BACKGROUNDS HERE IF NOT IN EXISTENCE
         self.generate_all_backgrounds()
@@ -469,14 +466,26 @@ class artificial_lc(object):
         calc chisquared values
         """
         self.chi_squared = np.zeros(self.n) #n values
+        x_ = self.x
+        if self.x[0] != 0:
+            x_ -= 2457000
         if self.rise_ == 1:
-            x_ = self.x_
-            if self.x_[0] != 0:
-                x_ -= 2457000
             for i in range(self.n): 
-                t0, A, beta, B = self.params_true[i]
+                t0, A, beta, B = self.output_params[i]
                 t_ = x_ - t0
                 mod = (np.heaviside((t_), 1) * A *np.nan_to_num((t_**beta))) + 1 + B
+                self.chi_squared[i] = np.sum( ( mod - self.flux_fake[i] )**2 / self.flux_fake[i])
+                
+        elif self.rise_ == 2: 
+            def func1(x, t0, t1, A1, A2, beta1, beta2):
+                return A1 *(x-t0)**beta1
+            def func2(x, t0, t1, A1, A2, beta1, beta2):
+                return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
+            for i in range(self.n): 
+                t0, t1, A1, A2, beta1, beta2, B = self.output_params[i]
+                mod = np.piecewise(x_, [(t0 <= x_)*(x_ < t1), t1 <= x_], 
+                                                 [func1, func2],
+                                                 t0, t1, A1, A2, beta1, beta2) + 1 + B
                 self.chi_squared[i] = np.sum( ( mod - self.flux_fake[i] )**2 / self.flux_fake[i])
         
         return
@@ -518,7 +527,7 @@ class artificial_lc(object):
             axy = ax[0,0]
             axy.axvline(self.orbit_gap[0], color='grey', linestyle='dashed', label="Orbit/Noise")
             axy.axvline(self.orbit_gap[1], color='grey', linestyle='dashed')
-            axy.legend()
+            axy.legend(fontsize=12)
             
             if self.dim == 7: #on doubles 
                 axy = ax[1,0]
@@ -813,11 +822,11 @@ class artificial_lc(object):
         
         
 
-#%%
+#%% running! 
 save_dir = "./research/urop/fake_data/"
 
-bg = 0
-lc = artificial_lc(save_dir, 10, rise_=1)
+bg = 2
+lc = artificial_lc(save_dir, 50, rise_=1)
 lc.gen_params()
 lc.gen_lc(bg=bg)
 lc.plot_true_param_distros(bins=20)
@@ -825,126 +834,15 @@ lc.fit_fakes(start=0, n1=5000, n2=50_000)
 
 lc.retrieve_params(bg=bg)
 
-lc.megaplot() # this needs to be 
+lc.megaplot() 
 lc.s_stats()
 lc.plot_s_separate()
 
 print(f"unconverged indexes: {np.nonzero(lc.converged_retrieved-1)}")
 lc.print_unconverged_params(np.nonzero(lc.converged_retrieved-1)[0])
 
+lc.chi_sq()
+
 #lc.rerun_unconverged_double()
-#%%
-
-#%%
 
 
-# #getting flux ranges: 
-    
-# tld = lc.noise_model.to_numpy()
-# x = lc.x
-# plt.scatter(x, tld, color='red')
-# from astropy.stats import SigmaClip
-# sigclip = SigmaClip(sigma=3, maxiters=None, cenfunc='median')
-# mask = np.ma.getmask(sigclip(tld))
-# cut_flux = tld[~mask]
-# cut_x = x[~mask]
-# plt.scatter(cut_x, cut_flux, color='blue')
-
-# print()
-
-# #%%
-# import tessreduce as tr
-# def mag_plot_download(i, df):
-#     sec = int(df["Sector"].iloc[i])
-#     #print(i)
-#     #time.sleep(40)
-#     print(df['Name'].iloc[i][3:])
-#     targ = df['Name'].iloc[i][3:]
-    
-#     try:
-#         obs = tr.sn_lookup(targ)
-#         lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]
-#         tess = tr.tessreduce(obs_list=lookup,plot=False,reduce=True)
-        
-#     except ValueError:   
-#         print("value error - something is wrong with vizier or no target in pixels")
-     
-#     except IndexError:
-#         print("index error - tesscut thinks it wasn't observed")
-    
-#     except ConnectionResetError:
-#         print("vizier problems again")
-#     except TimeoutError:
-#         print("vizier problems")
-    
-#     except ConnectionError:
-#         print("more! vizier! problems!")
-    
-#     cdir = "/Users/lindseygordon/.lightkurve-cache/tesscut/"
-#     holder = ""
-#     for root, dirs, files in os.walk(cdir):
-#         for name in files:
-#             holder = root + "/" + name
-#             print(holder)
-#             try:
-#                 filenamepieces = name.split("-")
-#                 sector = str( filenamepieces[1][3:])
-#                 camera = str( filenamepieces[2])
-#                 ccd = str(filenamepieces[3][0])
-#                 os.remove(holder)
-#                 break
-#             except IndexError:
-#                 print("eek")
-#                 os.remove(holder)
-#                 continue
-#     #print(sector, camera, ccd)
-    
-#     data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-    
-#     targlabel = targ + sector + camera + ccd 
-#     newfolder = data_dir + targlabel + "/"
-#     if not os.path.exists(newfolder):
-#         os.mkdir(newfolder)
-#         filesave = newfolder + targlabel + "-tessreduce.csv"
-#         tess.save_lc(filesave)
-#         tess.to_flux()
-#         filesave = newfolder + targlabel + "-tessreduce-fluxconverted.csv"
-#         tess.save_lc(filesave)
-
-#     #make subfolder to save into 
-#     targlabel = targ + sector + camera + ccd 
-#     l_mag = tess.to_mag()
-#     time = l_mag[0]
-#     mag = l_mag[1]
-#     m = int(len(time)/2 ) - 40 
-    
-#     fig, ax = plt.subplots(1,1, figsize=(8,3))
-#     from astropy.time import Time
-#     time = Time(time, format='mjd').jd
-#     ddate = Time(df["Discovery Date (UT)"].iloc[i]).jd
-#     #print(ddate)
-    
-#     ax.scatter(time, mag)
-#     ax.invert_yaxis()
-#     ax.axvline(ddate, color='green')
-#     ax.axvline(time[m], color='red')
-#     ax.set_title(targlabel)
-    
-    
-#     print(targlabel, "Mean Mag:", np.ma.masked_invalid(mag[0:m]).mean())
-#     return tess, ddate
-
-# # df = pd.read_csv("/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv")
-# data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
-# file_TNS = "/Users/lindseygordon/research/urop/august2022crossmatch/all-tesscut-matches.csv"
-
-# df = pd.read_csv(file_TNS)
-
-# candidate_backgrounds = ["2018fhw", "2020vem", #"2019esa", "2020aakp", 
-#                          "2020tld"]
-
-# i = 2
-# ind = 0
-# df2 = df[df["Name"].str.contains(candidate_backgrounds[i])]
-# #print(df2)
-# tess_, dd_ = mag_plot_download(ind, df2)
