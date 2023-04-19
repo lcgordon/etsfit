@@ -553,7 +553,7 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
     CBV3 = CBV3[:length_corr]
     return x,y,yerr, tQ, Qall, CBV1, CBV2, CBV3
 
-def tr_downloader(file, data_dir, cdir):
+def tr_downloader(file, data_dir, cdir, start=0):
     """ 
     Download the tessreduce lc for your list
     --------------------------
@@ -566,12 +566,14 @@ def tr_downloader(file, data_dir, cdir):
     """
     info = pd.read_csv(file)
     failures = []
-    for i in range(0,len(info)):
+    for i in range(start,len(info)):
         sec = int(info["Sector"].iloc[i])
         print(i)
         time.sleep(40)
         print(info['Name'].iloc[i][3:])
         targ = info['Name'].iloc[i][3:]
+        
+        
         try:
             obs = tr.sn_lookup(targ)
             lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]

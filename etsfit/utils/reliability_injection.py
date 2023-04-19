@@ -21,31 +21,26 @@ rcParams['figure.figsize'] = 8,3
 rcParams['font.family'] = 'serif'
 
 
-class reliability_injection(object):
-    """ 
-    Class of functions to make SNe signal parameters + actual curves
-    """
+class reliability_injection(object): 
     
-    def __init__(self, save_dir, n_injections, n_tess, rise, fraction=0.6):
+    def __init__(self, save_dir, index_of_tess, n_signals_to_inject, rise): 
         """ 
-        Set things up
-        Params: 
-            save_dir (str) path
-            n (int) # signals to make 
-            rise (int) 1 or 2 
-        """
-        self.n_injections = n_injections
-        self.rise = rise
-        self.n_tess = n_tess
-        self.save_dir = f"{save_dir}rise-{rise}-ninj-{self.n_injections}-ntess-{self.n_tess}/"
+        Initialize
         
+        """
+        if rise not in (1,2):
+            print('NOT A VALID rise')
+            return 
+        
+        self.n_signals_to_inject = n_signals_to_inject
+        self.rise = rise
+        self.n_tess = 1
+        self.tess_idx = index_of_tess
+        
+        self.save_dir = f"{save_dir}tessidx-{index_of_tess}-ninj-{n_signals_to_inject}/"
         if not os.path.exists(self.save_dir):
             print("Making new save folder")
             os.mkdir(self.save_dir)
-        
-        if self.rise not in (1,2):
-            print('NOT A VALID rise')
-            return 
         
         if self.rise == 1:
             self.ndim = 4
@@ -55,12 +50,10 @@ class reliability_injection(object):
             self.labels = [r'$t_0$', r'$t_1$', r'$A_1$', r'$A_2$', 
                            r'$\beta_1$', r'$\beta_2$', 'B']
         
-        self.injected_index_file = f"{self.save_dir}injection_index_list.csv"
         self.true_param_file = "{s}true-params.csv".format(s=self.save_dir)
         
-        self.fraction_to_inject = int(self.n_injections * fraction)
-        self.n_LC = self.fraction_to_inject + 1 #how many total (including noninjection)
-        self.targetlabel = f"ntess_{self.n_tess}_ninjections_{self.fraction_to_inject}"
+        self.TOTAL = self.n_signals_to_inject + 1 #how many total (including noninjection)
+        self.targetlabel = f"tessidx_{self.tess_idx}_ninj_{self.n_signals_to_inject}"
         return
     
     def gen_params(self):
@@ -75,8 +68,8 @@ class reliability_injection(object):
             self.true_params = h.to_numpy()[:,1:-1]
             self.dtimes = h.to_numpy()[:,-1]
             self.disctimes = {}
-            labels = list(range(self.n_injections))
-            for i in range(self.n_injections):
+            labels = list(range(self.TOTAL))
+            for i in range(self.TOTAL):
                 self.disctimes[labels[i]] = self.dtimes[i]
             print("done")
         else: 
@@ -85,38 +78,44 @@ class reliability_injection(object):
             myclip_a, myclip_b = 0.5, 4
             loc, scale = 2, 1
             a, b = (myclip_a - loc) / scale, (myclip_b - loc) / scale
+            self.true_params = np.zeros((self.TOTAL, self.ndim)) ##t0 A beta B
         
             if self.rise== 1:
-                self.true_params = np.zeros((self.n_injections, self.ndim)) ##t0 A beta B
-                self.true_params[:,0] = np.random.uniform(0, 20, self.n_injections) #t0
-                self.true_params[:,1] = np.random.uniform(0.001, 1, self.n_injections) #A1
+                self.true_params[:,0] = np.random.uniform(0, 20, self.TOTAL) #t0
+                self.true_params[:,1] = np.random.uniform(0.001, 1, self.TOTAL) #A1
                 # beta is pulled from a unif distro on the arctans
-                self.true_params[:,2] = truncnorm.rvs(a, b, loc=loc, scale=scale, size=self.n_injections)
-                self.true_params[:,3] = np.random.uniform(1, 20, self.n_injections) *  np.random.choice((-1,1), self.n_injections)
+                self.true_params[:,2] = truncnorm.rvs(a, b, loc=loc, scale=scale, size=self.TOTAL)
+                self.true_params[:,3] = np.random.uniform(0, 5, self.TOTAL) *  np.random.choice((-1,1), self.TOTAL)
                 #B can't get to close to 0 or summary stats look like trash
                 
                 self.disctimes = {}
-                labels = list(range(self.n_injections))
-                self.dtimes = self.true_params[:,0] + np.random.uniform(0.5, 6, self.n_injections) + 2457000
-                for i in range(self.n_injections):
+                labels = list(range(self.TOTAL))
+                self.dtimes = self.true_params[:,0] + np.random.uniform(0.5, 6, self.TOTAL) + 2457000
+                for i in range(self.TOTAL):
                     self.disctimes[labels[i]] = self.dtimes[i]
                 
             elif self.rise== 2:
-                self.true_params = np.zeros((self.n_injections, self.ndim)) ##t0 A beta B
-                self.true_params[:,0] = np.random.uniform(0, 20, self.n_injections) #t0
-                self.true_params[:,1] = np.random.uniform(self.true_params[:,0], 25, self.n_injections) #t1 defined by t0
-                self.true_params[:,2] = np.random.uniform(0.001, 1, self.n_injections) #A1
-                self.true_params[:,3] = np.random.uniform(0.001, 1, self.n_injections) #A2
-                self.true_params[:,6] = np.random.uniform(1, 20, self.n_injections) *  np.random.choice((-1,1), self.n_injections) #B
+                self.true_params = np.zeros((self.TOTAL, self.ndim)) ##t0 A beta B
+                self.true_params[:,0] = np.random.uniform(0, 20, self.TOTAL) #t0
+                self.true_params[:,1] = np.random.uniform(self.true_params[:,0], 25, self.TOTAL) #t1 defined by t0
+                self.true_params[:,2] = np.random.uniform(0.001, 1, self.TOTAL) #A1
+                self.true_params[:,3] = np.random.uniform(0.001, 1, self.TOTAL) #A2
+                self.true_params[:,6] = np.random.uniform(1, 20, self.TOTAL) *  np.random.choice((-1,1), self.TOTAL) #B
                 # beta is pulled from a unif distro on the arctans
-                self.true_params[:,4] = truncnorm.rvs(a, b, loc=loc, scale=scale, size=self.n_injections)
-                self.true_params[:,5] = truncnorm.rvs(a, b, loc=loc, scale=scale, size=self.n_injections)
+                self.true_params[:,4] = truncnorm.rvs(a, b, loc=loc, scale=scale, size=self.TOTAL)
+                self.true_params[:,5] = truncnorm.rvs(a, b, loc=loc, scale=scale, size=self.TOTAL)
                 
                 self.disctimes = {}
-                labels = list(range(self.n_injections))
-                self.dtimes = self.true_params[:,0] + np.random.uniform(0.5, 6, self.n_injections) + 2457000
-                for i in range(self.n_injections):
+                labels = list(range(self.TOTAL))
+                self.dtimes = self.true_params[:,0] + np.random.uniform(0.5, 6, self.TOTAL) + 2457000
+                for i in range(self.TOTAL):
                     self.disctimes[labels[i]] = self.dtimes[i]
+                    
+            # reset row 0: 
+            self.true_params[0] = np.zeros(self.ndim)
+            self.dtimes[0] = 2457015
+            self.disctimes[0] = 2457015
+                    
             print("done")
             self.__save_true_params()
             
@@ -155,33 +154,31 @@ class reliability_injection(object):
         i = 0
         for root, dirs, files in os.walk(folder):
             for name in files:
-                if i >= self.n_tess: 
+                if i != self.tess_idx: 
+                    i+= 1
                     continue
                 fname = root + "/" + name
                 print(fname)
                 data = pd.read_csv(fname)
                 #print(len(data))
-                if i==0: 
-                    #make x, make full data array, full error array + fill
-                    self.x = data['time'].to_numpy()
-                    self.l = len(self.x)
-                    #print(self.l)
-                    self.true_flux = np.zeros((self.n_tess, self.l))
-                    self.true_error = np.zeros((self.n_tess, self.l))
-                    self.true_labels = np.zeros(self.n_tess)
+                 
+                #make x, make full data array, full error array + fill
+                self.x = data['time'].to_numpy()
+                self.l = len(self.x)
+                print(self.l)
                     
-                self.true_flux[i] = data['flux'].to_numpy() 
-                self.true_flux[i] -= np.nanmean(self.true_flux[i])
-                self.true_error[i] = data['error'].to_numpy()
-                self.true_labels[i] = name.split("_")[1].split(".")[0]
+                self.true_flux = data['flux'].to_numpy() 
+                self.true_flux -= np.nanmean(self.true_flux)
+                self.true_error = data['error'].to_numpy()
+                self.true_labels = name.split("_")[1].split(".")[0]
                 
                 #renorm
-                dr = self.true_flux[i]
-                e = self.true_error[i]
+                dr = self.true_flux
+                e = self.true_error
                 drn = (dr - np.nanmin(dr))/ (np.nanmax(dr) - np.nanmin(dr))
                 en = (e - np.nanmin(dr))/ (np.nanmax(dr) - np.nanmin(dr))
-                self.true_flux[i] = drn
-                self.true_error[i] = en
+                self.true_flux = drn
+                self.true_error = en
                 
                 i += 1
                 
@@ -189,64 +186,35 @@ class reliability_injection(object):
     
     def plot_all_real(self): 
         """ 
-        Plot all the real datasets
+        Plot all the real datasets in one big plot. 
         """
         # n_tess is how many to plot
-        print("Plotting all real tess data!")
-        cols = 2 if self.n_tess > 2 else 1
-        rows = int(np.ceil(self.n_tess/cols)) #
+        print("Plotting real tess data!")
+        fig, axs = plt.subplots(1, figsize=(8, 3))
         
-        fig, axs = plt.subplots(rows, cols, figsize=(cols*8, rows*3))
-        
-        if self.n_tess == 1:
-            t = self.x
-            flux = self.true_flux[0] 
-            err = self.true_error[0]
-            axs.errorbar(t, flux, err, mfc='black', mec='black', ms=1, fmt=".", ecolor='black')
-            axs.set_title(f"TIC {int(self.true_labels[0])}", fontsize=14)
-
-        elif self.n_tess == 2:
-            for i in range(2): 
-                axy = axs[i]
-                t = self.x
-                flux = self.true_flux[i] 
-                err = self.true_error[i]
-        
-                axy.errorbar(t, flux, err, mfc='black', mec='black', ms=1, fmt=".", ecolor='black')
-                axy.set_title(f"TIC {int(self.true_labels[i])}", fontsize=14)
-                
-        else: #multiple rows 
-            for j in range(cols):
-                for i in range(rows):
-                    axy = axs[i][j]
-
-                    t = self.x
-                    flux = self.true_flux[j*10 + i] 
-                    err = self.true_error[j*10 + i]
-            
-                    axy.errorbar(t, flux, err, mfc='black', mec='black', ms=1, fmt=".", ecolor='black')
-                    axy.set_title(f"TIC {int(self.true_labels[j*10 + i])}", fontsize=14)
-             
-        plt.suptitle("Real Light Curve(s)")
+        axs.errorbar(self.x, self.true_flux, self.true_error, 
+                     mfc='black', mec='black', ms=1, fmt=".", ecolor='black')
+        axs.set_title(f"TIC {int(self.true_labels)}", fontsize=14)
         plt.tight_layout()
-        plt.savefig(f"{self.save_dir}injected_data.png")
+        plt.savefig(f"{self.save_dir}real_data.png")
         return
     
-    def gen_signals(self):
+    def gen_injecting_signals(self):
         """ 
-        Make signals 
+        Make signals to inject into the real data.  
         """
         print("Generating injection signals: ", end="")
-        self.fake_flux = np.zeros((self.n_injections, self.l)) # n l-length arrays
-        self.fake_error = np.zeros((self.n_injections, self.l))
+        self.fake_signals = np.zeros((self.TOTAL, self.l)) # n l-length arrays
         self.x -= self.x[0] #time axis gets 0'd out
         
-        for i in range(self.n_injections):
+        self.fake_signals[0] = np.zeros(self.l) #blank 0th 
+        
+        for i in range(1, self.TOTAL):
             if self.rise == 1:
-                self.fake_flux[i] = self.__gen_singlerise(self.true_params[i])
+                self.fake_signals[i] = self.__gen_singlerise(self.true_params[i])
             
             elif self.rise == 2:
-                self.fake_flux[i] = self.__gen_doublerise(self.true_params[i])
+                self.fake_signals[i] = self.__gen_doublerise(self.true_params[i])
                 
         self.x += 2457000 #reset time axis because it will get subtracted
         print("done")
@@ -277,59 +245,21 @@ class reliability_injection(object):
         return model
         
     
-    def gen_injections(self):
+    def inject_real_data(self):
         """ 
         Generate randomly injected sources
         """
-        print("Injecting signals: ", end="")
+        print("Injecting signals: ") #, end=""
         
-        #injected fluxes are going to be n_LC, length l
-        self.injected_flux = np.zeros((self.n_LC, self.l)) 
-        self.injected_error = np.zeros((self.n_LC, self.l))
-        self.injected_indexes = np.zeros((self.n_tess, self.fraction_to_inject)) 
+        #injected fluxes are going to be total datasets, length l
+        self.injected_flux = np.zeros((self.TOTAL, self.l)) 
+        self.injected_error = np.zeros((self.TOTAL, self.l)) 
         
-        #Needs to be repeatable - have to save which indexes got injected!! 
-        if os.path.exists(self.injected_index_file):
-            print("Injections already chosen, loading them in: ", end="")
-            #write me! 
-            self.injected_indexes = pd.read_csv(self.injected_index_file).to_numpy()
-            
-            
-        else: 
-            print("injections need to be generated:", end="")
-            rng = np.random.default_rng() #init random generator
-            
-            #generate
-            for j in range(self.n_tess): #for each real 
-                self.injected_indexes[j] = rng.choice(self.n_injections, self.fraction_to_inject, replace=False)
-                
-            di = {} #save cols: 
-            for i in range(self.fraction_to_inject): 
-                di[f"col_{i}"] = self.injected_indexes[:,i]
-            
-            df = pd.DataFrame(di)
-            df.to_csv(self.injected_index_file)
-        
-        
-        #injected indexes: for each in n_tess, fraction_to_inject indexes
-        
-        
-        
-        
-        for j in range(self.n_tess): #for each real 
-            
-            #0th in that range will be true
-            self.injected_flux[j*self.n_tess] = self.true_flux[j]
-            self.injected_error[j*self.n_tess] = self.true_error[j] #just use the real data errors
-            #inject the rest: 
-            for i in range(1, self.n_LC): 
-                 inj_ = int(self.injected_indexes[j][i-1]) #index in injection array
-                 #print(inj_)
-                 self.injected_flux[int(j*self.n_tess + i)] = self.fake_flux[inj_] + self.true_flux[j]
-                 self.injected_error[int(j*self.n_tess + i)] = self.true_error[j]
-        
-        
-        #save injections: 
+        #injected indexes: for each in n_tess, number_to_inject indexes
+        for j in range(self.TOTAL): #for each real 
+            #0th row makes this no problem
+            self.injected_flux[j] = self.true_flux + self.fake_signals[j]
+            self.injected_error[j] = self.true_error
         
         print("done")
         return
@@ -341,10 +271,9 @@ class reliability_injection(object):
         - every background tess gets their own plot 
         """
         
-        n_plots = self.n_tess
         cols = 2
-        rows = int(np.ceil(self.n_LC/cols))
-        print(f'plots:{n_plots}, cols: {cols}, rows: {rows}')
+        rows = int(np.ceil(self.TOTAL/cols))
+        print(f'cols: {cols}, rows: {rows}')
         
         #reset axis: 
         if self.x[0] != 0:
@@ -352,30 +281,30 @@ class reliability_injection(object):
         else:
             x_ = self.x
         
-        k = 0 #array indexer
+        #k = 0 #array indexer
         c = ['black', 'darkgreen']
-        
-        for i in range(n_plots): 
-            fig, ax = plt.subplots(rows, cols, figsize=(8*cols, 3*rows))
-            inj_row = self.injected_indexes[i].astype(int)
-            #print(inj_row)
-            #now fill subplots: 
-            for j in range(self.n_LC):
-                axy = ax[int(j/2),j%2]
-                axy.scatter(x_, self.injected_flux[k], s=2, color=c[0 if j==0 else 1])
+        fig, ax = plt.subplots(rows, cols, figsize=(8*cols, 3*rows))
+        for j in range(self.TOTAL):
+            axy = ax[int(j/2),j%2]
+            #nanmask and downsample: 
+            mask = np.isnan(self.injected_flux[j])
+            use_x = x_[~mask][0:np.sum(~mask):10]
+            use_y = self.injected_flux[j][~mask][0:np.sum(~mask):10]
+            #use_e = self.injected_error[k][~mask][0:np.sum(~mask):10]
                 
-                if j != 0: 
-                    inj_index = int(inj_row[j-1])
-                    axy.axvline(self.dtimes[inj_index]-2457000, color='blue', label='disc. time', linestyle='dashed')
-                    truemodel = self.fake_flux[inj_index]
-                    axy.plot(x_, truemodel, lw=2, color='red', linestyle='dashed')
-                    axy.axvline(self.true_params[inj_index][0], color='blue')
-                            
-                k+=1
+            axy.scatter(use_x, use_y, s=2, color=c[0 if j==0 else 1])
+            
+            if j != 0: 
+                axy.axvline(self.dtimes[j]-2457000, color='blue', label='disc. time', linestyle='dashed')
+                truemodel = self.fake_signals[j]
+                axy.plot(x_, truemodel, lw=2, color='red', linestyle='dashed')
+                axy.axvline(self.true_params[j][0], color='blue', label='t0', linestyle='dashed')
                 
-            plt.suptitle(f"Injection Plot {i}: TIC {self.true_labels[i]}")
-            plt.tight_layout()
-            plt.savefig(f"{self.save_dir}/injection-plot-{i}.png")
+        plt.suptitle(f"Injection Plot: TIC {self.true_labels}")
+        plt.tight_layout()
+        plt.savefig(f"{self.save_dir}/injection-plot.png")
+        plt.show()
+        plt.close()
                 
         return
             
@@ -385,7 +314,7 @@ class reliability_injection(object):
         """
         
         #check to see if this has already been run: 
-        final_file = f"{self.save_dir}/index{self.n_LC-1}/"
+        final_file = f"{self.save_dir}/index{self.TOTAL-1}/"
         print(final_file)
         if os.path.exists(final_file):
             print("Fitting has already been run")
@@ -400,24 +329,28 @@ class reliability_injection(object):
         
     def __fit_fakes_singlerise(self, start=0, n1=500, n2=5000):  
         
-        self.s_3 = np.zeros((self.n_injections*self.n_tess, self.ndim))
+        self.s_3 = np.zeros((self.TOTAL, self.ndim))
         
-        for i in range(self.n_tess): #for each tess
-            for j in range(self.n_LC): #for each injection created
-                
-                ind = i*self.n_tess + j
-                if ind < start: 
-                    continue
-                print("index: ", ind)
-                dt = self.disctimes[j]
-                self.trlc = etsMAIN(self.save_dir, 'nofile', plot=False)
+        for i in range(self.TOTAL):
+            if i < start: continue
+            print(f"index: {i}")
+            dt = self.disctimes[i]
+        
+            self.trlc = etsMAIN(self.save_dir, 'nofile', plot=True)
             
-                self.trlc.load_single_lc(self.x, self.injected_flux[ind], self.injected_error[ind], 
-                                    dt, "index{}".format(ind), "", "", "")
-    
-                self.trlc.pre_run_clean(fitType=1)
-                self.trlc.run_MCMC(n1, n2, quiet=True)
-                self.s_3[i] = self.trlc.sampler.get_autocorr_time(tol=0)
+            #nanmask and downsample!! 
+            mask = np.isnan(self.injected_flux[i])
+            use_x = self.x[~mask][0:np.sum(~mask):10]
+            use_y = self.injected_flux[i][~mask][0:np.sum(~mask):10]
+            use_e = self.injected_error[i][~mask][0:np.sum(~mask):10]
+        
+            self.trlc.load_single_lc(use_x, use_y, use_e, 
+                                     dt, f"index{i}", "", "", "")
+
+            self.trlc.pre_run_clean(fitType=1)
+            self.trlc.test_plot()
+            self.trlc.run_MCMC(n1, n2, quiet=True)
+            self.s_3[i] = self.trlc.sampler.get_autocorr_time(tol=0)
             
         #save file:
         di = {'act_t':self.s_3[:,0],
@@ -430,32 +363,22 @@ class reliability_injection(object):
             
         return
     
-    def __fit_fakes_doublerise(self, start=0, n1=500, n2=5000):  
+    # def __fit_fakes_doublerise(self, start=0, n1=500, n2=5000):  
+    #     """ fit double powers """ 
         
-        self.s_3 = np.zeros((self.n_injections*self.n_tess, self.ndim))
-        for i in range(start, self.n_LC):
-            dt = self.disctimes[i]
-            self.trlc = etsMAIN(self.subfolder, 'nofile', plot=False)
-        
-            self.trlc.load_single_lc(self.x, self.flux_fake[i], self.error_fake[i], 
-                                dt, "index{}".format(i), "", "", "")
-
-            self.trlc.pre_run_clean(fitType=3)
-            self.trlc.run_MCMC(n1, n2, quiet=True)
-            self.s_3[i] = self.trlc.sampler.get_autocorr_time(tol=0)
-            
-        #save S3 file:
-        di = {'act_t0':self.s_3[:,0],
-              'act_t1':self.s_3[:,1],
-              'act_A1':self.s_3[:,2],
-              'act_A2':self.s_3[:,3],
-              'act_beta1':self.s_3[:,4],
-              'act_beta2':self.s_3[:,5],
-              'act_B':self.s_3[:,6]}
-        df = pd.DataFrame(di)
-        self.autocorr_file = f"{self.save_dir}allfluxes-{self.targetlabel}-{self.rise}-autocorr.csv"
-        df.to_csv(self.autocorr_file)
-        return
+                
+    #         #save S3 file:
+    #         di = {'act_t0':self.s_3[:,0],
+    #               'act_t1':self.s_3[:,1],
+    #               'act_A1':self.s_3[:,2],
+    #               'act_A2':self.s_3[:,3],
+    #               'act_beta1':self.s_3[:,4],
+    #               'act_beta2':self.s_3[:,5],
+    #               'act_B':self.s_3[:,6]}
+    #         df = pd.DataFrame(di)
+    #         self.autocorr_file = f"{self.save_dir}allfluxes-{self.targetlabel}-{self.rise}-autocorr.csv"
+    #         df.to_csv(self.autocorr_file)
+    #         return
     
     def retrieve_params(self, bg=0):
         """ 
@@ -517,32 +440,51 @@ class reliability_injection(object):
 
         return 
     
-    def s_stats(self):
+    def plot_true_and_fit(self):
         """ 
-        Calculating s-stats as given in the paper
+        plot the true parameter stuff and the fit values 
         """
-        # init arrays
-        self.s_1 = np.zeros((len(self.output_params), self.ndim))
-        self.s_2 = np.zeros((len(self.output_params), self.ndim))
-        # set 0th in each set to nan (no true params exist)
-        self.s_1[0:len(self.output_params):self.n_LC] = np.nan
-        self.s_2[0:len(self.output_params):self.n_LC] = np.nan
+        cols = 2
+        rows = int(np.ceil(self.TOTAL/cols))
+        print(f'cols: {cols}, rows: {rows}')
         
-        #in loops through the intermediate values
-        for i in range(self.n_tess): #for each set
-            ind_start = i * self.n_LC + 1
-            inj_ind = self.injected_indexes[i] #which ones are they
-            print(inj_ind)
-            for j in range(len(inj_ind)): #for each injected index
-                h = ind_start+j
-                #print(h)
-                ii = inj_ind[j].astype(int)
-                #print(ii)
-                max_err = np.maximum(self.upper_error[h].round(3), self.lower_error[h].round(3))
-                self.s_1[h] = np.abs(self.output_params[h].round(3) / max_err)
-                ptrue = self.true_params[ii]
-                self.s_2[h] = np.abs(np.abs(self.output_params[h].round(3) - ptrue.round(3))/ptrue.round(3))
+        #reset axis: 
+        if self.x[0] != 0:
+            x_ = self.x - 2457000
+        else:
+            x_ = self.x
+        
+        #k = 0 #array indexer
+        #c = ['black', 'darkgreen']
+        fig, ax = plt.subplots(rows, cols, figsize=(8*cols, 3*rows))
+        for j in range(self.TOTAL):
+            axy = ax[int(j/2),j%2]
+            #nanmask and downsample: 
+            mask = np.isnan(self.injected_flux[j])
+            use_x = x_[~mask][0:np.sum(~mask):10]
+            use_y = self.injected_flux[j][~mask][0:np.sum(~mask):10]
+            #use_e = self.injected_error[k][~mask][0:np.sum(~mask):10]
                 
+            axy.scatter(use_x, use_y, s=2, color='k')
+            
+            if j != 0: 
+                axy.axvline(self.dtimes[j]-2457000, color='blue', label='disc. time', linestyle='dashed')
+                truemodel = self.fake_signals[j]
+                axy.plot(x_, truemodel, lw=2, color='red', linestyle='dashed')
+                axy.axvline(self.true_params[j][0], color='blue', label='t0', linestyle='dashed')
+             
+            t0, A, beta, B = self.output_params[j]
+            t_ = use_x - t0
+            model = (np.heaviside((t_), 1) * A *np.nan_to_num((t_**beta))) + 1 + B
+            axy.plot(use_x, model, color='cyan', label='model', lw=3)
+            
+                
+        plt.suptitle(f"Model Plots: TIC {self.true_labels}")
+        plt.tight_layout()
+        plt.savefig(f"{self.save_dir}/big-all-models-plot.png")
+        plt.show()
+        plt.close()
+        
         return 
         
     
@@ -550,20 +492,31 @@ class reliability_injection(object):
         """ 
         calc chisquared values
         """
-        p = self.n_LC * self.n_tess
-        self.chi_squared = np.zeros(p) #n values
+        self.chi_squared = np.zeros(self.TOTAL)
         x_ = self.x
         if self.x[0] != 0:
             x_ -= 2457000
         if self.rise == 1:
-            for i in range(p): 
-                model = self.__gen_singlerise(self.output_params[i])
-                self.chi_squared[i] = np.nansum( ( model - self.injected_flux[i] )**2 / self.injected_flux[i])
+            for i in range(self.TOTAL): 
+                mask = np.isnan(self.injected_flux[i])
+                use_x = x_[~mask][0:np.sum(~mask):10]
+                use_y = self.injected_flux[i][~mask][0:np.sum(~mask):10]
+                t0, A, beta, B = self.output_params[i]
+                t_ = use_x - t0
+                model = (np.heaviside((t_), 1) * A *np.nan_to_num((t_**beta))) + 1 + B
+                self.chi_squared[i] = np.nansum( ( model - use_y )**2 / use_y)
                 
-        elif self.rise == 2: 
-            for i in range(p): 
-                model = self.__gen_doublerise(self.output_params[i])
-                self.chi_squared[i] = np.nansum( ( model - self.injected_flux[i] )**2 / self.injected_flux[i])
+        # elif self.rise == 2: 
+        #     for i in range(p): 
+        #         model = self.__gen_doublerise(self.output_params[i])
+        #         self.chi_squared[i] = np.nansum( ( model - self.injected_flux[i] )**2 / self.injected_flux[i])
+        
+        # s_1: 
+        max_err = np.maximum(self.upper_error.round(3), self.lower_error.round(3))
+        #self.s_1 = np.abs(self.output_params.round(3) / max_err)
+        self.s_1 = np.abs(max_err / self.output_params.round(3) )
+        
+        print(f"chisq: {self.chi_squared.round(2)}, s_1: {self.s_1}")
         
         return
         
@@ -572,30 +525,31 @@ class reliability_injection(object):
 #%%
 data_folder = "/Users/lindseygordon/research/urop/reliability_testing/chosen_data/"
 save_dir = "/Users/lindseygordon/research/urop/reliability_testing/output/"
-n_injections = 10
+n_injections = 6
 n_tess = 1
 
 #init
-ri = reliability_injection(save_dir, n_injections, n_tess, rise=1)
+ri = reliability_injection(save_dir, index_of_tess=0, n_signals_to_inject=6, rise=1)
 
 # real tess data: 
 ri.real_data_load(data_folder)
 ri.plot_all_real()
 
-# fake signals:
+# # fake signals:
 ri.gen_params()
-ri.gen_signals()
+ri.gen_injecting_signals()
 
 # signal injection
-ri.gen_injections()
+ri.inject_real_data()
 ri.plot_all_injections()
 
-# #signal fitting: 
-ri.fit_fakes(start=0, n1=5_000, n2=50_000)
-# ri.retrieve_params()
+# # # #signal fitting: 
+ri.fit_fakes(start=6, n1=3_000, n2=30_000)
+ri.retrieve_params()
+ri.plot_true_and_fit()
 # ri.s_stats()
-# ri.chi_sq()
+ri.chi_sq()
 #%%
-
-
-
+    
+    
+    

@@ -256,7 +256,9 @@ class etsMAIN(object):
         """
         if not hasattr(self, 'time'):
             return ValueError("No light curve loaded in to plot!")
-        plt.errorbar(self.time, self.flux, yerr=self.error, fmt='.', color='black')
+        fig, ax = plt.subplots(1, figsize=(6, 2))
+        #plt.errorbar(self.time, self.flux, yerr=self.error, fmt='.', color='black')
+        plt.scatter(self.time, self.flux, color='k', s=2)
         plt.xlabel(self.xlabel)
         plt.ylabel(self.ylabel)
         plt.title(self.targetlabel)
@@ -805,7 +807,7 @@ class etsMAIN(object):
             return ValueError("Not a valid gpUSE input!")
         
         if 'celerite_mean' in self.gpUSE:
-            self.__run_GP_fit_celerite_mean(n1, n2, thinParams, bounds=usebounds,
+            self.__run_GP_fit_celerite_mean(n1, n2, thinParams, usebounds=usebounds,
                                             custom_bounds=custom_bounds, quiet=quiet)
             
         elif 'celerite_residual' in self.gpUSE:

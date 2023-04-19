@@ -823,26 +823,26 @@ class artificial_lc(object):
         
 
 #%% running! 
-save_dir = "./research/urop/fake_data/"
+# save_dir = "./research/urop/fake_data/"
 
-bg = 2
-lc = artificial_lc(save_dir, 50, rise_=1)
-lc.gen_params()
-lc.gen_lc(bg=bg)
-lc.plot_true_param_distros(bins=20)
-lc.fit_fakes(start=0, n1=5000, n2=50_000)
+# bg = 2
+# lc = artificial_lc(save_dir, 50, rise_=1)
+# lc.gen_params()
+# lc.gen_lc(bg=bg)
+# lc.plot_true_param_distros(bins=20)
+# lc.fit_fakes(start=0, n1=5000, n2=50_000)
 
-lc.retrieve_params(bg=bg)
+# lc.retrieve_params(bg=bg)
 
-lc.megaplot() 
-lc.s_stats()
-lc.plot_s_separate()
+# lc.megaplot() 
+# lc.s_stats()
+# lc.plot_s_separate()
 
-print(f"unconverged indexes: {np.nonzero(lc.converged_retrieved-1)}")
-lc.print_unconverged_params(np.nonzero(lc.converged_retrieved-1)[0])
+# print(f"unconverged indexes: {np.nonzero(lc.converged_retrieved-1)}")
+# lc.print_unconverged_params(np.nonzero(lc.converged_retrieved-1)[0])
 
-lc.chi_sq()
+# lc.chi_sq()
 
-#lc.rerun_unconverged_double()
+# #lc.rerun_unconverged_double()
 
 
