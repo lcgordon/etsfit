@@ -811,7 +811,7 @@ class etsMAIN(object):
                                             custom_bounds=custom_bounds, quiet=quiet)
             
         elif 'celerite_residual' in self.gpUSE:
-            self.__run_GP_fit_celerite_residual(n1, n2, thinParams, bounds=usebounds,
+            self.__run_GP_fit_celerite_residual(n1, n2, thinParams, usebounds=usebounds,
                                                 custom_bounds=custom_bounds, quiet=quiet)
             
         else: #tinygp options
