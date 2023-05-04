@@ -431,3 +431,29 @@ def log_probability_celerite_residual(theta, x, y, yerr, gp, priors=None):
         return lp, -np.inf
     
     return ll+lp, lp
+
+def log_probability_flat(theta, x, y, yerr):
+    """ 
+    Calculates the log probability for FLAT
+    
+    Associated labels: ["B"]
+    init_values in MCMC: np.array(1)
+    args = (x,y,yerr)
+    ----------------------------------------------
+    Parameters:
+        - theta (array of doubles): the parameters from MCMC
+        - x (array) time axis of data, starts at 0
+        - y (array) relative flux data
+        - yerr (array) error on the flux data
+    ----------------------------------------------
+    Returns:
+        - log likelihood
+        - log prior
+    
+    """
+        
+    B = theta
+    model = np.zeros_like(x) + B
+    yerr2 = yerr**2.0
+    lp = 0
+    return -0.5 * np.nansum((y - model) ** 2 / yerr2 + np.log(yerr2)), lp

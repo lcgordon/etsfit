@@ -19,6 +19,20 @@ rcParams["font.size"] = 20
 rcParams["xtick.labelsize"] = 18
 rcParams["ytick.labelsize"] = 18
 
+def plot_autocorr_all(ets):
+    """ 
+    Produces two batches of autocorrelation plots by calling 
+    plot_autocorr_individual()
+    and 
+    plot_autocorr_mean()
+    -----------------------------------------
+    Params:
+        - ets (etsfit object)
+    
+    """
+    plot_autocorr_mean(ets)
+    plot_autocorr_individual(ets)
+    return
 
 
 def plot_autocorr_mean(ets):
@@ -79,20 +93,7 @@ def plot_autocorr_individual(ets):
                                                           fl = ets.filelabels[i]))
         plt.close()
         
-def plot_autocorr_all(ets):
-    """ 
-    Produces two batches of autocorrelation plots by calling 
-    plot_autocorr_individual()
-    and 
-    plot_autocorr_mean()
-    -----------------------------------------
-    Params:
-        - ets (etsfit object)
-    
-    """
-    plot_autocorr_mean(ets)
-    plot_autocorr_individual(ets)
-    return
+
 
 
 def plot_corner(ets):
@@ -133,25 +134,33 @@ def plot_param_samples_all(ets):
     Params:
         - ets (etsfit obj)
     """
-    
-    axN = len(ets.labels)
-    if axN % 2 != 0:
-        axN+=1 #make it even (two columns)
-    nrows = int(axN/2)
-    ncols = 2
-    fig, ax = plt.subplots(nrows, ncols, sharex=False,
-                           figsize=(ncols*4, nrows*4))
-    p = 0
-    for n in range(2):
-        for m in range(nrows):
-            if p < len(ets.labels):
-                ax[m, n].hist(ets.flat_samples[:, p], 100, color="k", histtype="step")
-                ax[m, n].set_xlabel(ets.labels[p], fontsize=20)
-                ax[m, n].set_ylabel("p({pl})".format(pl=ets.labels[p]))
-                ax[m,n].tick_params('y', labelsize=18)
-                ax[m,n].tick_params('x', labelsize=18)
-                p+=1
-    
+    if ets.fitType == 20: 
+        fig, ax = plt.subplots(1, figsize=(5,5))
+        ax.hist(ets.flat_samples, 100, color='k', histtype='step')
+        ax.set_xlabel(ets.labels[0], fontsize=20)
+        ax.set_ylabel("p({pl})".format(pl=ets.labels[0]))
+        ax.tick_params('y', labelsize=18)
+        ax.tick_params('x', labelsize=18)
+        
+    else: 
+        axN = len(ets.labels)
+        if axN % 2 != 0:
+            axN+=1 #make it even (two columns)
+        nrows = int(axN/2)
+        ncols = 2
+        fig, ax = plt.subplots(nrows, ncols, sharex=False,
+                               figsize=(ncols*4, nrows*4))
+        p = 0
+        for n in range(2):
+            for m in range(nrows):
+                if p < len(ets.labels):
+                    ax[m, n].hist(ets.flat_samples[:, p], 100, color="k", histtype="step")
+                    ax[m, n].set_xlabel(ets.labels[p], fontsize=20)
+                    ax[m, n].set_ylabel("p({pl})".format(pl=ets.labels[p]))
+                    ax[m,n].tick_params('y', labelsize=18)
+                    ax[m,n].tick_params('x', labelsize=18)
+                    p+=1
+        
     #fig.suptitle("Chain Sampling By Parameter", fontsize=22, y=0.95)
     plt.tight_layout()
     plt.savefig('{s}{t}{f}-chain-samples-histograms.png'.format(s=ets.save_dir,
@@ -375,6 +384,8 @@ def plot_mcmc(ets):
     tplot = ets.time + ets.tmin - 2457000
     dplot = ets.disctime + ets.tmin - 2457000
     t0plot = t0 + ets.tmin - 2457000
+    
+    
     #plot corner
     plot_corner(ets)
     #plot model

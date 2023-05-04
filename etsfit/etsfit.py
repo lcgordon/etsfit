@@ -282,6 +282,7 @@ class etsMAIN(object):
             - fitType (int)
                 1-6 are default runs
                 0 are custom arguments (see below)
+                - 20 = flat
             
             - flux_mask (array of ints) true/false array of points ot trim
                 default is NONE
@@ -447,7 +448,6 @@ class etsMAIN(object):
             self.filesavetag = "-singlepower"
             self.labels = [r"$t_0$", "A", r"$\beta$",  "b"]
             self.filelabels = ["t0", "A", "beta",  "b"]
-            
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
             
         elif self.fitType == 2: # single with
@@ -514,6 +514,13 @@ class etsMAIN(object):
             self.filelabels = self.labels
             self.init_values = init_values 
             self.plotFit = plotFit #overwrites the default fitType that was set to plotfit
+        elif self.fitType == 20: #FLAT
+            self.args = (self.time, self.flux, self.error)
+            self.logProbFunc = mc.log_probability_flat
+            self.filesavetag = "-flat"
+            self.labels = ["B"]
+            self.filelabels = ["B"]
+            self.init_values = np.array((1))
         else:
             print("THAT IS NOT AN ALLOWED DEFAULT FIT TYPE, EXITING")
             raise ValueError("not an allowed fit type")
@@ -683,7 +690,7 @@ class etsMAIN(object):
         # ######
         #plot autocorr things
         ########
-        if self.plot:
+        if self.plot and self.fitType != 20 :
             sp.plot_autocorr_all(self)
         
             

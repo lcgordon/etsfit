@@ -100,6 +100,22 @@ def extract_singlepower_all(filepath):
                float(filerow1[2]), float(filerow1[3]))
     return params, upper_e, lower_e, converg
 
+def extract_flat_params(filepath): 
+    """ converged, B, upper, lower"""
+    filerow1 = np.loadtxt(filepath, skiprows=2, dtype=str, max_rows=1)
+    #print(filerow1)
+    if "True" in str(filerow1):
+        converg = True
+    else:
+        converg = False
+    fr2 = np.loadtxt(filepath, skiprows=3, dtype=str, max_rows=1)
+    #print(fr2)
+    fr3 = np.loadtxt(filepath, skiprows=4, dtype=str, max_rows=1)
+    #print(fr3)
+    fr4 = np.loadtxt(filepath, skiprows=5, dtype=str, max_rows=1)
+    #print(fr4)
+    return  float(fr2), float(fr3), float(fr4), converg
+
 
 def extract_doublepower_all(filepath):
     """ 
