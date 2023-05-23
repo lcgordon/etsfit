@@ -58,9 +58,7 @@ def plot_autocorr_mean(ets):
     plt.tick_params('x', labelsize=18)
     plt.tick_params('y', labelsize=18)
     plt.tight_layout()
-    plt.savefig("{s}{t}{f}-autocorr-mean.png".format(s=ets.save_dir,
-                                                      t=ets.targetlabel,
-                                                      f = ets.filesavetag))
+    plt.savefig(f"{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-autocorr-mean.png")
     plt.close()
     rcParams['figure.figsize'] = 16,6
     return
@@ -87,10 +85,7 @@ def plot_autocorr_individual(ets):
         plt.tick_params('y', labelsize=18)
         plt.legend()
         plt.tight_layout()
-        plt.savefig("{s}{t}{f}-autocorr-{fl}.png".format(s=ets.save_dir,
-                                                          t=ets.targetlabel,
-                                                          f = ets.filesavetag,
-                                                          fl = ets.filelabels[i]))
+        plt.savefig(f"{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-autocorr-{ets.filelabels[i]}.png")
         plt.close()
         
 
@@ -118,9 +113,7 @@ def plot_corner(ets):
         ax.yaxis.label.set_size(18)
 
     plt.tight_layout()
-    fig.savefig('{s}{t}{f}-corner-plot-params.png'.format(s=ets.save_dir,
-                                                      t=ets.targetlabel,
-                                                      f=ets.filesavetag))
+    fig.savefig(f"{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-corner-plot-params.png")
     #plt.show()
     plt.close()
     return
@@ -163,9 +156,7 @@ def plot_param_samples_all(ets):
         
     #fig.suptitle("Chain Sampling By Parameter", fontsize=22, y=0.95)
     plt.tight_layout()
-    plt.savefig('{s}{t}{f}-chain-samples-histograms.png'.format(s=ets.save_dir,
-                                                      t=ets.targetlabel,
-                                                      f=ets.filesavetag))
+    plt.savefig(f"{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-chain-samples-histograms.png")
     plt.close()
     return
 
@@ -271,10 +262,7 @@ def plot_chain_logpost(ets, appendix=""):
     axes[-1].set_xlabel("Step Number", fontsize=20)
     axes[-1].tick_params(axis='x', labelsize=18)
     plt.tight_layout()
-    plt.savefig('{s}{t}{f}-chain-logpost-{a}.png'.format(s=ets.save_dir,
-                                                      t=ets.targetlabel,
-                                                      f=ets.filesavetag,
-                                                      a=appendix))
+    plt.savefig(f"{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-chain-logpost-{appendix}.png")
     #plt.show()
     plt.close()
     return

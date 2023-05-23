@@ -57,15 +57,16 @@ def run_all_fits(fitType, data_dir, save_dir, TNSFile,
                 fname = root + "/" + name
                 #load
                 (time, flux, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(fname)
+                 sector, camera, ccd) = ut.tr_load_lc(fname, printname=False)
                 if goodList is not None and targetlabel not in goodList:
                     continue
+                print(targetlabel)
                 
                 #get discovery time
                 discoverytime = ut.get_disctime(TNSFile, targetlabel)
                 
                 #run it
-                trlc = etsMAIN(save_dir, TNSFile)
+                trlc = etsMAIN(save_dir, TNSFile, plot=False)
                 
                 trlc.load_single_lc(time, flux, error, discoverytime, 
                                    targetlabel, sector, camera, ccd)

@@ -110,6 +110,12 @@ class artificial_injections(object):
         else: # bad Ia backgrounds: 
             self.targetlabel = self.real_bg[self.bg]
             self.real_data_load()
+            # create new folder to save into: 
+            new_dir = f"{self.save_dir}tess_real_{self.total_lightcurves}_{self.n_injections}_{self.PL_rise}/"
+            if not os.path.exists(new_dir):
+                print(f"Making new save folder: {new_dir}")
+                os.mkdir(new_dir)
+            self.save_dir = new_dir
         
         
         return 
@@ -852,14 +858,28 @@ class artificial_injections(object):
             
         return
         
-        
-#%% 
+def get_flux_range(which):
+    all_ = ["2018fwi", "2019sqj", "2020azn"]
+    sec_ = [2, 17, 21]
+    
+    name = all_[which]
+    sec = sec_[which]
+    import tessreduce as tr
+    obs = tr.sn_lookup(name)
+    lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]
+    tess = tr.tessreduce(obs_list=lookup,plot=False,reduce=True)
+    import etsfit.utils.utilities as ut
+    t, f, e, bg = ut.sigmaclip(tess.lc[0], tess.lc[1], tess.lc[2], None)
+    if which ==1: 
+        mask = np.ones(len(t)).astype(bool)
+        mask[400:530] = False
+        mask[1020:] = False
+        t = t[mask]
+        f = f[mask]
+    print(f"{name}: flux range: {np.max(f) - np.min(f)}")
+    
+    lm = tess.to_mag()
+    print(np.ma.masked_invalid(lm[1]).mean())
+    return 
 
-# save_dir = "/Users/lindseygordon/research/paper_outputs/CR_real_TESS_bg/"
-# n_total = 10 #how many total
-# p_inj = 0.6
-# bg = 2
-# bg_type = "badIa"
-# ctf = artificial_injections(save_dir, n_total, p_inj)    
-# ctf.run_all(bg_type, bg)
         

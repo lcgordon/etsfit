@@ -21,6 +21,7 @@ import etsfit.utils.utilities as ut
 from celerite import terms
 import etsfit.utils.batch_analyze as ba
 import math
+rcParams['font.family'] = 'serif'
 
 # data_dir = "/Users/lindseygordon/research/urop/tessreduce_lc/"
 # CBV_folder = "/Users/lindseygordon/research/urop/eleanor_cbv/"
@@ -165,7 +166,7 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
      converged_all, 
      upper_all, lower_all) = ba.retrieve_all_singlepower(TNSFile, data_dir, save_dir, 
                                                          targetlist, 
-                                   datatag="-tessreduce", paramstag="singlepower-0.6")
+                                   datatag="-tessreduce", paramstag=filetag)
     
     
     for f in range(nfigs):
@@ -199,13 +200,13 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
                     d = info[info["Name"].str.contains(targetlabel)]["Discovery Date (UT)"]
                     discoverytime = Time(d.iloc[0], format = 'iso', scale='utc').jd
                     
-                    trlc = etsMAIN(save_dir, TNSFile)
+                    trlc = etsMAIN(save_dir, TNSFile, plot=False)
                     
                     trlc.load_single_lc(time, flux, error, discoverytime, 
                                        targetlabel, sector, camera, ccd)
                     
                     
-                    filterMade = trlc.window_rms_filt(plot=False)
+                    filterMade = trlc.window_rms_filt()
                     if "2018fhw" in targetlabel:
                         filterMade[1040:1080] = 0.0
                     if "2020hdw" in targetlabel:
@@ -217,9 +218,7 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
                     
                     internal = trlc.targetlabel + trlc.sector + trlc.camera + trlc.ccd
                     
-                    filepath = "{f}{i}/{t}/{i}-{t}-output-params.txt".format(f=save_dir, 
-                                                                             i=internal,
-                                                                             t=filetag)
+                    filepath = f"{save_dir}{internal}/{filetag}/{internal}-{filetag}-output-params.txt"
      
                     t0, A, beta, B = params_all[trlc.targetlabel]
                     tplot = trlc.time + trlc.tmin - 2457000
@@ -265,8 +264,8 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
                     ax[m][2].tick_params('y', labelsize=14)
                     ax[m][0].set_title(trlc.targetlabel + " Sector " + trlc.sector, fontsize=20)
                     ax[m][1].set_title(trlc.targetlabel + " Residual", fontsize=20)
-                    if (m==0):
-                        ax[m][0].legend(fontsize=16, loc='upper left')
+                    if (m==nrows-1):
+                        ax[m][0].legend(fontsize=16, loc='right')
                         ax[m][1].legend(fontsize=16)
                         
                     ax[m, 1].set_ylim(ax[m,0].get_ylim())
@@ -278,9 +277,9 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
                     m += 1
         
         fig.suptitle("Collated Power Law Fits (Part {f})".format(f=f+1))
-        plt.tight_layout()
-        #plt.show()   
+        plt.tight_layout() 
         plt.savefig("{f}/collated-single-powerlaws-withhist-{i}.png".format(f=save_dir, i=f+1))    
+        plt.show()
         plt.close()        
     return
 
