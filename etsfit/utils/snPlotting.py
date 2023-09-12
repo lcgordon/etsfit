@@ -45,8 +45,8 @@ def plot_autocorr_mean(ets):
         
     """
     rcParams['figure.figsize'] = 8, 8
-    n = ets.autoStep * np.arange(1, ets.index + 1) #x axis = total number of steps
-    plotAutocorr = ets.autocorr[:ets.index]
+    n = ets.stepsize * np.arange(1, ets.index + 1) #x axis = total number of steps
+    plotAutocorr = ets.autocorr_means[:ets.index]
     plt.plot(n, n / 100, "--k", label = "N/100 threshold") #plots the N vs N/100=tau threshold 
     #this determines length of chain vs autocorrelation time
     plt.plot(n, plotAutocorr, label="Autocorrelation")
@@ -70,7 +70,7 @@ def plot_autocorr_individual(ets):
     Params:
         - ets (etsfit object)
     """
-    n = ets.autoStep * np.arange(1, ets.index + 1) #x axis - number of steps
+    n = ets.stepsize * np.arange(1, ets.index + 1) #x axis - number of steps
     for i in range(len(ets.labels)):
         plotAutocorr = ets.autocorr_all[:ets.index,i]
         plt.plot(n, n / 100, "--k", label="N/100 Threshold") #plots the N vs N/100=tau threshold 
@@ -175,12 +175,12 @@ def fitTypeModel(ets):
     x = ets.time
     
     if ets.plotFit in (1,7):
-        t0, A,beta,B = ets.best_mcmc[0]
+        t0, A,beta,B = ets.best_mcmc
         t1 = x - t0
         mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False)
         bg = np.ones(len(x)) + B
     elif ets.plotFit == 2: 
-        t0, A, beta, B, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc[0]
+        t0, A, beta, B, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc
         t1 = x - t0
         Qall, CBV1, CBV2, CBV3 = ets.quats_cbvs
         mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta))
@@ -191,7 +191,7 @@ def fitTypeModel(ets):
             return A1 *(x-t0)**beta1
         def func2(x, t0, t1, A1, A2, beta1, beta2):
             return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
-        t0, t1, A1, A2, beta1, beta2, B = ets.best_mcmc[0]
+        t0, t1, A1, A2, beta1, beta2, B = ets.best_mcmc
         mod = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
                              t0, t1, A1, A2, beta1, beta2) 
@@ -203,7 +203,7 @@ def fitTypeModel(ets):
             return A1 * (x-t0)**beta1 + A2 * (x-t1)**beta2
         
         Qall, CBV1, CBV2, CBV3 = ets.quats_cbvs
-        t0, t1, A1, A2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc[0]
+        t0, t1, A1, A2, beta1, beta2, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc
         mod = np.piecewise(x, [(t0 <= x)*(x < t1), t1 <= x], 
                              [func1, func2],
                              t0, t1, A1, A2, beta1, beta2)
@@ -211,14 +211,14 @@ def fitTypeModel(ets):
         
     elif ets.plotFit ==5:
         Qall, CBV1, CBV2, CBV3 = ets.quats_cbvs
-        b, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc[0]
+        b, cQ, cbv1, cbv2, cbv3 = ets.best_mcmc
         mod = np.zeros(len(x))
         bg = (b + np.ones(len(x)) + cQ * Qall + 
               cbv1 * CBV1 + cbv2 * CBV2 + cbv3 * CBV3)
         print("background starts with", bg[0:5])
     
     elif ets.plotFit == 6:
-        t0, A,beta,B, LBG = ets.best_mcmc[0]
+        t0, A,beta,B, LBG = ets.best_mcmc
         t1 = x - t0
         mod = (np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta)))
         bg = 1 + B + ets.BGdata * LBG
@@ -227,7 +227,7 @@ def fitTypeModel(ets):
     
     return mod, bg
 
-def plot_chain_logpost(ets, appendix=""):
+def plot_chain_withlogpost(ets, appendix=""):
     """
     Plots MCMC chain trace plots for all parameters and the log posterior
     --------------------------------------
@@ -263,49 +263,6 @@ def plot_chain_logpost(ets, appendix=""):
     axes[-1].tick_params(axis='x', labelsize=18)
     plt.tight_layout()
     plt.savefig(f"{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-chain-logpost-{appendix}.png")
-    #plt.show()
-    plt.close()
-    return
-
-def plot_chain(ets, appendix=""):
-    """
-    Plots MCMC chain trace plots for all parameters and the log posterior
-    --------------------------------------
-    Params:
-        - ets (etsfit obj)
-        - appendix (str) tail end string for the filename - usually "burnin" 
-                or "production"
-    
-    """
-    fig, axes = plt.subplots(ets.ndim+1, figsize=(10, 7), sharex=True)
-    samples = ets.sampler.get_chain()
-    logprobs = ets.sampler.get_log_prob()
-    #logprior = sampler.get_blobs()
-    #logpost = logprobs+logprior
-    xaxis = np.linspace(1,len(logprobs), len(logprobs[:,0]))
-    
-    for h in range(len(logprobs[0])):
-        ax = axes[0]
-        ax.scatter(xaxis, logprobs[:,0], alpha=0.3, color='black', s=2)
-        ax.set_ylabel("Log Prob.", fontsize=16)
-        ax.set_title("MCMC Chain Traces", fontsize=22)
-        ax.tick_params('y', labelsize=18)
-    
-    for i in range(ets.ndim):
-        ax = axes[i+1]
-        ax.plot(samples[:, :, i], "k", alpha=0.3)
-        ax.set_xlim(0, len(samples))
-        ax.set_ylabel(ets.labels[i], fontsize=20)
-        ax.yaxis.set_label_coords(-0.1, 0.5)
-        ax.tick_params('y', labelsize=18)
-    
-    axes[-1].set_xlabel("Step Number", fontsize=20)
-    axes[-1].tick_params(axis='x', labelsize=18)
-    plt.tight_layout()
-    plt.savefig('{s}{t}{f}-chain-{a}.png'.format(s=ets.save_dir,
-                                                 t=ets.targetlabel,
-                                                 f=ets.filesavetag,
-                                                 a=appendix))
     #plt.show()
     plt.close()
     return
@@ -365,7 +322,7 @@ def plot_mcmc(ets):
         - ets (etsfit object)
     """
     #set up model = sl + bg but can be plot separately.
-    t0 = ets.best_mcmc[0][0]
+    t0 = ets.best_mcmc[0]
     sl, bg = fitTypeModel(ets)
     model = sl + bg   
     #fix time axis for plotting
@@ -390,11 +347,11 @@ def plot_mcmc_GP_celerite_mean(ets):
         - ets (etsfit obj)
     """
     
-    t0, A,beta,B = ets.best_mcmc[0][2:]
+    t0, A,beta,B = ets.best_mcmc[2:]
     t1 = ets.time - t0
     justmod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    ets.gp.set_parameter_vector(ets.best_mcmc[0])
+    ets.gp.set_parameter_vector(ets.best_mcmc)
     #gp.compute(time, error)
     model = ets.gp.predict(ets.flux, ets.time, return_cov=False)
 
@@ -421,11 +378,11 @@ def plot_mcmc_GP_celerite_residual(ets):
         - ets (etsfit object)
     """
     
-    t0, A,beta,B = ets.best_mcmc[0][:4]
+    t0, A,beta,B = ets.best_mcmc[:4]
     t1 = ets.time - t0
     mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    ets.gp.set_parameter_vector(ets.best_mcmc[0][4:])
+    ets.gp.set_parameter_vector(ets.best_mcmc[4:])
     bg = ets.gp.predict(ets.flux-mod, ets.time, return_cov=False)
 
     model = mod + bg
@@ -453,7 +410,7 @@ def plot_mcmc_GP_tinygp(ets):
         
     """
 
-    t0, A,beta,B = ets.best_mcmc[0][:4]
+    t0, A,beta,B = ets.best_mcmc[:4]
     t1 = ets.time - t0
     mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
 
@@ -622,11 +579,11 @@ def plot_celerite_tinygp_comp(ets):
         - ets
     """
     
-    t0, A,beta,B = ets.best_mcmc[0][:4]
+    t0, A,beta,B = ets.best_mcmc[:4]
     t1 = ets.time - t0
     mod = np.heaviside((t1), 1) * A *np.nan_to_num((t1**beta), copy=False) + 1 + B
     
-    ets.gpcelerite.set_parameter_vector(ets.best_mcmc[0][4:])
+    ets.gpcelerite.set_parameter_vector(ets.best_mcmc[4:])
     celerite_bg, celerite_var = ets.gpcelerite.predict(ets.flux-mod, ets.time, 
                                                    return_var=True)
     #cel_std = np.sqrt(celerite_var)

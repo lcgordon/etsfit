@@ -6,7 +6,7 @@
 from ._astropy_init import *   # noqa
 # ----------------------------------------------------------------------------
 
-from .etsfit import etsMAIN
-__all__ = ["etsMAIN"]
-__version__ = "0.1.0"
+from .etsfit import etsfit
+__all__ = ["etsfit"]
+__version__ = "0.1.1"
 __author__ = 'Lindsey Gordon'

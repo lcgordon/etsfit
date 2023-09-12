@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from astropy.time import Time
-import tessreduce as tr
+import tessreduce as tr 
 import time
 
 def get_sublist(TNSFile, gList, outFile):
@@ -124,10 +124,12 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
     
     if plot:
         rms_filt_plot = np.nonzero(rms_filt)
-        plt.scatter(time, flux, color='green', label='bad', s=2)
-        plt.scatter(time[rms_filt_plot], flux[rms_filt_plot], 
+        fig, ax = plt.subplots(1, figsize=(6,2))
+        ax.scatter(time, flux, color='green', label='bad', s=2)
+        ax.scatter(time[rms_filt_plot], flux[rms_filt_plot], 
                     color='blue', s=2, label='good')
-        plt.legend()
+        ax.legend(fontsize=16)
+        ax.set_title("window rms output")
         plt.show()
         plt.close()
     return rms_filt
@@ -166,19 +168,19 @@ def data_masking(obj):
     Params:
         - obj (ets object)
     """
-    mask = np.nonzero(obj.flux_mask) # which ones you are keeping
+    mask = np.nonzero(obj.mask) # which ones you are keeping
     obj.time = obj.time[mask]
     obj.flux = obj.flux[mask]
     obj.error = obj.error[mask]
-    if obj.BGdata is not None:
-        obj.BGdata = obj.BGdata[mask]
+    if obj.background is not None:
+        obj.background = obj.background[mask]
         
-    if hasattr(obj, 'quaternions'): #if cbvs, trim them
-        obj.quaternions = obj.quaternions[mask]
+    if obj.qcbv_fit is not None:#if cbvs, trim them
+        obj.Qall = obj.Qall[mask]
         obj.CBV1 = obj.CBV1[mask]
         obj.CBV2 = obj.CBV2[mask]
         obj.CBV3 = obj.CBV3[mask]
-        obj.quats_cbvs = [obj.quaternions, obj.CBV1, obj.CBV2, obj.CBV3]
+        obj.quats_cbvs = [obj.Qall, obj.CBV1, obj.CBV2, obj.CBV3]
     return 
 
 def param_save(obj):
@@ -196,12 +198,11 @@ def param_save(obj):
     UEstring = ""
     LEstring = ""
     THstring = ""
-    #save parameters in rows of 4: 
-    obj.ndim = len(obj.best_mcmc[0])
+    #save parameters in rows of 4:
     for n in range(obj.ndim):
-        BPstring = BPstring + " {A:.4f} ".format(A=obj.best_mcmc[0][n])
-        UEstring = UEstring + " {A:.4f} ".format(A=obj.upper_error[0][n])
-        LEstring = LEstring + " {A:.4f} ".format(A=obj.lower_error[0][n])
+        BPstring = BPstring + " {A:.4f} ".format(A=obj.best_mcmc[n])
+        UEstring = UEstring + " {A:.4f} ".format(A=obj.upper_error[n])
+        LEstring = LEstring + " {A:.4f} ".format(A=obj.lower_error[n])
         if not (n+1) % 4: #every 4, make a new line
             BPstring = BPstring + "\n"
             UEstring = UEstring + "\n"
@@ -219,7 +220,7 @@ def param_save(obj):
                                                                  val = obj.theta[k])
     
     #write into file:
-    with open(obj.parameterSaveFile, 'w') as file:
+    with open(obj.parameter_save_file, 'w') as file:
         file.write(obj.targetlabel + "\n")
         file.write(BICstring)
         file.write(CONVstring)
@@ -229,52 +230,25 @@ def param_save(obj):
         file.write(THstring)
     
     return
-
-def gen_output_folder(obj, filesavetag):
-    # check for an output folder's existence, if not, put it in. 
-    if (obj.save_dir is None or 
-        obj.targetlabel is None or 
-        obj.sector is None
-        or obj.camera is None or 
-        obj.ccd is None):
-        raise ValueError("Cannot generate output folders, one of the parameters is None")
-    
-    internaluse = obj.targetlabel + str(obj.sector) + str(obj.camera) + str(obj.ccd)
-    newfolderpath = (obj.save_dir + internaluse)
-    if not os.path.exists(newfolderpath):
-        os.mkdir(newfolderpath)
-
-    subfolderpath = newfolderpath + "/" + filesavetag[1:]
-    if not os.path.exists(subfolderpath):
-        os.mkdir(subfolderpath)
-    obj.save_dir = subfolderpath + "/"
-    obj.parameterSaveFile = obj.save_dir + internaluse + filesavetag + "-output-params.txt"
-    print("saving into folder: ", obj.save_dir) 
-    return
     
 
-def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
+def fractional_trim(obj):
     """
     Trims light curve to a chosen fraction of the peak flux
     Considers "above" to be when 10 indices in a row are all brighter
     (Actually looks from the top)
     ---------------------------------------
     Params:
-        - time, flux, error, bg (arrays)
-        - fraction (0 to 1.0)
-        - QCBVALL (array of arrays or None) containing the qcbvs
-    ---------------------------------------
-    Returns:
-        - time, flux, error, bg, QCBVALL
+        - obj (ets object)
     """
     #fractionalBright = ((flux.max()-1) * fraction) + 1
     #find range, take percent of range, add to min
-    fractionalBright = flux.max() - (((flux.max() - flux.min())) * (1-fraction))
+    fractionalBright = obj.flux.max() - ((obj.flux.max() - obj.flux.min()) * (1-obj.fraction_trim))
     
     p = 0 # if you hit 10 in a row brighter than cutoff, you can stop there
-    cutoffindex = len(flux)
-    for n in range(len(flux)):
-        if flux[n] >= fractionalBright:
+    cutoffindex = len(obj.flux)
+    for n in range(len(obj.flux)):
+        if obj.flux[n] >= fractionalBright:
             p+=1
             if p == 10:
                 cutoffindex = n-10
@@ -282,20 +256,14 @@ def fractionalfit(time, flux, error, bg, fraction, QCBVALL):
         else: # if you haven't hit 10 in a row above fractional position, try again
             p=0
             
-    if QCBVALL is not None:
-        print("TRIMMING FRACTIONALLY CBVS")
-        Qall, CBV1, CBV2, CBV3 = QCBVALL
-        Qall = Qall[:cutoffindex]
-        CBV1 = CBV1[:cutoffindex]
-        CBV2 = CBV2[:cutoffindex]
-        CBV3 = CBV3[:cutoffindex]
-        QCBVALL = [Qall, CBV1, CBV2, CBV3]
-        print('quall', len(Qall))
-    if bg is not None:
-        bg = bg[:cutoffindex]
+    if obj.qcbv_fit is not None:
+        print("Trimming length of qcbvs")
+        for i in range(4):
+            obj.quats_cbvs[i] = obj.quats_cbvs[i][:cutoffindex]
+    if obj.background is not None:
+        obj.background = obj.background[:cutoffindex]
 
-    return (time[:cutoffindex], flux[:cutoffindex], 
-            error[:cutoffindex], bg, QCBVALL)
+    return
 
 def bin_8_hours(time, flux, error, bg, QCBVALL=None):
     """
@@ -510,8 +478,7 @@ def metafile_load_smooth_quaternions(sector, tmin,
     np.savetxt(shortcut_file, big_quat_array)
     return tQ_, Q1, Q2, Q3, outlier_indexes  
 
-def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd, 
-                             CBV_folder, quaternion_folder):
+def generate_clip_quats_cbvs(obj):
     """
     Load in cbv and quaternions and match them up to the x values given 
     ---------------------------------
@@ -526,32 +493,30 @@ def generate_clip_quats_cbvs(sector, x, y, yerr, tmin, camera, ccd,
         - quaternion_folder (str, path to where quat files are held)
     """
     print("Loading quaternions")
-    tQ, Q1, Q2, Q3, outliers = metafile_load_smooth_quaternions(sector, tmin,
-                                                                quaternion_folder)
+    tQ, Q1, Q2, Q3, outliers = metafile_load_smooth_quaternions(obj.sector, obj.tmin,
+                                                                obj.quaternion_txt_dir)
     Qall = Q1 + Q2 + Q3
-    print("quaternion load complete - loading cbvs")
+    print("Quaternion load complete - loading CBVs")
     # load CBVs
-    cbv_file = (CBV_folder + 
-                "s00{sector}/cbv_components_s00{sector}_000{camera}_000{ccd}.txt".format(sector = sector,
-                                                                                          camera = camera,
-                                                                                          ccd = ccd))
-    print("cbv load completed")
+    cbv_file = (f"{obj.cbv_dir}s{obj.sector:04}/cbv_components_s{obj.sector:04}_{obj.camera:04}\
+                _{obj.ccd:04}.txt")
+    print("CBV load completed")
     cbvs = np.genfromtxt(cbv_file)
     CBV1 = cbvs[:,0]
     CBV2 = cbvs[:,1]
     CBV3 = cbvs[:,2]
     # correct length differences:
-    lengths = np.array((len(x), len(tQ), len(CBV1)))
+    lengths = np.array((len(obj.time), len(tQ), len(CBV1)))
     length_corr = lengths.min()
-    x = x[:length_corr]
-    y = y[:length_corr]
-    yerr = yerr[:length_corr]
-    tQ = tQ[:length_corr]
-    Qall = Qall[:length_corr]
-    CBV1 = CBV1[:length_corr]
-    CBV2 = CBV2[:length_corr]
-    CBV3 = CBV3[:length_corr]
-    return x,y,yerr, tQ, Qall, CBV1, CBV2, CBV3
+    obj.time = obj.time[:length_corr]
+    obj.flux = obj.flux[:length_corr]
+    obj.error = obj.error[:length_corr]
+    obj.tQ = tQ[:length_corr]
+    obj.Qall = Qall[:length_corr]
+    obj.CBV1 = CBV1[:length_corr]
+    obj.CBV2 = CBV2[:length_corr]
+    obj.CBV3 = CBV3[:length_corr]
+    return 
 
 def tr_downloader(file, data_dir, cdir, start=0):
     """ 
