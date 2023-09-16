@@ -6,8 +6,9 @@ Created on Mon Sept 11 2023
 """
 
 from etsfit.utils import utilities as ut
-from etsfit.utils import snPlotting as sp
+from etsfit.utils import default_plots as sp
 from etsfit.utils import MCMC as mc
+from etsfit.utils import gp_plots as spgp
 
 import time as timeModule
 import pandas as pd
@@ -312,6 +313,8 @@ class etsfit(object):
         """
         self.plotFit = self.use_fit
         start_t = min(self.discovery_time-3, self.time[-1]-2)
+        # this sets the plotting function to be called in mcmc
+        self.MCMC_PLOTTER = sp.plot_mcmc
         
         if self.use_fit == 1: # single without
             self.logProbArgs = (self.time, self.flux, self.error)
@@ -406,6 +409,8 @@ class etsfit(object):
             - labels
             - filelabels (can be same as labels)
             - init_values
+            - MCMC_PLOTTER - function to call to plot the output
+                    fit with the data, equiv to sp.plot_mcmc
         """
         self.logProbArgs = kwargs.pop("args")
         self.logProbFunc = kwargs.pop("logProbFunc")
@@ -413,6 +418,7 @@ class etsfit(object):
         self.labels = kwargs.pop("labels")
         self.filelabels = kwargs.get("filelabels", self.labels)
         self.init_values = kwargs.pop("init_values")
+        self.MCMC_PLOTTER = kwargs.pop("MCMC_PLOTTER")
         
         return
     
@@ -467,7 +473,7 @@ class etsfit(object):
                                                    flat=True, thin=thinning)
         best_inter = np.zeros(self.ndim)
         for i in range(self.ndim):
-            best_inter[i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[i]
+            best_inter[i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
             
         #### Main Chain
         if not quiet: print("\nStarting production chain...")
@@ -528,7 +534,7 @@ class etsfit(object):
         for i in range(self.ndim):
             mcmc = np.percentile(self.flat_samples[:, i], [16, 50, 84])
             q = np.diff(mcmc)
-            if not quiet: print(r"{self.labels[i]}", mcmc[1], -1 * q[0], q[1] )
+            if not quiet: print(rf"{self.labels[i]}", mcmc[1], -1 * q[0], q[1] )
             self.best_mcmc[i] = mcmc[1]
             self.upper_error[i] = q[1]
             self.lower_error[i] = q[0]
@@ -547,8 +553,17 @@ class etsfit(object):
         
         # Final plotting: 
         if self.plot: 
-            sp.plot_chain_withlogpost(self, appendix="production")
-            sp.plot_mcmc(self)
+            # normal
+            if not hasattr(self, 'self.GP_type'): 
+                sp.plot_chain_withlogpost(self, appendix="production")
+                self.MCMC_PLOTTER(self) #sp.plot_mcmc(self)
+            # celerite mean plotting
+            elif hasattr(self, 'self.GP_type') and self.GP_type == 'celerite_mean':
+                spgp.plot_mcmc_GP_celerite_mean(self)
+                spgp.celerite_post_pred(self)
+            # celerite residual plotting
+            elif hasattr(self, 'self.GP_type') and self.GP_type == 'celerite_residual':
+                spgp.plot_mcmc_GP_celerite_residual(self)
         
         # Save Output Parameters
         ut.param_save(self)
@@ -617,8 +632,8 @@ class etsfit(object):
             self.__default_gp_setup(**kwargs)
             
         elif self.custom_GP > self.default_GP: # using a custom setup
-            print("custom GP not installed yet sorry!!")
-            return
+            print("Setting up custom GP run...")
+            self.__custom_gp_setup(**kwargs)
         else: 
             raise ValueError("Have to activate ONE of default or custom!")
             return
@@ -639,6 +654,35 @@ class etsfit(object):
         self.parameter_save_file = f"{self.save_dir}{internal}{self.filesavetag}-output_params.txt"
         
         self.using_GP = True
+        return
+    
+    def __custom_gp_setup(self, **kwargs):
+        """ 
+        Internal function to initialize custom gp runs
+        """
+        self.GP_type = "custom"
+        # gp bounds
+        self.use_gp_bounds = kwargs.get("use_gp_bounds", False)
+        self.gp_bounds = kwargs.get("gp_bounds", None)
+        
+        self.MCMC_PLOTTER = kwargs.pop("MCMC_PLOTTER")
+        self.logProbArgs = kwargs.pop("logProbArgs")
+        self.logProbFunc = kwargs.pop("logProbFunc")
+        self.labels = kwargs.pop("labels")
+        self.filelabels = kwargs.pop("filelabels")
+        self.init_values = kwargs.pop("init_values")
+        self.filesavetag = kwargs.pop("filesavetag")
+        self.theta = kwargs.pop("theta")
+        # if an iterative scheme....
+        self.build_gp = kwargs.get("build_gp", None)
+        self.update_theta = kwargs.get("update_theta", None)
+        
+        # set up default bounds if needed: 
+        if self.gp_bounds is None and self.use_gp_bounds is True:
+            print("Using default tinygp bounds of ")
+            self.gp_bounds = np.asarray([[np.log(1.1), np.log(1)], 
+                                      [np.log(21.2), np.log(3)]])
+        
         return
     
     
@@ -667,6 +711,7 @@ class etsfit(object):
             self.filelabels = ["t0", "A", "beta",  "b"]
             start_t = min(self.time[-1]-2, self.discovery_time-3)
             self.init_values = np.array((start_t, 0.1, 1.8, 1))
+            self.MCMC_PLOTTER = spgp.plot_mcmc_GP_tinygp
             
             # set up default bounds if needed: 
             if self.gp_bounds is None and self.use_gp_bounds is True:
@@ -747,6 +792,7 @@ class etsfit(object):
         self.labels = ["t0", "A", "beta",  "b", r"$log\sigma$",r"$log\rho$"] 
         self.filelabels = ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
         self.plotFit = 10
+        
         print("****** \n Celerite Residuals Initialized - Can \
               Call Regular run_mcmc() from here! \n *******")
         return
@@ -934,7 +980,7 @@ class etsfit(object):
                                                    flat=True, thin=thinning)
         best_inter = np.zeros(self.ndim)
         for i in range(self.ndim):
-            best_inter[i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[i]
+            best_inter[i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
              #save just the 50th percentile as best
             
         #### Main Chain
@@ -975,7 +1021,7 @@ class etsfit(object):
                 self.flat_samples = self.sampler.get_chain(flat=True)
                 best_inter = np.zeros(self.ndim)
                 for i in range(self.ndim):
-                    best_inter[i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[i]
+                    best_inter[i] = np.percentile(self.flat_samples[:, i], [16, 50, 84])[1]
                     
                 res = make_residual(self.time, self.flux, best_inter)
                 soln = solver.run(self.theta, self.gp_bounds, X=self.time, y=res)
@@ -1007,7 +1053,7 @@ class etsfit(object):
         self.update_theta(soln.params)
         # plot gp LL over steps and autocorr times
         if self.plot: 
-            sp.plot_tinygp_ll(self)
+            spgp.plot_tinygp_ll(self)
             sp.plot_autocorr_all(self)
             
         # thin and burn out
@@ -1057,7 +1103,7 @@ class etsfit(object):
         if self.plot: 
             sp.plot_chain_withlogpost(self, appendix="production")
             self.gp = self.build_gp(self.theta, self.time)
-            sp.plot_mcmc_GP_tinygp(self)
+            self.MCMC_PLOTTER(self)
             
         
         # Save Output Parameters
@@ -1071,7 +1117,7 @@ class etsfit(object):
 
 ############## workflow for a normal predefined non-GP fit
 save_dir = "/Users/lindseygordon/research/"
-ets = etsfit(save_dir, plot=False)
+ets = etsfit(save_dir, plot=True)
 
 TNSFile = "/Users/lindseygordon/research/etsfit/tutorials/tutorial_data/2018hzh_TNS.csv"
 TNSinfo = pd.read_csv(TNSFile)
