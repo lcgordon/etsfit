@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import emcee
+from astropy.time import Time
 from pylab import rcParams
 rcParams['figure.figsize'] = 16, 6
 rcParams["font.size"] = 20
@@ -86,6 +87,7 @@ class etsfit(object):
                 can provide this information here
             - xlabel (str) custom xlabel
             - ylabel (str) custom ylabel
+            - time_unit (str) astropy-readable time unit, default is JD
         """
         # validate
         if (len(time) != len(flux) or len(flux) != len(error) or
@@ -104,6 +106,8 @@ class etsfit(object):
         self.error = error
         self.targetlabel = targetlabel
         self.tmin = time[0]
+        self.time_unit = kwargs.get("time_unit", "jd") 
+        # tessreduce loader converts into JD - important if using binning only
 
         # load kwargs
         self.background = kwargs.get("background", None)
@@ -240,9 +244,12 @@ class etsfit(object):
             ut.data_masking(self)
         
         if self.binning_data:
-            print("Binning functionality is disabled at this time - \
-                  please bin yourself and reload binned into object")
-            # self.preprocessing_tag += "_binned"
+            print("Binning! ")
+            def_time = Time("1999-01-01T08:00:00", format='isot') \
+                - Time("1999-01-01T00:00:00", format='isot')
+            self.binning_dt = kwargs.get("binning_dt", def_time.jd)
+            ut.time_binning(self.binning_dt, self.time_unit, self)
+            self.preprocessing_tag += "_binned"
                   
         if self.fraction_trim is not None:
             print("Trimming to fraction of peak flux")

@@ -69,7 +69,7 @@ def get_disctime(file, name):
     """
     f = pd.read_csv(file)
     d = f[f["Name"].str.contains(name)]["Discovery Date (UT)"]
-    d = Time(d.iloc[0], format = 'iso', scale='utc')
+    d = Time(d.iloc[0], format = 'iso', scale='utc') # tns files are in UTC
     return d.jd
     
 def window_rms(time, flux, innerfilt = None, outerfilt = None,
@@ -265,56 +265,62 @@ def fractional_trim(obj):
 
     return
 
-def bin_8_hours(time, flux, error, bg, QCBVALL=None):
+def time_binning(goal_dt, time_unit, obj):
     """
-    Bin light curve to 8 hours
-    QCBVALL should unpack as Qall, CBV1, CBV2, CBV3 OR be None 
+    Bin light curve to goal_dt timeframe
     ---------------------------------------
     Params:
-        - time, flux, error, bg (arrays)
-        - QCBVALL (array of arrays or None) containing the qcbvs
-    ---------------------------------------
-    Returns:
-        - time, flux, error, bg, QCBVALL
+        - goal_dt (float) how long each timeframe should be
+        - time_unit (str) what unit the time array is in
+        - obj (etsfit object)
     """
-
-    n_points = 16
-    binned_time = []
-    binned_flux = []
-    binned_error = []
-    binned_bg = []
-    if QCBVALL is not None:
-        Qall, CBV1, CBV2, CBV3 = QCBVALL
-        binned_quat = []
-        b_cbv1 = []
-        b_cbv2 = []
-        b_cbv3 = []
+    # make sure everything is in JD
+    time = Time(obj.time, format=time_unit).jd
+    goal_dt = Time(goal_dt, format=time_unit).jd
+        
+    # then need to calculate how many points per bin
+    n_points = int(np.ceil((time[1] - time[0])/goal_dt))
+    n_len = int(np.ceil(len(time)/n_points)) #how long outputs will be
     
-    n = 0
-    m = n_points
+    rows = 8
+    if hasattr(obj, "Qall"): rows += 4 # make space for cbvs
+    if hasattr(obj, "background"): rows += 1 # make space for background
+    
+    binned = np.zeros((rows, n_len)) # put solution in here
+    # rows: t, f, e, bg, qall, cbv1, cbv2, cbv3
+    
+    for i in range(n_len): # for each in output
+        j = i * n_points # left index
+        k = min ( j+n_points, len(time)) # right index (or end of array)
         
-    while m <= len(time):
-        # get the midpoint of this data as the point to plot at
-        bin_t = time[n + 8] 
-        binned_time.append(bin_t) # put into new array
-        binned_flux.append(np.nanmean(flux[n:m])) # put into new array
-        # error propagates as sqrt(sum of squares of error)
-        binned_error.append((np.sqrt(np.sum(error[n:m]**2)) / n_points ))
-        binned_bg.append(np.nanmean(bg[n:m]))
-        if QCBVALL is not None:
-            binned_quat.append(np.nanmean(Qall[n:m]))
-            b_cbv1.append(np.nanmean(CBV1[n:m]))
-            b_cbv2.append(np.nanmean(CBV2[n:m]))
-            b_cbv3.append(np.nanmean(CBV3[n:m]))
-        
-        n+= n_points
-        m+= n_points
-     
-    if QCBVALL is not None:
-        QCBVALL = [np.asarray(binned_quat), np.asarray(b_cbv1), 
-                   np.asarray(b_cbv2), np.asarray(b_cbv3)]
-    return (np.asarray(binned_time), np.asarray(binned_flux),
-            np.asarray(binned_error), np.asarray(binned_bg), QCBVALL)
+        binned[0][i] = time[j] # leftmost time per bin = bin time
+        binned[1][i] = np.nanmean( obj.flux[j:k]) #bin mean
+        # error propagates as sqrt sum of squares of errors / npoints
+        binned[2][i] = np.sqrt(np.sum(obj.error[j:k]**2)) / n_points  
+        if hasattr(obj, "background"): 
+            binned[3][i] = np.nanmean(obj.background[j:k]) #background
+        if hasattr(obj, "Qall"):
+            binned[4][i] = np.nanmean(obj.Qall[j:k])
+            binned[5][i] = np.nanmean(obj.CBV1[j:k])
+            binned[6][i] = np.nanmean(obj.CBV2[j:k])
+            binned[7][i] = np.nanmean(obj.CBV3[j:k])
+    
+    # put them back into obj:
+    while binned[0][-1] == 0: # if there were too many here oopsie
+        binned = binned[:, :-1] #chop last column
+    obj.time = binned[0]
+    obj.time_unit = 'JD'
+    obj.flux = binned[1]
+    obj.error = binned[2]
+    if hasattr(obj, "background"):
+        obj.background = binned[3]
+    if hasattr(obj, "Qall"):
+        obj.Qall = binned[4]
+        obj.CBV1 = binned[5]
+        obj.CBV2 = binned[6]
+        obj.CBV3 = binned[7]
+    
+    return
 
     
     
