@@ -15,6 +15,7 @@ import os
 from astropy.time import Time
 import tessreduce as tr 
 import time
+from scipy.signal import medfilt
 
 def get_sublist(TNSFile, gList, outFile):
     """ 
@@ -31,7 +32,6 @@ def get_sublist(TNSFile, gList, outFile):
     del info["Unnamed: 0"]
     info.to_csv(outFile)
     return
-
 
 def load_lygos_csv(file):
     """
@@ -134,7 +134,6 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
         plt.close()
     return rms_filt
 
-
 def sigmaclip(time, flux,error, bg, axis=0):
     """ 
     5 sigma clip data
@@ -159,7 +158,6 @@ def sigmaclip(time, flux,error, bg, axis=0):
         bg = bg / np.median(bg, axis = axis, keepdims=True)
         
     return time,flux,error, bg
-
 
 def data_masking(obj):
     """ 
@@ -231,7 +229,6 @@ def param_save(obj):
     
     return
     
-
 def fractional_trim(obj):
     """
     Trims light curve to a chosen fraction of the peak flux
@@ -322,208 +319,6 @@ def time_binning(goal_dt, time_unit, obj):
     
     return
 
-    
-    
- 
-def quat_txtfile_production(file, fileoutput):
-    """
-    Produce Quaternion files for easy opening/handling and smaller storage size
-    This only needs to be run once for each sector at the start of ALL 
-    the work, thank god. 
-    ------------------------------
-    Params:
-        - file (str) input quaternion fits file that needs to be compressed into txt
-        - fileoutput (str) filename of output txt file
-    """
-    from astropy.io import fits
-    if os.path.exists(fileoutput):
-        print("quat.txt file already exists!")
-        return
-    
-    f = fits.open(file, memmap=False)
-    
-    t = f[1].data['TIME']
-    Q1 = f[1].data['C1_Q1']
-    Q2 = f[1].data['C1_Q2']
-    Q3 = f[1].data['C1_Q3']
-    f.close()
-    
-    big_quat_array = np.asarray((t, Q1, Q2, Q3))
-    np.savetxt(fileoutput, big_quat_array)
-    return
-    
-def make_quat_txtfiles(inFolder, outFolder):
-    """
-    Produces ALL quaternion text files for a given folder of quaternion fits files
-    --------------------------------
-    Params:
-        - inFolder (str) where all the fits files currently are
-        - outFolder (str) where all the txt files should go
-    """
-    for root, dirs, files in os.walk(inFolder):
-        for name in files:
-            import re
-            s = re.split(r"_|-", name)
-            fileoutput = outFolder + "quats-" + s[1] + ".txt"
-            quat_txtfile_production(root+name, fileoutput)
-    return
-
-def quaternion_binning(quaternion_t, quat_data, tmin):
-    """
-    Bin the quaternions
-    ---------------------------
-    Params:
-        - quaternion_t (array, quat time axis)
-        - quat_data (array, actual quat y axis)
-        - tmin (float, 0 of the time axis for loading and aligning purposes)
-    """
-    bins = 900 #30 min times sixty seconds/2 second cadence
-    def find_nearest_values_index(array, value):
-        array = np.asarray(array)
-        idx = (np.abs(array - value)).argmin()
-        return idx
-    
-    binning_start = find_nearest_values_index(quaternion_t, tmin)
-    n = binning_start
-    m = n + bins
-    binned_Q = []
-    binned_t = []
-            
-    while m <= len(quaternion_t): #take avgs in bins and save
-        bin_t = quaternion_t[n]
-        binned_t.append(bin_t)
-        bin_q = np.mean(quat_data[n:m])
-        binned_Q.append(bin_q)
-        n += 900
-        m += 900
-            
-    standard_dev = np.std(np.asarray(binned_Q))
-    mean_Q = np.mean(binned_Q)
-    outlier_indexes = []
-            
-    for n in range(len(binned_Q)): # remove any 5 stdev outliers
-        if (binned_Q[n] >= mean_Q + 5*standard_dev or 
-            binned_Q[n] <= mean_Q - 5*standard_dev):
-            outlier_indexes.append(n)
-            
-                  
-    return np.asarray(binned_t), np.asarray(binned_Q), outlier_indexes
-  
-def speed_load_quats_from_fastloadfile(file):
-    """ 
-    Load in quaternions from text file
-    --------------------
-    Params:
-        - file (str) path to file to load
-    ----------------------
-    Returns:
-        - tQ, Q1, Q2, Q3
-    """
-    c = np.genfromtxt(file) #
-    tQ = c[0]
-    Q1 = c[1]
-    Q2 = c[2]
-    Q3 = c[3] 
-    return tQ, Q1, Q2, Q3
-          
-def metafile_load_smooth_quaternions(sector, tmin,
-                                     quaternion_folder):
-    """
-    Helper function to get quaternions out of their text files 
-    and bin them. Has option to save into a faster loading
-    pre-binned file.
-    --------------------------------------
-    Params:
-        - sector (str, yes i know it's a string and that's weird, okay? it is 
-                  what it is and is how the file path gets opened)
-        - tmin (float, time[0] of original sector time axis)
-        - quaternion_folder (str, path to where the quats are saved)
-    """
-    import os
-    # if we've been here before:
-    shortcut_file = quaternion_folder + "quats-sector" + sector + "FASTLOAD.txt"
-    if os.path.exists(shortcut_file):
-        c = np.genfromtxt(shortcut_file) #
-        tQ = c[0]
-        Q1 = c[1]
-        Q2 = c[2]
-        Q3 = c[3]   
-        outlier_indexes = np.ones(0)
-        return tQ, Q1, Q2, Q3, outlier_indexes         
-        
-    # if first time, generate raw + save for sector
-    from scipy.signal import medfilt
-    
-    filepath = quaternion_folder + "quats-sector" + sector + ".txt"
-    c = np.genfromtxt(filepath) # this takes a million years to load - need to save better
-    tQ = c[0]
-    Q1 = c[1]
-    Q2 = c[2]
-    Q3 = c[3]   
-
-    tQ += 2457000  # these come pre-trimmed down?     
-
-    q = [Q1, Q2, Q3]
-
-    for n in range(3):
-        smoothed = medfilt(q[n], kernel_size = 31)
-        if n == 0:
-            Q1 = smoothed
-            tQ_, Q1, Q1_outliers = quaternion_binning(tQ, Q1, tmin)
-        elif n == 1:
-            Q2 = smoothed
-            tQ_, Q2, Q2_outliers = quaternion_binning(tQ, Q2, tmin)
-        elif n == 2:
-            Q3 = smoothed
-            tQ_, Q3, Q3_outliers = quaternion_binning(tQ, Q3, tmin)
-    
-    outlier_indexes = np.unique(np.concatenate((Q1_outliers, Q2_outliers, Q3_outliers)))
-    
-    # save into quickload!
-    big_quat_array = np.asarray((tQ_, Q1, Q2, Q3))
-    np.savetxt(shortcut_file, big_quat_array)
-    return tQ_, Q1, Q2, Q3, outlier_indexes  
-
-def generate_clip_quats_cbvs(obj):
-    """
-    Load in cbv and quaternions and match them up to the x values given 
-    ---------------------------------
-    Params:
-        - sector (str, for generating file name)
-        - x (array, axis)
-        - y (array, flux)
-        - yerr (array)
-        - camera (str)
-        - ccd (str)
-        - CBV_folder (str, path to where CBV files are held)
-        - quaternion_folder (str, path to where quat files are held)
-    """
-    print("Loading quaternions")
-    tQ, Q1, Q2, Q3, outliers = metafile_load_smooth_quaternions(obj.sector, obj.tmin,
-                                                                obj.quaternion_txt_dir)
-    Qall = Q1 + Q2 + Q3
-    print("Quaternion load complete - loading CBVs")
-    # load CBVs
-    cbv_file = (f"{obj.cbv_dir}s{obj.sector:04}/cbv_components_s{obj.sector:04}_{obj.camera:04}\
-                _{obj.ccd:04}.txt")
-    print("CBV load completed")
-    cbvs = np.genfromtxt(cbv_file)
-    CBV1 = cbvs[:,0]
-    CBV2 = cbvs[:,1]
-    CBV3 = cbvs[:,2]
-    # correct length differences:
-    lengths = np.array((len(obj.time), len(tQ), len(CBV1)))
-    length_corr = lengths.min()
-    obj.time = obj.time[:length_corr]
-    obj.flux = obj.flux[:length_corr]
-    obj.error = obj.error[:length_corr]
-    obj.tQ = tQ[:length_corr]
-    obj.Qall = Qall[:length_corr]
-    obj.CBV1 = CBV1[:length_corr]
-    obj.CBV2 = CBV2[:length_corr]
-    obj.CBV3 = CBV3[:length_corr]
-    return 
-
 def tr_downloader(file, data_dir, cdir, start=0):
     """ 
     Download the tessreduce lc for your list
@@ -608,8 +403,6 @@ def tr_downloader(file, data_dir, cdir, start=0):
             continue
     return failures
 
-    
-
 def tr_load_lc(file, printname=True):
     """
     Given a filename, load in the data. 
@@ -626,9 +419,9 @@ def tr_load_lc(file, printname=True):
     #
     fh = file.split("/")[-1].split("-")[0]
     
-    ccd = fh[-1]
-    camera = fh[-2]
-    sector = fh[-4:-2]
+    ccd = int(fh[-1])
+    camera = int(fh[-2])
+    sector = int(fh[-4:-2])
     targetlabel = fh[:-4] #this fixes issues of varying name length
     
     
@@ -638,4 +431,232 @@ def tr_load_lc(file, printname=True):
     time, flux, error, bg = sigmaclip(time, flux, error, None, axis=0)
         
     return time, flux, error, targetlabel, sector, camera, ccd
+
+
+    
+### quaternion handling section  
+
+def generate_align_quats_cbvs(obj, **kwargs):
+    """
+    Load in cbv and quaternions and match them up to the x values given 
+    ---------------------------------
+    Params:
+        - obj (etsfit object) that has all the parameters this will need
+    """
+    # Load quaternions from files:
+    print("Loading quaternions...")
+    tQ, Qall = load_quaternions(obj.quaternion_text_dir, obj.sector, obj.time,
+                                manual_redo=kwargs.get('realign_quats', False))
+    # Load CBVs from files:
+    print("Loading CBVs...")
+    CBV1, CBV2, CBV3 = load_cbvs(obj.cbv_dir, obj.time, obj.sector, 
+                                 obj.camera, obj.ccd, 
+                                 realign_cbvs=kwargs.get("realign_cbvs", False))
+    # There are no length differences at this point. Load these into the obj. 
+    obj.tQ = tQ # this is really time at this point...
+    obj.Qall = Qall 
+    obj.CBV1 = CBV1
+    obj.CBV2 = CBV2
+    obj.CBV3 = CBV3
+    return   
+
+def load_cbvs(cbv_dir, time, sector, camera, ccd, realign_cbvs):
+    """ 
+    cbv loader - requires working internet to get tess cutout. 
+    Heavily borrowed on eleanor/update.py to get this working. 
+    kwarg:
+        - realign_cbvs (bool)
+    """
+    cbv_file = f"{cbv_dir}s{int(sector):04}/cbv_components_s{int(sector):04}_{int(camera):04}_{int(ccd):04}.txt"
+    print(cbv_file)
+    if not os.path.isfile(cbv_file):
+        raise ValueError("You need to have a legit cbv file - probably didn't download?")
+    # load the cbvs
+    cbvs = np.genfromtxt(cbv_file)
+    CBV1 = cbvs[:,0]
+    CBV2 = cbvs[:,1]
+    CBV3 = cbvs[:,2]   
+    
+    # now comes the mess - you either have the time alignments saved or need to
+    # redo them now. 
+    alignments = f"{cbv_dir}s{int(sector):04}/cbv_components_s{int(sector):04}_{int(camera):04}_{int(ccd):04}_alignment.txt"
+    if os.path.isfile(alignments) or realign_cbvs:
+        print('alignment file exists, loading in')
+        arg_lineups = np.genfromtxt(alignments, dtype=int)
+        CBV1 = CBV1[arg_lineups]
+        CBV2 = CBV2[arg_lineups]
+        CBV3 = CBV3[arg_lineups]
+        return CBV1, CBV2, CBV3
+        
+    print("aligning time axis...")
+    from astropy.coordinates import SkyCoord
+    from astropy import units as u
+    from astroquery.mast import Tesscut
+    from astropy.io import fits
+    
+    # set up coordinates (taken from eleanor package)
+    north_coords = SkyCoord('16:35:50.667 +63:54:39.87',
+                                  unit=(u.hourangle, u.deg))
+    south_coords = SkyCoord('04:35:50.330 -64:01:37.33',
+                                  unit=(u.hourangle, u.deg))
+    ecliptic_coords_a = SkyCoord('04:00:00.000 +10:00:00.00',
+                                      unit=(u.hourangle, u.deg))
+    ecliptic_coords_b = SkyCoord('08:20:00.000 +12:00:00.00',
+                                      unit=(u.hourangle, u.deg))
+    
+    if sector < 14 or (sector > 26 and sector < 40):
+        use_coords = south_coords
+    elif sector in [42, 43, 44]:
+        use_coords = ecliptic_coords_a
+    elif sector in [45, 46]:
+        use_coords = ecliptic_coords_b
+    else:
+        use_coords = north_coords
+    
+    try:
+        manifest = Tesscut.download_cutouts(coordinates=use_coords, size=31, 
+                                            sector=sector)
+    except:
+        print("This sector isn't available yet or some other shit went wrong")
+        return
+
+    cutout = fits.open(manifest['Local Path'][0], memmap=False)
+    time_cbv = cutout[1].data['TIME'] - cutout[1].data['TIMECORR']
+    
+    #okay how to line these up now. 
+    arg_lineups = np.zeros(len(time), dtype=int)
+    if time[0] > 2457000: 
+        time -= 2457000 # time correction if necessary
+    # for each in time, get the closest item in time_cbv's index
+    for i in range(len(time)):
+        arg_lineups[i] = np.argmin(np.abs(time_cbv-time[i]))
+        
+    # then correct the cbv time index -> same will apply to the actual cbv indexes
+    # can save the lineup array for later reuse
+    CBV1 = CBV1[arg_lineups]
+    CBV2 = CBV2[arg_lineups]
+    CBV3 = CBV3[arg_lineups]
+    
+    # save alignment into file: 
+    print("saving alignment into file...")
+    np.savetxt(alignments, arg_lineups, fmt="%d")
+    
+    return CBV1, CBV2, CBV3
+    
+
+def load_quaternions(quat_folder, sector, time, **kwargs):
+    """
+    Helper function to load in (and bin if needed) the quaternions
+    Has an option that loads from a shortcut if you're not having it totally
+    redo the binning (kwarg)
+    Params:
+        - quat_folder
+        - sector 
+        - time 
+    kwargs:
+        - manual_rebin (bool)
+    
+    """
+    redo = kwargs.get("manual_rebin", False)
+    # if we've been here before or are redoing it:
+    shortcut_file = f"{quat_folder}quats-sector-{int(sector):02}-FASTLOAD.txt"
+    if os.path.isfile(shortcut_file) and redo:
+        c = np.genfromtxt(shortcut_file) #
+        tQ = c[0]
+        Qall = c[1]
+        return tQ, Qall 
+    
+    # generate raw version and save for sector (otherwise just going to quickload)
+    filepath = f"{quat_folder}quats-sector-{int(sector):02}.txt"
+    c = np.genfromtxt(filepath) # this takes a reeeeeeally long time to load in
+    tQ = c[0]
+    Q1 = c[1]
+    Q2 = c[2]
+    Q3 = c[3]  
+    
+    # if pre-trimmed-down, this will reset to match your other axis (probably)
+    if tQ[0] < 2457000 and time[0] > 2457000:
+        tQ += 2457000
+            
+    # determine if the quaternion is on 2 second cadence. i don't know why it would
+    # not be, but just in case:
+    two_sec_size_jd = 2 / (60*60*24)
+    h = np.abs(tQ[1] - tQ[0] - two_sec_size_jd)
+    if h < 1e-5:
+        print(f"Within tolerance [1e-5] to be 2 second cadence (Actual: {h}")
+        print("bin size: 900 per")
+        bin_size = 900
+    else: 
+        print("NOT two second cadence quaternions - probably you should \
+              double check what the hell this thing is accessing.")
+              
+    # you're just going to add them together eventually anyways? do that now. 
+    q = Q1+Q2+Q3 # and if not it will be easier to unpack later anyways. 
+    
+    # smoothing median filter, size=30 (1 minute smoothing)
+    from scipy import ndimage
+    q = ndimage.median_filter(q, size=30)
+    
+    # binning based off of the time array of the real data being used
+    # the array is always going to be the same length as the fucking time array. 
+    binned = np.empty((2, len(time)))
+    
+    for i in range(len(time)):
+        # where in time
+        start_t = time[i]
+        # where is that in the array
+        start_idx = (np.abs(tQ - start_t)).argmin()
+        # get the next bin_size of points' mean
+        binned[0][i] = time[i]
+        binned[1][i] = np.nanmean(q[start_idx:start_idx+bin_size])    
+    
+    # save into quickload
+    print("Binning complete, saving output file...")
+    np.savetxt(shortcut_file, binned)
+    return binned[0], binned[1]
+
+def single_quat_textfile(file_in, file_out):
+    """
+    Produce Quaternion files for easy opening/handling and smaller storage size
+    This only needs to be run once for each sector at the start to make the new files
+    ------------------------------
+    Params:
+        - file_in (str) input quaternion fits file that needs to be compressed into txt
+        - file_out (str) filename of output txt file
+    """
+    from astropy.io import fits
+    if os.path.isfile(file_out):
+        print(".txt file version already exists!")
+        return
+    
+    f = fits.open(file_in, memmap=False)
+    
+    t = f[1].data['TIME']
+    Q1 = f[1].data['C1_Q1']
+    Q2 = f[1].data['C1_Q2']
+    Q3 = f[1].data['C1_Q3']
+    f.close()
+    
+    big_quat_array = np.asarray((t, Q1, Q2, Q3))
+    np.savetxt(file_out, big_quat_array)
+    return
+    
+def all_quat_textfiles(inFolder, outFolder):
+    """
+    Produces ALL quaternion text files for a given folder of quaternion .fits files
+    --------------------------------
+    Params:
+        - inFolder (str) where all the fits files currently are
+        - outFolder (str) where all the txt files should go
+    """
+    for root, dirs, files in os.walk(inFolder):
+        for name in files:
+            if name.endswith(".txt"): continue
+            import re
+            s = re.split(r"_|-", name)
+            file_out = f"{outFolder}quats-sector-{s[1][-2:]}.txt"
+            single_quat_textfile(root+name, file_out)
+            print(f"Created {file_out}")
+    return
+
 

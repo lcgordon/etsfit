@@ -167,8 +167,8 @@ class etsfit(object):
             #empty directory, make txt files
             if (len(os.listdir(self.quaternion_txt_dir))==0 and
                 len(os.listdir(self.quaternion_raw_dir))!=0):
-                
-                ut.make_quat_txtfiles(self.quaternion_raw_dir, self.quaternion_txt_dir)
+                # make text file versions for all .fits files in the directory
+                ut.all_quat_textfiles(self.quaternion_raw_dir, self.quaternion_txt_dir)
         
         #can access and use them now        
         self.cbvquat_access = True 
@@ -229,7 +229,7 @@ class etsfit(object):
                                       self.qcbv_fit[2])
             # run the loader
             print("Loading quaternions + CBVs")
-            ut.generate_clip_quats_cbvs(self)
+            ut.generate_align_quats_cbvs(self, **kwargs)
             self.quats_cbvs = [self.Qall, self.CBV1, self.CBV2, self.CBV3]
 
         if self.use_flux_mask is True:
@@ -1122,30 +1122,30 @@ class etsfit(object):
 
     
 
-############## workflow for a normal predefined non-GP fit
-save_dir = "/Users/lindseygordon/research/"
-ets = etsfit(save_dir, plot=True)
+# ############## workflow for a normal predefined non-GP fit
+# save_dir = "/Users/lindseygordon/research/"
+# ets = etsfit(save_dir, plot=True)
 
-TNSFile = "/Users/lindseygordon/research/etsfit/tutorials/tutorial_data/2018hzh_TNS.csv"
-TNSinfo = pd.read_csv(TNSFile)
-#data file:
-dataFile = "/Users/lindseygordon/research/etsfit/tutorials/tutorial_data/2018hzh0431-tessreduce"
+# TNSFile = "/Users/lindseygordon/research/etsfit/tutorials/tutorial_data/2018hzh_TNS.csv"
+# TNSinfo = pd.read_csv(TNSFile)
+# #data file:
+# dataFile = "/Users/lindseygordon/research/etsfit/tutorials/tutorial_data/2018hzh0431-tessreduce"
 
-#load data:
-(time, flux, error, targetlabel, 
-                 sector, camera, ccd) = ut.tr_load_lc(dataFile)
-#get the discovery time from the TNSFile
-discovery_time = ut.get_disctime(TNSFile, targetlabel)
+# #load data:
+# (time, flux, error, targetlabel, 
+#                  sector, camera, ccd) = ut.tr_load_lc(dataFile)
+# #get the discovery time from the TNSFile
+# discovery_time = ut.get_disctime(TNSFile, targetlabel)
 
-ets.load_single_lc(time, flux, error, targetlabel, 
-                   sector=int(sector), camera=int(camera), ccd=int(ccd), 
-                   discovery_time=discovery_time, targetfile=TNSFile)
+# ets.load_single_lc(time, flux, error, targetlabel, 
+#                    sector=int(sector), camera=int(camera), ccd=int(ccd), 
+#                    discovery_time=discovery_time, targetfile=TNSFile)
     
-ets.test_plot()  
+# ets.test_plot()  
 
-ets.data_preprocess(fraction_trim=0.5, use_flux_mask=True)
-ets.mcmc_setup(default_fit=1)
-ets.run_mcmc(n1=5_000, n2=10_000)
+# ets.data_preprocess(fraction_trim=0.5, use_flux_mask=True)
+# ets.mcmc_setup(default_fit=1)
+# ets.run_mcmc(n1=5_000, n2=10_000)
     
 ################## workflow for a normal predefined GP fit.
 # save_dir = "/Users/lindseygordon/research/"
