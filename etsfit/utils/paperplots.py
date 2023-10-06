@@ -14,7 +14,7 @@ rcParams['figure.figsize'] = 16,6
 rcParams["font.size"] = 20
 import os
 import pandas as pd
-from etsfit import etsMAIN
+from etsfit import etsfit
 from astropy.time import Time
 import celerite
 import etsfit.utils.utilities as ut

@@ -9,7 +9,7 @@ Produces and injects artificial signals into fake tess light curves for validati
 
 import numpy as np
 import matplotlib.pyplot as plt
-from etsfit import etsMAIN
+from etsfit import etsfit
 import etsfit.utils.utilities as ut
 from pylab import rcParams
 import os

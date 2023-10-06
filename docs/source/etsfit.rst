@@ -20,6 +20,7 @@ etsfit.conftest module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.etsfit module
 --------------------
@@ -28,6 +29,7 @@ etsfit.etsfit module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.version module
 ---------------------
@@ -36,6 +38,7 @@ etsfit.version module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 Module contents
 ---------------
@@ -44,3 +47,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:

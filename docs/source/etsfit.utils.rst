@@ -1,13 +1,6 @@
 etsfit.utils package
 ====================
 
-Subpackages
------------
-
-.. toctree::
-   :maxdepth: 4
-
-   etsfit.utils.tests
 
 Submodules
 ----------
@@ -19,22 +12,7 @@ etsfit.utils.MCMC module
    :members:
    :undoc-members:
    :show-inheritance:
-
-etsfit.utils.big\_celerite\_plot module
----------------------------------------
-
-.. automodule:: etsfit.utils.big_celerite_plot
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-etsfit.utils.big\_sn\_plot module
----------------------------------
-
-.. automodule:: etsfit.utils.big_sn_plot
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :no-index:
 
 etsfit.utils.crossmatch module
 ------------------------------
@@ -43,6 +21,7 @@ etsfit.utils.crossmatch module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.utils.default\_plots module
 ----------------------------------
@@ -51,14 +30,8 @@ etsfit.utils.default\_plots module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-etsfit.utils.gp\_injections module
-----------------------------------
-
-.. automodule:: etsfit.utils.gp_injections
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 etsfit.utils.gp\_plots module
 -----------------------------
@@ -67,6 +40,7 @@ etsfit.utils.gp\_plots module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.utils.injections module
 ------------------------------
@@ -75,6 +49,7 @@ etsfit.utils.injections module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.utils.paperplots module
 ------------------------------
@@ -83,6 +58,7 @@ etsfit.utils.paperplots module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.utils.parameter\_retrieval module
 ----------------------------------------
@@ -91,6 +67,7 @@ etsfit.utils.parameter\_retrieval module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.utils.pipeline module
 ----------------------------
@@ -99,6 +76,7 @@ etsfit.utils.pipeline module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 etsfit.utils.utilities module
 -----------------------------
@@ -107,6 +85,7 @@ etsfit.utils.utilities module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 Module contents
 ---------------
@@ -115,3 +94,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:

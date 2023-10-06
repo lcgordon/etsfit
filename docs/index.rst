@@ -15,6 +15,7 @@ function as a plug-and-play way to drop in a new log likelihood function for any
    :caption: etsfit main: 
 
    source/etsfit.etsfit
+   source/modules
 
 .. toctree::
    :maxdepth: 1
@@ -25,6 +26,15 @@ function as a plug-and-play way to drop in a new log likelihood function for any
    source/etsfit.utils.MCMC
    source/etsfit.utils.parameter_retrieval
    source/etsfit.utils.utilities
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: other links
+   
+   source/page
+
+   
 
 
 Indices and tables

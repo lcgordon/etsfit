@@ -43,10 +43,12 @@ class etsfit(object):
     :type save_dir: str 
     :param plot: if you want output plots
     :type plot: bool
+
     """
     def __init__(self, save_dir, plot=True): 
         """
         constructor
+
         """
         # handle folder: 
         if not os.path.exists(save_dir):
@@ -69,25 +71,22 @@ class etsfit(object):
     def load_single_lc(self, time, flux, error, targetlabel,  **kwargs):
         """ 
         Load in one light curve from information you supply
-        
-        ----------------------------------
-        Parameters:
-            - time (array) time axis for the lc. this will get the 0th
-                index subtracted off. 
-            - flux (array) flux array for the lc 
-            - error (array) error on flux array
-            - targetlabel (str) no spaces name, will be used on files
-            KWARGS OPTIONS:
-            - discovery_time (double/None) when ground telescopes found it. 
-                same units as time array. can be None otherwise.
-            - sector (int) TESS sector of data, can set to 0 if DNE
-            - camera (int) TESS camera of data, can set to 0 if DNE
-            - ccd (int) TESS ccd of data, can set to 0 if DNE
-            - background (array, defaults to NONE) if fitting with a background (annulus?) array
-                can provide this information here
-            - xlabel (str) custom xlabel
-            - ylabel (str) custom ylabel
-            - time_unit (str) astropy-readable time unit, default is JD
+
+        :param time: (array) time axis for the lc. this will get the 0th index subtracted off. 
+        :param flux: (array) flux array for the lc 
+        :param error: (array) error on flux array
+        :param targetlabel: (str) no spaces name, will be used on files
+
+        :Keyword Arguments:
+        * ``discovery_time`` -- (double/None) when ground telescopes found it. same units as time array. can be None otherwise.
+        * ``sector`` -- (int) TESS sector of data, can set to 0 if DNE
+        * ``camera`` -- (int) TESS camera of data, can set to 0 if DNE
+        * ``ccd`` -- TESS ccd of data, can set to 0 if DNE
+        * ``background`` -- (array, defaults to NONE) if fitting with a background (annulus?) array can provide this information here
+        * ``xlabel`` -- (str) custom xlabel
+        * ``ylabel`` -- (str) custom ylabel
+        * ``time_unit`` -- (str) astropy-readable time unit, default is JD
+            
         """
         # validate
         if (len(time) != len(flux) or len(flux) != len(error) or
@@ -142,19 +141,18 @@ class etsfit(object):
         If you do not have text file versions of the quaternions, they will
         be generated for you.
         
-        ----------------------------------------------------
-        Parameters: 
-            - cbv_dir (str) a path to the folder holding all CBVs. 
-            this is probably within the eleanor directory
-            the directory structure should be such that there are files like
-            folder/s001/cbv_components_s0001_0001_0001.txt
-            - quaternion_raw_dir (str) is the path to the folder holding
-            all of the .fits file versions of the quaternions. this can be
-            some random path if you already have produced the txt versions
-            - quaternion_txt_dir (str) is the path to the folder either
-            HOLDING the .txt file versions of the quaternions OR the path to
-            the EMPTY folder that all the txt versions are about 
-            to be generated into
+        :param cbv_dir: (str) a path to the folder holding all CBVs. 
+        this is probably within the eleanor directory
+        the directory structure should be such that there are files like
+        folder/s001/cbv_components_s0001_0001_0001.txt
+        :param quaternion_raw_dir: (str) is the path to the folder holding
+        all of the .fits file versions of the quaternions. this can be
+        some random path if you already have produced the txt versions
+        :param quaternion_txt_dir: (str) is the path to the folder either
+        HOLDING the .txt file versions of the quaternions OR the path to
+        the EMPTY folder that all the txt versions are about 
+        to be generated into
+
         """
         
         if (not os.path.exists(cbv_dir) or not os.path.exists(quaternion_raw_dir)
@@ -432,9 +430,9 @@ class etsfit(object):
     def run_mcmc(self, n1=5_000, n2=10_000, **kwargs):
         """ 
         Actually execute the mcmc run! 
-        parameters:
-            - n1 (int) first chain
-            - n2 (int) second chain
+
+        :param n1: n1
+        :param n2: n2
             
         kwargs: 
             - quiet (bool) turn print statements off (def: false)
@@ -608,7 +606,7 @@ class etsfit(object):
         """ 
         Sets up the parameters for a GP run. 
         This should be executed *after* preprocessing has been run
-        --------------------
+        
         kwargs:
             - default_GP or custom_GP (bool) one of these needs to be turned on
             - GP_type from allowed list: 
@@ -925,18 +923,18 @@ class etsfit(object):
     def run_gp_mcmc(self, n1=5_000, n2=10_000, **kwargs):
         """ 
         Execute the mcmc chain with concurrent GP fitting
-        parameters:
-            - n1 (int) first chain
-            - n2 (int) second chain
-            
-        kwargs: 
-            - quiet (bool) turn print statements off (def: false)
-            - nwalkers (int) how many walkers (def: 100)
-            - discard (int) default 0 (initial chain discard)
-            - thinning (int) default 1 (uses every sample, a setting of 15 would
-                                        use every 15th, etc.)
-            - seed (int) random seed initializer (def: 42)
-            - nwalkers (int) default: 100
+        
+        :param n1: n1
+        :param n2: n2
+
+        :Keyword Arguments:
+        * ``quiet`` -- (bool) turn print statements off (def: false)
+        * ``nwalkers`` -- (int) how many walkers (def: 100)
+        * ``discard`` -- (int) default 0 (initial chain discard)
+        * ``thinning`` -- default 1 (uses every sample, a setting of 15 would use every 15th, etc.)
+        * ``seed`` -- (int) random seed initializer (def: 42)
+        * ``nwalkers`` --  (int) default: 100
+        
         """
         if not self.using_GP:
             raise ValueError("Must run mcmc_gp_setup() first!")

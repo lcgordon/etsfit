@@ -20,7 +20,9 @@ def check_priors(priors, theta):
     :type priors: array
     :param theta: current state, array in parameter order
     :type theta: array of floats
+    
     :return: 0 if theta within priors, -inf if not
+
     """
     
     if len(priors) % 2 != 0:
@@ -78,12 +80,10 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
                                         Qall, CBV1, CBV2, CBV3, 
                                         priors=None):
     """ 
-    Calculates the log probability for the model with a single power law
-    and a complex CBV background. 
+    Calculates the log probability for the model with a single power law and a complex CBV background. 
     
     Associated labels: ["t0", "A", "beta", "B","cQ", "c1", "c2", "c3"]
-    init_values in MCMC: 
-        np.array((min(disctime-3, x[-1]-2), 0.1, 1.8, 0, 0,0,0,0))
+    init_values in MCMC: np.array((min(disctime-3, x[-1]-2), 0.1, 1.8, 0, 0,0,0,0))
     args = (x,y,yerr, Qall, CBV1, CBV2, CBV3, (optionally) priors)
     
     :param theta: current state in parameter order
@@ -122,12 +122,10 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
 
 def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
     """ 
-    Calculates the log probability for the model with a double power law
-    and a flat background. 
+    Calculates the log probability for the model with a double power law and a flat background. 
     
     Associated labels: ["t1", "t2", "a1", "a2", "beta1", "beta2",  "b"]
-    init_values in MCMC: 
-        np.array((min(disctime-3, x[-1]-2), disctime, 0.1, 0.1, 1.8, 1.8, 1))
+    init_values in MCMC: np.array((min(disctime-3, x[-1]-2), disctime, 0.1, 0.1, 1.8, 1.8, 1))
     args = (x,y,yerr, disctime, (optionally) priors)
 
     :param theta: current state in parameter order
@@ -139,6 +137,7 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
     :param priors: custom priors array, defaults to None
 
     :return: loglikelihood, logprior
+
     """
     def func1(x, t0, t1, A1, A2, beta1, beta2):
         return A1 *(x-t0)**beta1
@@ -168,13 +167,10 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
                                         Qall, CBV1, CBV2, CBV3, disctime,
                                         priors=None):
     """ 
-    Calculates the log probability for the model with a double power law
-    and a complex CBV background. 
+    Calculates the log probability for the model with a double power law and a complex CBV background. 
     
-    Associated labels: ["t1", "t2", "a1", "a2", "beta1", "beta2",
-                        "cQ", "c1", "c2", "c3"]
-    init_values in MCMC: 
-        np.array((min(disctime-3, x[-1]-2), 0.1, 0.1, 1.8, 1.8, 0, 0,0,0,0))
+    Associated labels: ["t1", "t2", "a1", "a2", "beta1", "beta2", "cQ", "c1", "c2", "c3"]
+    init_values in MCMC: np.array((min(disctime-3, x[-1]-2), 0.1, 0.1, 1.8, 1.8, 0, 0,0,0,0))
     args = (x,y,yerr, Qall, CBV1, CBV2, CBV3, disctime, (optionally) priors)
 
     :param theta: current state in parameter order
@@ -220,8 +216,7 @@ def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3,
     Calculates the log probability for a model that is just complex background
     
     Associated labels: ["b", "cQ", "c1", "c2", "c3"]
-    init_values in MCMC: 
-        np.array((1, 0,0,0,0))
+    init_values in MCMC: np.array((1, 0,0,0,0))
     args = (x,y,yerr, Qall, CBV1, CBV2, CBV3, (optionally) priors)
     
     :param theta: current state in parameter order
@@ -235,6 +230,7 @@ def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3,
     :param priors: custom priors array, defaults to None
 
     :return: loglikelihood, logprior
+
     """
     
     b, cQ, c1, c2, c3 = theta
@@ -348,6 +344,7 @@ def log_probability_celerite_mean(theta, y, gp):
     :param gp: gp object from celerite
 
     :return: loglikelihood, logprior
+
     """
     gp.set_parameter_vector(theta)
     lp = gp.log_prior()
@@ -361,8 +358,7 @@ def log_probability_celerite_residual(theta, x, y, yerr, gp, priors=None):
     and a celerite background. 
     
     Associated labels: ["t0", "A", "beta",  "b",  "logsigma", "logrho"]
-    init_values in MCMC: 
-        np.array((start_t, 0.1, 1.8, 0,np.log(1), np.log(2)))
+    init_values in MCMC:  np.array((start_t, 0.1, 1.8, 0,np.log(1), np.log(2)))
     args = (x,y,yerr, gp, (optionally) priors)
 
     :param theta: current state in parameter order
@@ -374,6 +370,7 @@ def log_probability_celerite_residual(theta, x, y, yerr, gp, priors=None):
     :param priors: custom priors array, defaults to None
 
     :return: loglikelihood, logprior
+
     """
     
     t0, A, beta, b = theta[:4]
@@ -419,6 +416,7 @@ def log_probability_flat(theta, x, y, yerr):
     :param y: array of y data (flux)
     :param yerr: error on y of data (err)
     :return: loglikelihood, logprior
+
     """
         
     B = theta

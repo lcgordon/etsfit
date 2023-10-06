@@ -9,7 +9,7 @@ File containing functions to run all of a given type of fit:
 """
 import os
 import gc
-from etsfit import etsMAIN
+from etsfit import etsfit
 import etsfit.utils.utilities as ut
 
 

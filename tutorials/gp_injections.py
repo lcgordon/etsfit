@@ -9,7 +9,7 @@ gp background for injections
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from etsfit import etsMAIN
+from etsfit import etsfit
 import etsfit.utils.utilities as ut
 from pylab import rcParams
 import os

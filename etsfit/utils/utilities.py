@@ -317,7 +317,7 @@ def time_binning(obj, goal_dt, time_unit):
 def tr_downloader(file, data_dir, cdir, start=0):
     """ 
     Download the tessreduce lc for your list
-    *** Lindsey your cdir is "/Users/lindseygordon/.lightkurve-cache/tesscut/"
+    Lindsey your cdir is "/Users/lindseygordon/.lightkurve-cache/tesscut/"
 
     :params file: (str) directory link to a pandas readable csv file of all targets to retrieve data for
     :params data_dir: (str) directory link to where to save the data
