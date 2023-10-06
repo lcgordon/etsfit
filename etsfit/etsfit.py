@@ -37,16 +37,16 @@ jax.config.update("jax_enable_x64", True)
 
 class etsfit(object): 
     """ 
-    The etsfit object that loads in data and runs modeling. 
+    The etsfit object that loads in data and runs modeling.
+    
+    :param save_dir: directory to save everything into, should end in / but will self correct if not
+    :type save_dir: str 
+    :param plot: if you want output plots
+    :type plot: bool
     """
     def __init__(self, save_dir, plot=True): 
         """
-        Initializes the object.
-        ---------------------------------------
-        Parameters:
-            - save_dir (str) where to put the dir that everything saves into. should end in /, will self correct if not.
-            - plot (bool) if you want output plots in the console
-            - targetfile (str/None) optional. if not None, will load in a csv-readable file (preferably in TNS format) of information on your target(s) 
+        constructor
         """
         # handle folder: 
         if not os.path.exists(save_dir):

@@ -463,7 +463,7 @@ def generate_align_quats_cbvs(obj, **kwargs):
 def load_cbvs(cbv_dir, time, sector, camera, ccd, realign_cbvs):
     """ 
     cbv loader - requires working internet to get tess cutout. 
-    Heavily borrowed on eleanor/update.py to get this working. 
+    Loosely based on eleanor/update.py to get the FFI timestamps 
     kwarg:
         - realign_cbvs (bool)
     """
@@ -494,24 +494,38 @@ def load_cbvs(cbv_dir, time, sector, camera, ccd, realign_cbvs):
     from astroquery.mast import Tesscut
     from astropy.io import fits
     
-    # set up coordinates (taken from eleanor package)
-    north_coords = SkyCoord('16:35:50.667 +63:54:39.87',
-                                  unit=(u.hourangle, u.deg))
-    south_coords = SkyCoord('04:35:50.330 -64:01:37.33',
-                                  unit=(u.hourangle, u.deg))
-    ecliptic_coords_a = SkyCoord('04:00:00.000 +10:00:00.00',
-                                      unit=(u.hourangle, u.deg))
-    ecliptic_coords_b = SkyCoord('08:20:00.000 +12:00:00.00',
-                                      unit=(u.hourangle, u.deg))
+    # set up coordinates (based on eleanor package, coords from MAST)
     
-    if sector < 14 or (sector > 26 and sector < 40):
-        use_coords = south_coords
-    elif sector in [42, 43, 44]:
-        use_coords = ecliptic_coords_a
-    elif sector in [45, 46]:
-        use_coords = ecliptic_coords_b
-    else:
-        use_coords = north_coords
+    # northern ecliptic pole (NEP) -> "18:00:00.000 +66:33:38.55"
+    # cycle 2 (sectors 14 - 26), cycle 4 (40-53)
+    if (sector in np.arange(14, 26+1, 1)) or (sector in np.arange(40, 53+1, 1)):
+        use_coords = SkyCoord('18:00:00.000 +66:33:38.55',
+                              unit=(u.hourangle, u.deg))
+        
+    # southern ecliptic pole (SEP) -> "6:00:00.000 -66.33.38.55"
+    # cycle 1 (sectors 1-13) cycle 3 (27 - 39)
+    elif (sector in np.arange(1, 13+1, 1)) or (sector in np.arange(27, 39+1, 1)):
+        use_coords = SkyCoord('6:00:00.000 -66.33.38.55',
+                              unit=(u.hourangle, u.deg))
+    
+    # # https://docs.astropy.org/en/stable/api/astropy.coordinates.SkyCoord.html
+    # north_coords = SkyCoord('16:35:50.667 +63:54:39.87',
+    #                               unit=(u.hourangle, u.deg))
+    # south_coords = SkyCoord('04:35:50.330 -64:01:37.33',
+    #                               unit=(u.hourangle, u.deg))
+    # ecliptic_coords_a = SkyCoord('04:00:00.000 +10:00:00.00',
+    #                                   unit=(u.hourangle, u.deg))
+    # ecliptic_coords_b = SkyCoord('08:20:00.000 +12:00:00.00',
+    #                                   unit=(u.hourangle, u.deg))
+    
+    # if sector < 14 or (sector > 26 and sector < 40):
+    #     use_coords = south_coords
+    # elif sector in [42, 43, 44]:
+    #     use_coords = ecliptic_coords_a
+    # elif sector in [45, 46]:
+    #     use_coords = ecliptic_coords_b
+    # else:
+    #     use_coords = north_coords
     
     try:
         manifest = Tesscut.download_cutouts(coordinates=use_coords, size=31, 

@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Nov 18 12:50:24 2021
-Updated Nov 21 2022
+Updated Oct 6 2023 - Fixing docstrings for sphinx
 
-@author: Lindsey Gordon
-
-MCMC log probability functions for etsfit
+Default set of MCMC log prob functions for power law modeling
 
 """
 import numpy as np
@@ -15,20 +13,14 @@ def check_priors(priors, theta):
     """ 
     Function to check that the current walker position is within the allowed
     prior values. This allows for override of the defaults by the user. 
-    Only provides unfiorm prior compact support
-    --------------------------------------------------
-    Parameters:
-        - priors (array of doubles): 
-            array should be ordered as [lower limit, upper limit] per param
-            within theta in order. priors are checked in order - if the second
-            param has no limits, use +/- inf or reorder param input to have
-            boundless params on the end. 
-            
-            ie, for fit type 1, 
-            priors = [x[0], x[-1], 0.5, 6.0, 0.0, 5.0, -5, 5]
-                           
-        - theta (array of doubles): the parameters from MCMC being compared
-            in order to priors
+    Only provides uniform prior compact support. 
+    Format for priors is as [x_0_low, x_0_high, x_1_low, x_1_high,..., x_n_low, x_n_high]
+
+    :param priors: priors in parameter order, ordered as [lower limit, upper limit] per parameter
+    :type priors: array
+    :param theta: current state, array in parameter order
+    :type theta: array of floats
+    :return: 0 if theta within priors, -inf if not
     """
     
     if len(priors) % 2 != 0:
@@ -52,17 +44,15 @@ def log_probability_singlepower_noCBV(theta, x, y, yerr, priors=None):
     Associated labels: ["t0", "A", "beta",  "b"]
     init_values in MCMC: np.array((min(disctime-3, x[-1]-2), 0.1, 1.8, 1))
     args = (x,y,yerr, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     
     """
         
@@ -95,19 +85,17 @@ def log_probability_singlepower_withCBV(theta, x, y, yerr,
     init_values in MCMC: 
         np.array((min(disctime-3, x[-1]-2), 0.1, 1.8, 0, 0,0,0,0))
     args = (x,y,yerr, Qall, CBV1, CBV2, CBV3, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - Qall (array) quaternion data
-        - CBV1, CBV2, CBV3 (arrays) CBV data
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+    
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param Qall: array of quaternion y-data
+    :param CBV1, CBV2, CBV3: arrays of CBV data
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     
     """
     
@@ -141,17 +129,16 @@ def log_probability_doublepower_noCBV(theta, x, y, yerr, disctime, priors=None):
     init_values in MCMC: 
         np.array((min(disctime-3, x[-1]-2), disctime, 0.1, 0.1, 1.8, 1.8, 1))
     args = (x,y,yerr, disctime, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param disctime: discovery time 
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     """
     def func1(x, t0, t1, A1, A2, beta1, beta2):
         return A1 *(x-t0)**beta1
@@ -189,20 +176,16 @@ def log_probability_doublepower_withCBV(theta, x, y, yerr,
     init_values in MCMC: 
         np.array((min(disctime-3, x[-1]-2), 0.1, 0.1, 1.8, 1.8, 0, 0,0,0,0))
     args = (x,y,yerr, Qall, CBV1, CBV2, CBV3, disctime, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - Qall (array) quaternion data
-        - CBV1, CBV2, CBV3 (arrays) CBV data
-        - disctime (float) discovery time
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param disctime: discovery time 
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     
     """
     def func1(x, t0, t1, A1, A2, beta1, beta2):
@@ -240,20 +223,18 @@ def log_probability_justCBV(theta, x, y, yerr, Qall, CBV1, CBV2, CBV3,
     init_values in MCMC: 
         np.array((1, 0,0,0,0))
     args = (x,y,yerr, Qall, CBV1, CBV2, CBV3, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - Qall (array) quaternion data
-        - CBV1, CBV2, CBV3 (arrays) CBV data
-        - disctime (float) discovery time
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+    
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param Qall: array of quaternion y-data
+    :param CBV1, CBV2, CBV3: arrays of CBV data
+    :param disctime: discovery time 
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     """
     
     b, cQ, c1, c2, c3 = theta
@@ -282,18 +263,16 @@ def log_probability_singlePower_BG(theta, x, y, yerr, BGdata, priors=None):
     Associated labels: [["t0", "A", "beta",  "b", "LBG"]
     init_values in MCMC: np.array((min(disctime-3, x[-1]-2), 0.1, 1.8, 1, 1))
     args = (x,y,yerr, BGdata, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - BGdata (array) background being fit
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+    
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param BGData: annulus data for background
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     
     """
     
@@ -323,19 +302,17 @@ def log_probability_singlepower_gaussianbeta(theta, x, y, yerr, mu,
     Associated labels: ["t0", "A", "beta",  "b"]
     init_values in MCMC: np.array((min(disctime-3, x[-1]-2), 0.1, 1.8, 1))
     args = (x,y,yerr, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - mu (float) mean for gaussian
-        - sigma (float) variance of gaussian
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: x-array of data (time)
+    :param y: y-array of data (flux)
+    :param yerr: error on y of data (err)
+    :param mu: mu for gaussian
+    :param sigma: sigma for gaussian
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     
     """
     
@@ -364,15 +341,13 @@ def log_probability_celerite_mean(theta, y, gp):
     
     Associated labels: ["sigma", "rho", "t0", "A", "beta",  "b"]
     args = (y, gp)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - y (array) relative flux data
-        - gp
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param y: array of y data (flux)
+    :param gp: gp object from celerite
+
+    :return: loglikelihood, logprior
     """
     gp.set_parameter_vector(theta)
     lp = gp.log_prior()
@@ -389,18 +364,16 @@ def log_probability_celerite_residual(theta, x, y, yerr, gp, priors=None):
     init_values in MCMC: 
         np.array((start_t, 0.1, 1.8, 0,np.log(1), np.log(2)))
     args = (x,y,yerr, gp, (optionally) priors)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-        - gp (celerite gp object)
-        - priors (defaults to NONE, can be custom-set)
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
+
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: time axis of data
+    :param y: array of y data (flux)
+    :param yerr: error on y of data (err)
+    :param gp: gp object from celerite
+    :param priors: custom priors array, defaults to None
+
+    :return: loglikelihood, logprior
     """
     
     t0, A, beta, b = theta[:4]
@@ -439,17 +412,13 @@ def log_probability_flat(theta, x, y, yerr):
     Associated labels: ["B"]
     init_values in MCMC: np.array(1)
     args = (x,y,yerr)
-    ----------------------------------------------
-    Parameters:
-        - theta (array of doubles): the parameters from MCMC
-        - x (array) time axis of data, starts at 0
-        - y (array) relative flux data
-        - yerr (array) error on the flux data
-    ----------------------------------------------
-    Returns:
-        - log likelihood
-        - log prior
     
+    :param theta: current state in parameter order
+    :type theta: array of floats
+    :param x: time axis of data
+    :param y: array of y data (flux)
+    :param yerr: error on y of data (err)
+    :return: loglikelihood, logprior
     """
         
     B = theta

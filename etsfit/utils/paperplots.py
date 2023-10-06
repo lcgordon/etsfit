@@ -19,7 +19,7 @@ from astropy.time import Time
 import celerite
 import etsfit.utils.utilities as ut
 from celerite import terms
-import etsfit.utils.batch_analyze as ba
+import etsfit.utils.parameter_retrieval as ba
 import math
 rcParams['font.family'] = 'serif'
 
@@ -151,7 +151,7 @@ def big_plot_singlepower(TNSFile, data_dir, save_dir, targetlist,
     """ 
     Plot a bunch of single powerlaws together
     """
-    import etsfit.utils.batch_analyze as ba
+    import etsfit.utils.parameter_retrieval as ba
     import etsfit.utils.utilities as ut
     
     
@@ -290,7 +290,7 @@ def big_plot_celerite(TNSFile, data_dir, save_dir, targetlist,
     """ 
     Plot a bunch of single powerlaws together
     """
-    import etsfit.utils.batch_analyze as ba
+    import etsfit.utils.parameter_retrieval as ba
     import etsfit.utils.utilities as ut
     
     

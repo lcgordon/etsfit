@@ -548,7 +548,7 @@ class artificial_injections(object):
         true_p = pd.read_csv(self.true_param_file)
         
         # load in calculated params
-        import etsfit.utils.batch_analyze as ba
+        import etsfit.utils.parameter_retrieval as ba
         params_all = {}
         converged_all = {}
         upper_all = {}
@@ -601,7 +601,7 @@ class artificial_injections(object):
         """
         
         # load in calculated params
-        import etsfit.utils.batch_analyze as ba
+        import etsfit.utils.parameter_retrieval as ba
         params_all = {}
         converged_all = {}
         upper_all = {}
