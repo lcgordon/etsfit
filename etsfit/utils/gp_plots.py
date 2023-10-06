@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Sep 14 19:33:12 2023
+updated oct 6 2023 - docstring updates
 
 gp plotting fxns
-
-@author: lindseygordon
 """
 
 import matplotlib.pyplot as plt
@@ -22,20 +21,17 @@ def plot_tinygp_ll(ets):
     """ 
     Plot the tinygp log likelihood per re-calculation as run concurrently 
     with the MCMC modelling
-    ----------------------------------------
-    Params:
-        - ets (etsfit obj)
+
+    :param ets: etsfit object
     """
     fig, ax1 = plt.subplots(figsize=(10,10))
     x = np.arange(0, len(ets.GP_LL_all), 1) * 1000 #x axis
     ax1.scatter(x, ets.GP_LL_all)
     ax1.set_xlabel("Step")
     ax1.set_ylabel("GP Neg. Log Likelihood")
-    ax1.set_title(ets.targetlabel + "  GP log likelihood over MCMC steps")
+    ax1.set_title(f"{ets.targetlabel} GP log likelihood over MCMC steps")
     plt.tight_layout()
-    plt.savefig('{s}{t}{f}-GP-loglike-steps.png'.format(s=ets.save_dir,
-                                                      t=ets.targetlabel,
-                                                      f=ets.filesavetag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-GP-loglike-steps.png')
 
     plt.close()
     return
@@ -44,9 +40,8 @@ def plot_mcmc_GP_celerite_mean(ets):
     """
     Plots the best fit model from MCMC with a celerite background
     Calls plot_2panel_model() and gp_plots()
-    ---------------------------------------------
-    Params:
-        - ets (etsfit obj)
+
+    :param ets: etsfit object
     """
     
     t0, A,beta,B = ets.best_mcmc[2:]
@@ -75,9 +70,8 @@ def plot_mcmc_GP_celerite_residual(ets):
     """
     Plots the best fit model from MCMC with a celerite background
     Calls plot_2panel_model() and gp_plots()
-    ---------------------------------------------
-    Params:
-        - ets (etsfit object)
+    
+    :param ets: etsfit object
     """
     
     t0, A,beta,B = ets.best_mcmc[:4]
@@ -106,9 +100,8 @@ def plot_mcmc_GP_tinygp(ets):
     """
     Plots the best fit model from MCMC with a tinygp background
     Calls plot_2panel_model() and gp_plots()
-    ---------------------------------------------
-    Params:
-        - ets (etsfit obj)
+    
+    :param ets: etsfit object
         
     """
 
@@ -140,16 +133,14 @@ def gp_plots(ets, tplot, model, dplot, t0plot, bg, gpfiletag):
     bottom panel gives GP residual. 
     
     Also produces a histogram of the GP residual fluxes 
-    ---------------------------------------------
-    Params:
-        - ets (etsfit obj)
-        - tplot (time axis to plot)
-        - model (power law model)
-        - dplot (disc. time to plot)
-        - t0plot (t0 to plot)
-        - bg (separate background)
-        - gpfiletag (str) tag added on to the end to indicate which gp model
-            was used (ie, "MCMC-tinyGP-TriplePlotResiduals")
+   
+    :param ets: etsfit object
+    :param tplot: time axis to plot
+    :param model: complete model to plot
+    :param dplot: discovery time to plot
+    :param t0plot: t0 to plot
+    :param bg: separate bg if applicable
+    :param gpfiletag: tag added onto end of filenames to indicate model used. (ie, "MCMC-tinyGP-TriplePlotResiduals")
     """
     
     #second plot: 
@@ -193,9 +184,7 @@ def gp_plots(ets, tplot, model, dplot, t0plot, bg, gpfiletag):
     ax[2].legend(fontsize=18)
     
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-{gpf}.png'.format(p=ets.save_dir,t=ets.targetlabel,
-                                             f=ets.filesavetag,
-                                             gpf=gpfiletag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-{gpfiletag}.png')
 
     plt.close()
     
@@ -205,20 +194,17 @@ def gp_plots(ets, tplot, model, dplot, t0plot, bg, gpfiletag):
     ax1.set_xlabel("Rel. Flux")
     ax1.set_title("Histogram of GP Residual Flux")
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-residual-histogram.png'.format(p=ets.save_dir,t=ets.targetlabel,
-                                             f=ets.filesavetag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-residual-histogram.png')
 
     plt.close()
     return
-
 
 def plot_celerite_tinygp_comp(ets):
     """ 
     Produces 2x3 plot comparing the no-GP, tinygp, and celerite fittings + 
     their residuals
-    ---------------------------------------------
-    Params:
-        - ets
+    
+    :param ets: etsfit object
     """
     
     t0, A,beta,B = ets.best_mcmc[:4]
@@ -282,9 +268,7 @@ def plot_celerite_tinygp_comp(ets):
     ax[nrows-1][0].tick_params('x', labelsize=18)
     ax[nrows-1][1].tick_params('x', labelsize=18)
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-comparison-plot.png'.format(p=ets.save_dir,
-                                                      t=ets.targetlabel,
-                                                      f=ets.filesavetag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-comparison-plot.png')
     plt.close()
     
     fig, ax1 = plt.subplots(figsize=(10,10))
@@ -292,8 +276,7 @@ def plot_celerite_tinygp_comp(ets):
     ax1.set_xlabel("Rel. Flux")
     ax1.set_title("Histogram of GP Residual Flux")
     plt.tight_layout()
-    plt.savefig('{p}{t}{f}-residual-histogram.png'.format(p=ets.save_dir,t=ets.targetlabel,
-                                             f=ets.filesavetag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-residual-histogram.png')
 
     plt.close()
     return
@@ -301,10 +284,8 @@ def plot_celerite_tinygp_comp(ets):
 def plot_scipy_max(ets):
     """ 
     Plots the maximum celerite fit using scipy maximization 
-    ---------------------------------------------
-    Params:
-        - ets
-        
+    
+    :param ets: etsfit object
     """
     x = ets.time + ets.tmin - 2457000
     disctime = ets.disctime + ets.tmin - 2457000
@@ -322,22 +303,16 @@ def plot_scipy_max(ets):
     plt.title("{t}: Scipy max. likelihood prediction".format(t=ets.targetlabel))
     plt.legend()
     plt.tight_layout()
-    plt.savefig('{s}{t}{f}-scipy-prediction.png'.format(s=ets.save_dir,
-                                                        t=ets.targetlabel,
-                                                        f=ets.filesavetag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-scipy-prediction.png')
     #plt.show()
     plt.close()
     return
 
-
-    
 def celerite_post_pred(ets):
     """ 
     Plots the posterior predictions for celerite  mean model concurrent 
-    ---------------------------------------------
-    Params:
-        - ets
-        
+    
+    :param ets: etsfit object
     """
     x = ets.time + ets.tmin - 2457000
     disctime = ets.disctime + ets.tmin - 2457000
@@ -354,11 +329,9 @@ def celerite_post_pred(ets):
 
     plt.ylabel("Flux")
     plt.xlabel("Time [BJD-2457000]")
-    plt.title("{t} posterior predictions".format(t=ets.targetlabel))
+    plt.title(f"{ets.targetlabel} posterior predictions".format(t=ets.targetlabel))
     plt.legend()
-    plt.savefig('{s}{t}{f}-celerite-post-pred.png'.format(s=ets.save_dir,
-                                                        t=ets.targetlabel,
-                                                        f=ets.filesavetag))
+    plt.savefig(f'{ets.save_dir}{ets.targetlabel}{ets.filesavetag}-celerite-post-pred.png')
     #plt.show()
     plt.close()
     return

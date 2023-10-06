@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue May 23 08:41:41 2023
+update oct 6 2023 - docstring updates
 
-@author: lindseygordon
+Produces and injects artificial signals into fake tess light curves for validation.
 """
 
 import numpy as np
@@ -24,19 +25,18 @@ rcParams['font.family'] = 'serif'
 class artificial_injections(object): 
     """ 
     Run artificial signal injections to test precision/recall 
+
+    :param save_dir: (str) - outermost dir to save everything into
+    :param total_lightcurves: (int) - how many total LC to run on
+    :param percent_injected: what fraction of n_total_lightcurves to put a fake signal into. must be < 1, will round UP on calc.
+    :param PL_rise:  1 or 2, how many power laws to inject
+    :param folderprefix: (str) wherever in your directories your data is hanging out
     """
     
     def __init__(self, save_dir, total_lightcurves, percent_injected, 
                  PL_rise=1, folderprefix="/Users/lindseygordon/research/urop/tessreduce_lc/"):
         """ 
-        Injection Launcher 
-        Params: 
-            - save_dir (str) - outermost dir to save everything into
-            - total_lightcurves (int) - how many total LC to run on
-            - percent_injected (float) - what fraction of n_total_lightcurves
-                to put a fake signal into. must be < 1, will round UP on calc.
-            - PL_rise (1 or 2) - power law rise - 1 or 2 rises in gen. signal
-            - folderprefix (str) wherever in your directories your data is hanging out
+        obj constructor
         """
         self.total_lightcurves = total_lightcurves
         self.datafolder = folderprefix
@@ -75,9 +75,9 @@ class artificial_injections(object):
     def load_background(self, background_type="noise", background=0):
         """ 
         Load in the background to use
-        Params:
-            - background_type (str) - "noise" or "badIa"
-            - background (int) - 0,1,2 for each
+        
+        :param background_type: (str) - "noise" or "badIa"
+        :param background: (int) - 0,1,2 for each
         """
         if background not in (0,1,2):
             return ValueError(f"{background} is not a valid background - 0,1,2!")
@@ -138,7 +138,6 @@ class artificial_injections(object):
         mask = np.nonzero(mask) # which ones you are keeping
         self.x = self.x[mask]
         return
-    
     
     def generate_all_noisemodels(self): 
         """ 
@@ -323,6 +322,8 @@ class artificial_injections(object):
         """ 
         Produce the set of injections for testing by calling gen_params() and
         __inject(). 
+
+        :param plot: bool to plot injections
         """
         # generate parameters 
         self.gen_params()
@@ -488,6 +489,10 @@ class artificial_injections(object):
     def run_PL_fitting(self, start=0, n1=1_000, n2=15_000): 
         """ 
         Perform completeness fitting on the generated sample
+        
+        :param start: which injection to start fitting on
+        :param n1: mcmc n1
+        :param n2: mcmc n2
         """
         tag = ['x', 'singlepower', 'doublepower']
         final_file = f"{self.subfolder}/index{self.total_lightcurves-1}/{tag[self.PL_rise]}/"
@@ -519,7 +524,12 @@ class artificial_injections(object):
     
     def run_flat_fitting(self, start=0, n1=100, n2=1000):
         """ 
-        Run fitting for the flat background
+        Run fitting for the flat background 
+        
+        :param start: which injection to start fitting on
+        :param n1: mcmc n1
+        :param n2: mcmc n2
+
         """
         final_file = f"{self.subfolder}/index{self.total_lightcurves-1}/flat"
         print(f"The final file is: {final_file}, ", end="")
@@ -565,10 +575,10 @@ class artificial_injections(object):
                     filepath = root + "/" + name
                     if self.PL_rise == 1: 
                         (params,  upper_e, 
-                         lower_e,  converg) = ba.extract_singlepower_all(filepath)
+                         lower_e,  converg) = ba.extract_singlepower_params(filepath)
                     elif self.PL_rise == 2:
                         (params,  upper_e, 
-                         lower_e,  converg) = ba.extract_doublepower_all(filepath)
+                         lower_e,  converg) = ba.extract_doublepower_params(filepath)
                     
                     params_all[targ] = params
                     upper_all[targ] = upper_e
@@ -599,7 +609,6 @@ class artificial_injections(object):
         """ 
         Load in flat param best fits
         """
-        
         # load in calculated params
         import etsfit.utils.parameter_retrieval as ba
         params_all = {}
@@ -607,7 +616,6 @@ class artificial_injections(object):
         upper_all = {}
         lower_all = {}
 
-        
         for root, dirs, files in os.walk(self.subfolder):
             for name in files:
                 if (name.endswith("-flat-output-params.txt")):
@@ -801,6 +809,9 @@ class artificial_injections(object):
         return
     
     def re_run_wrongs(self, n1=1_000, n2=15_000):
+        """
+        re-fit to fn/fp 
+        """
         
         newfolder = f"{self.save_dir}/rerun_falsenegs/"
         if not os.path.exists(newfolder):
@@ -858,28 +869,28 @@ class artificial_injections(object):
             
         return
         
-def get_flux_range(which):
-    all_ = ["2018fwi", "2019sqj", "2020azn"]
-    sec_ = [2, 17, 21]
+# def get_flux_range(which):
+#     all_ = ["2018fwi", "2019sqj", "2020azn"]
+#     sec_ = [2, 17, 21]
     
-    name = all_[which]
-    sec = sec_[which]
-    import tessreduce as tr
-    obs = tr.sn_lookup(name)
-    lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]
-    tess = tr.tessreduce(obs_list=lookup,plot=False,reduce=True)
-    import etsfit.utils.utilities as ut
-    t, f, e, bg = ut.sigmaclip(tess.lc[0], tess.lc[1], tess.lc[2], None)
-    if which ==1: 
-        mask = np.ones(len(t)).astype(bool)
-        mask[400:530] = False
-        mask[1020:] = False
-        t = t[mask]
-        f = f[mask]
-    print(f"{name}: flux range: {np.max(f) - np.min(f)}")
+#     name = all_[which]
+#     sec = sec_[which]
+#     import tessreduce as tr
+#     obs = tr.sn_lookup(name)
+#     lookup = obs[np.where(np.asarray(obs)[:,2] == sec)[0][0]]
+#     tess = tr.tessreduce(obs_list=lookup,plot=False,reduce=True)
+#     import etsfit.utils.utilities as ut
+#     t, f, e, bg = ut.sigmaclip(tess.lc[0], tess.lc[1], tess.lc[2], None)
+#     if which ==1: 
+#         mask = np.ones(len(t)).astype(bool)
+#         mask[400:530] = False
+#         mask[1020:] = False
+#         t = t[mask]
+#         f = f[mask]
+#     print(f"{name}: flux range: {np.max(f) - np.min(f)}")
     
-    lm = tess.to_mag()
-    print(np.ma.masked_invalid(lm[1]).mean())
-    return 
+#     lm = tess.to_mag()
+#     print(np.ma.masked_invalid(lm[1]).mean())
+#     return 
 
         

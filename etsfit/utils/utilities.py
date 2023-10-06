@@ -2,8 +2,7 @@
 """
 Created on Thu Dec  2 10:59:01 2021
 Updated Nov 21 2022
-
-@author: Lindsey Gordon
+Updated Oct 6 2023 - docstrings
 
 Utility functions, mostly to do with data manipulation
 """
@@ -17,15 +16,18 @@ import tessreduce as tr
 import time
 from scipy.signal import medfilt
 
-def get_sublist(TNSFile, gList, outFile):
+def get_sn_sublist(csvfile, searchlist, outFile):
     """ 
-    Get list of only the SN on your gList
+    Get list of only the SN on your searchlist
+    :param csvfile: all sn in csv
+    :param searchlist: names of sn to keep
+    :param outFile: output csv file
     """
-    info = pd.read_csv(TNSFile)
+    info = pd.read_csv(csvfile)
     for i in range(len(info)):
         sn = info["Name"][i][3:]
         print(sn)
-        if sn not in gList:
+        if sn not in searchlist:
             info.drop(i, inplace=True)
     
     info.reset_index(inplace=True)
@@ -38,12 +40,10 @@ def load_lygos_csv(file):
     Load data from a lygos rflxtarg csv file 
     Assumes 3 columns time/flux/error AND that there is an rflx file
     in the same folder containing the background data
-    ---------------------------------------
-    Params:
-        - file (str) path to an rflxtarg file to be loaded
-    ---------------------------------------
-    Returns:
-        - time, flux, error, background (arrays)
+
+    :param file: (str) path to an rflxtarg file to be loaded
+    
+    :return: time, flux, error, background (arrays)
         
     """
     data = pd.read_csv(file, sep = ',', header = 0)
@@ -59,13 +59,11 @@ def load_lygos_csv(file):
 def get_disctime(file, name):
     """
     Helper function to retrieve discovery time from a big TNS file
-    ---------------------------------------
-    Params:
-        - file (str) path to the TNS file
-        - name (str) SN to retrieve, ie, '2020abc'
-    ---------------------------------------
-    Returns:
-        - discovery time in JD
+    
+    :param file: (str) path to the TNS file
+    :param name: (str) SN to retrieve, ie, '2020abc'
+    
+    :return: discovery time in JD
     """
     f = pd.read_csv(file)
     d = f[f["Name"].str.contains(name)]["Discovery Date (UT)"]
@@ -82,14 +80,13 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
     Defaults the inner window as len(self.time)*0.005 and the outer as
     inner*10.
     
-    -------------------------------
-    Parameters:
-        
-        - innerfilt = None by default, can set to an int for the inner
-        window of compariosn
-        - outerfilt = None by default, can set to an int for the outer
+    :param time: time array
+    :param flux: flux array
+    :param innerfilt: None by default, can set to an int for the inner
+                    window of compariosn
+    :param outerfilt: None by default, can set to an int for the outer
         window of comparison
-        - plot (bool) defaults as True, plots light curve w/ mask
+    :param plot: (bool) defaults as True, plots light curve w/ mask
     
     """
     if innerfilt is None:
@@ -137,13 +134,14 @@ def window_rms(time, flux, innerfilt = None, outerfilt = None,
 def sigmaclip(time, flux,error, bg, axis=0):
     """ 
     5 sigma clip data
-    ---------------------------------------
-    Params:
-        - time, flux, error, bg (arrays)
-        - axis = 0 for individual 1D arrays
-    ---------------------------------------
-    Returns:
-        - sigma clipped time, flux, error, bg
+
+    :param time: 
+    :param flux:
+    :param error:
+    :param bg: can be None if no background to handle
+    :param axis: default 0 for 1D arrays
+    
+    :returns: time, flux, error, bg
     
     """
 
@@ -162,9 +160,8 @@ def sigmaclip(time, flux,error, bg, axis=0):
 def data_masking(obj):
     """ 
     Mask the data using the object's flux_mask attribute
-    ---------------------------------
-    Params:
-        - obj (ets object)
+   
+    :param obj: etsfit object
     """
     mask = np.nonzero(obj.mask) # which ones you are keeping
     obj.time = obj.time[mask]
@@ -184,42 +181,42 @@ def data_masking(obj):
 def param_save(obj):
     """ 
     Save output parameter files
+
+    :param obj: etsfit object
     """
     if hasattr(obj, 'BIC_celerite'):
-        BICstring = "BIC celerite:{b1:.3f}\nBIC tinygp{b2:.3f}\n".format(b1=obj.BIC_celerite[0],
-                                                                         b2=obj.BIC_tinygp[0])
+        BICstring = f"BIC celerite:{obj.BIC_celerite[0]:.3f}\nBIC tinygp{obj.BIC_tinygp[0]:.3f}\n"
     else:
-        BICstring = "BIC:{bicy:.3f}\n".format(bicy=obj.BIC)
+        BICstring = f"BIC:{obj.BIC:.3f}\n"
     
-    CONVstring = "Converged:{conv} \n".format(conv=obj.converged)
+    CONVstring = f"Converged:{obj.converged} \n"
     BPstring = ""
     UEstring = ""
     LEstring = ""
     THstring = ""
     #save parameters in rows of 4:
     for n in range(obj.ndim):
-        BPstring = BPstring + " {A:.4f} ".format(A=obj.best_mcmc[n])
-        UEstring = UEstring + " {A:.4f} ".format(A=obj.upper_error[n])
-        LEstring = LEstring + " {A:.4f} ".format(A=obj.lower_error[n])
+        BPstring = f"{BPstring} {obj.best_mcmc[n]:.4f}"
+        UEstring = f"{UEstring} {obj.upper_error[n]:.4f}"
+        LEstring = f"{LEstring} {obj.lower_error[n]:.4f}"
         if not (n+1) % 4: #every 4, make a new line
-            BPstring = BPstring + "\n"
-            UEstring = UEstring + "\n"
-            LEstring = LEstring + "\n"
+            BPstring = f"{BPstring}\n"
+            UEstring = f"{UEstring}\n"
+            LEstring = f"{LEstring}\n"
             
     #then add another gap after that
-    BPstring = BPstring + "\n"
-    UEstring = UEstring + "\n"
-    LEstring = LEstring + "\n"
+    BPstring = f"{BPstring}\n"
+    UEstring = f"{UEstring}\n"
+    LEstring = f"{LEstring}\n"
     
     #save theta values for tinygp
     if hasattr(obj, 'theta'):
         for k in obj.theta.keys():
-            THstring = THstring + "{key} \n {val:.4f} \n".format(key=k, 
-                                                                 val = obj.theta[k])
+            THstring = f"{THstring}{k} \n {obj.theta[k]:.4f} \n"
     
     #write into file:
     with open(obj.parameter_save_file, 'w') as file:
-        file.write(obj.targetlabel + "\n")
+        file.write(f"{obj.targetlabel}\n")
         file.write(BICstring)
         file.write(CONVstring)
         file.write(BPstring)
@@ -234,9 +231,8 @@ def fractional_trim(obj):
     Trims light curve to a chosen fraction of the peak flux
     Considers "above" to be when 10 indices in a row are all brighter
     (Actually looks from the top)
-    ---------------------------------------
-    Params:
-        - obj (ets object)
+    
+    :param obj: etsfit object
     """
     #fractionalBright = ((flux.max()-1) * fraction) + 1
     #find range, take percent of range, add to min
@@ -262,14 +258,13 @@ def fractional_trim(obj):
 
     return
 
-def time_binning(goal_dt, time_unit, obj):
+def time_binning(obj, goal_dt, time_unit):
     """
     Bin light curve to goal_dt timeframe
-    ---------------------------------------
-    Params:
-        - goal_dt (float) how long each timeframe should be
-        - time_unit (str) what unit the time array is in
-        - obj (etsfit object)
+
+    :param obj: etsfit object
+    :param goal_dt: float, how long each timeframe should be 
+    :param time_unit: str, what unit the time array is in
     """
     # make sure everything is in JD
     time = Time(obj.time, format=time_unit).jd
@@ -322,13 +317,13 @@ def time_binning(goal_dt, time_unit, obj):
 def tr_downloader(file, data_dir, cdir, start=0):
     """ 
     Download the tessreduce lc for your list
-    --------------------------
-    Params:
-        - file (str) directory link to a pandas readable csv file of 
-            all targets to retrieve data for
-        - data_dir (str) directory link to where to save the data
-        - cdir (str) directory link to where tesscut downloads. 
-            *** Lindsey your cdir is "/Users/lindseygordon/.lightkurve-cache/tesscut/"
+    *** Lindsey your cdir is "/Users/lindseygordon/.lightkurve-cache/tesscut/"
+
+    :params file: (str) directory link to a pandas readable csv file of all targets to retrieve data for
+    :params data_dir: (str) directory link to where to save the data
+    :params cdir: (str) directory link to where tesscut downloads. 
+    :params start: where in list to start looking
+            
     """
     info = pd.read_csv(file)
     failures = []
@@ -407,10 +402,9 @@ def tr_load_lc(file, printname=True):
     """
     Given a filename, load in the data. 
     Assumes filenames formatted as in tr_downloader()
-    ---------------------
-    Params:
-        - file (str) link to file to load
-        - printname (default True) print the target's name 
+    
+    :param file: (str) link to file to load
+    :param printname: (default True) print the target's name 
     """
     loadedraw = pd.read_csv(file)
     time = Time(loadedraw["time"], format='mjd').jd
@@ -424,24 +418,18 @@ def tr_load_lc(file, printname=True):
     sector = int(fh[-4:-2])
     targetlabel = fh[:-4] #this fixes issues of varying name length
     
-    
-    if printname:
-        print(targetlabel, sector, camera, ccd)
+    if printname: print(targetlabel, sector, camera, ccd)
         
     time, flux, error, bg = sigmaclip(time, flux, error, None, axis=0)
-        
     return time, flux, error, targetlabel, sector, camera, ccd
 
-
-    
 ### quaternion handling section  
 
 def generate_align_quats_cbvs(obj, **kwargs):
     """
     Load in cbv and quaternions and match them up to the x values given 
-    ---------------------------------
-    Params:
-        - obj (etsfit object) that has all the parameters this will need
+    
+    :param obj: etsfit object
     """
     # Load quaternions from files:
     print("Loading quaternions...")
@@ -464,8 +452,13 @@ def load_cbvs(cbv_dir, time, sector, camera, ccd, realign_cbvs):
     """ 
     cbv loader - requires working internet to get tess cutout. 
     Loosely based on eleanor/update.py to get the FFI timestamps 
-    kwarg:
-        - realign_cbvs (bool)
+
+    :param cbv_dir: directory for cbvs
+    :param time: time axis of data
+    :param sector: int 
+    :param camera: int
+    :param ccd: int
+    :param realign_cbvs: this was a kwarg, if the alignment already happened set to False
     """
     cbv_file = f"{cbv_dir}s{int(sector):04}/cbv_components_s{int(sector):04}_{int(camera):04}_{int(ccd):04}.txt"
     print(cbv_file)
@@ -508,25 +501,6 @@ def load_cbvs(cbv_dir, time, sector, camera, ccd, realign_cbvs):
         use_coords = SkyCoord('6:00:00.000 -66.33.38.55',
                               unit=(u.hourangle, u.deg))
     
-    # # https://docs.astropy.org/en/stable/api/astropy.coordinates.SkyCoord.html
-    # north_coords = SkyCoord('16:35:50.667 +63:54:39.87',
-    #                               unit=(u.hourangle, u.deg))
-    # south_coords = SkyCoord('04:35:50.330 -64:01:37.33',
-    #                               unit=(u.hourangle, u.deg))
-    # ecliptic_coords_a = SkyCoord('04:00:00.000 +10:00:00.00',
-    #                                   unit=(u.hourangle, u.deg))
-    # ecliptic_coords_b = SkyCoord('08:20:00.000 +12:00:00.00',
-    #                                   unit=(u.hourangle, u.deg))
-    
-    # if sector < 14 or (sector > 26 and sector < 40):
-    #     use_coords = south_coords
-    # elif sector in [42, 43, 44]:
-    #     use_coords = ecliptic_coords_a
-    # elif sector in [45, 46]:
-    #     use_coords = ecliptic_coords_b
-    # else:
-    #     use_coords = north_coords
-    
     try:
         manifest = Tesscut.download_cutouts(coordinates=use_coords, size=31, 
                                             sector=sector)
@@ -563,12 +537,11 @@ def load_quaternions(quat_folder, sector, time, **kwargs):
     Helper function to load in (and bin if needed) the quaternions
     Has an option that loads from a shortcut if you're not having it totally
     redo the binning (kwarg)
-    Params:
-        - quat_folder
-        - sector 
-        - time 
-    kwargs:
-        - manual_rebin (bool)
+
+    :param quat_folder: folder of quaternions
+    :param sector: int
+    :param time: time axis
+    :param manual_rebin: bool to force rebinning of quaternions
     
     """
     redo = kwargs.get("manual_rebin", False)
@@ -633,10 +606,9 @@ def single_quat_textfile(file_in, file_out):
     """
     Produce Quaternion files for easy opening/handling and smaller storage size
     This only needs to be run once for each sector at the start to make the new files
-    ------------------------------
-    Params:
-        - file_in (str) input quaternion fits file that needs to be compressed into txt
-        - file_out (str) filename of output txt file
+
+    :param file_in: input quaternion fits file that needs to be compressed into txt
+    :param file_out: (str) filename of output txt file
     """
     from astropy.io import fits
     if os.path.isfile(file_out):
@@ -658,10 +630,9 @@ def single_quat_textfile(file_in, file_out):
 def all_quat_textfiles(inFolder, outFolder):
     """
     Produces ALL quaternion text files for a given folder of quaternion .fits files
-    --------------------------------
-    Params:
-        - inFolder (str) where all the fits files currently are
-        - outFolder (str) where all the txt files should go
+    
+    :param inFolder: (str) where all the fits files currently are
+    :param outFolder: (str) where all the txt files should go
     """
     for root, dirs, files in os.walk(inFolder):
         for name in files:

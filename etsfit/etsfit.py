@@ -248,7 +248,7 @@ class etsfit(object):
             def_time = Time("1999-01-01T08:00:00", format='isot') \
                 - Time("1999-01-01T00:00:00", format='isot')
             self.binning_dt = kwargs.get("binning_dt", def_time.jd)
-            ut.time_binning(self.binning_dt, self.time_unit, self)
+            ut.time_binning(self, self.binning_dt, self.time_unit)
             self.preprocessing_tag += "_binned"
                   
         if self.fraction_trim is not None:

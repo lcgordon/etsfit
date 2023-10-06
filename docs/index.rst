@@ -6,13 +6,25 @@
 Welcome to etsfit's documentation!
 ==================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
 
 This is a project to quickly run MCMC on early time supernova light curves. It was originally designed for TESS data on Type Ia's, but should 
 function as a plug-and-play way to drop in a new log likelihood function for any model and any data and get a uniform set of plots out. 
 
+.. toctree::
+   :maxdepth: 1
+   :caption: etsfit main: 
+
+   source/etsfit.etsfit
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Main Submodules:
+
+   source/etsfit.utils.default_plots
+   source/etsfit.utils.gp_plots
+   source/etsfit.utils.MCMC
+   source/etsfit.utils.parameter_retrieval
+   source/etsfit.utils.utilities
 
 
 Indices and tables

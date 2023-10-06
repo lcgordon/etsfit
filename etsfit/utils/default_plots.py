@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sat Mar 20 12:47:01 2021
-Updated: Nov 21 2022
-
-@author: Lindsey Gordon
+Updated: Oct 6 2023 - new docstrings 
 
 Default plotting functions for use in etsfit
-
-Access docstrings by help(fxn_name)
 
 """
 import matplotlib.pyplot as plt
@@ -25,10 +21,8 @@ def plot_autocorr_all(ets):
     plot_autocorr_individual()
     and 
     plot_autocorr_mean()
-    -----------------------------------------
-    Params:
-        - ets (etsfit object)
-    
+
+    :param ets: etsfit object
     """
     plot_autocorr_mean(ets)
     plot_autocorr_individual(ets)
@@ -39,9 +33,8 @@ def plot_autocorr_mean(ets):
     """ 
     Plots the mean autocorrelation time versus the number of steps
     Convergence threshold N/100 line is also plotted.
-    ----------------------------------
-    Params:
-        - ets (etsfit object)
+    
+    :param ets: etsfit object
         
     """
     rcParams['figure.figsize'] = 8, 8
@@ -66,9 +59,8 @@ def plot_autocorr_mean(ets):
 def plot_autocorr_individual(ets):
     """
     Plot each parameter's autocorrelation time per step in an individual file
-    -------------------------------------
-    Params:
-        - ets (etsfit object)
+    
+    :param ets: etsfit object
     """
     n = ets.stepsize * np.arange(1, ets.index + 1) #x axis - number of steps
     for i in range(len(ets.labels)):
@@ -94,9 +86,8 @@ def plot_autocorr_individual(ets):
 def plot_corner(ets):
     """ 
     Produces corner plot using corner.py 
-    --------------------------------------
-    Params:
-        - ets (etsfit object)
+    
+    :param ets: etsfit object
     """
     fig = corner.corner(ets.flat_samples, 
                         labels=ets.labels,
@@ -123,9 +114,8 @@ def plot_corner(ets):
 def plot_param_samples_all(ets):
     """
     Plot all the parameter sampling per parameter from the chains in one big plot
-    --------------------------------------
-    Params:
-        - ets (etsfit obj)
+    
+    :param ets: etsfit object
     """
     if ets.use_fit == 20: 
         fig, ax = plt.subplots(1, figsize=(5,5))
@@ -164,13 +154,10 @@ def plot_param_samples_all(ets):
 def fitTypeModel(ets):
     """
     Produces the plotting model for a given fit type (1-7) 
-    ------------------------------------------
-    Params:
-        - ets (etsfit obj)
-    ------------------------------------------
-    Returns:
-        - mod (power law model)
-        - bg (background model)
+   
+    :param ets: etsfit object
+
+    :return: model, background
     """
     x = ets.time
     
@@ -230,11 +217,9 @@ def fitTypeModel(ets):
 def plot_chain_withlogpost(ets, appendix=""):
     """
     Plots MCMC chain trace plots for all parameters and the log posterior
-    --------------------------------------
-    Params:
-        - ets (etsfit object)
-        - appendix (str) tail end string for the filename - usually "burnin" 
-                or "production"
+
+    :param ets: etsfit object
+    :param appendix: str to tack onto end of filenames, usually 'burnin' or 'production'
     
     """
     fig, axes = plt.subplots(ets.ndim+1, figsize=(10, 7), sharex=True)
@@ -271,13 +256,12 @@ def plot_chain_withlogpost(ets, appendix=""):
 def plot_histogram(data, bins, x_label, y_label, filename):
     """ 
     Plot a simple histogram
-    ----------------------------------------------
-    Params:
-        - data (array) histogram info
-        - bins (int) how many bins
-        - x_label (str)
-        - y_label (str)
-        - filename (str or None) full path to save into
+
+    :param data: dataset 1D
+    :param bins: integer number of bins
+    :param x_label: xlabel string
+    :param y_label: string for y label
+    :param filename: default None, otherwise string for saving.
     """
     fig, ax1 = plt.subplots(figsize=(10,10))
     n_in, bins, patches = ax1.hist(data, bins)
@@ -296,9 +280,8 @@ def plot_mcmc(ets):
     """
     Main plotting function: produces the corner plot and MCMC best fit model
     plot for a given fitting run
-    ----------------------------------------------
-    Params:
-        - ets (etsfit object)
+    
+    :param ets: etsfit object
     """
     #set up model = sl + bg but can be plot separately.
     t0 = ets.best_mcmc[0]
@@ -323,13 +306,12 @@ def plot_2panel_model(ets, tplot, model, dplot, t0plot):
     """ 
     Produces two panel plot of output model. 
     Top panel gives the data + model, bottom panel gives the residual. 
-    ---------------------------------------------
-    Params:
-        - ets (etsfit obj)
-        - tplot (time axis to plot)
-        - model (complete model)
-        - dplot (disc. time to plot)
-        - t0plot (t0 to plot)
+
+    :param ets: etsfit object
+    :param tplot: time axis to plot
+    :param model: complete model to plot
+    :param dplot: discovery time to plot
+    :param t0plot: t0 to plot
     """
     nrows = 2
     ncols = 1
@@ -381,10 +363,13 @@ def plot_2panel_model(ets, tplot, model, dplot, t0plot):
 
 
 
-def plot_all_in_folder(data_dir, file_TNS):
+def plot_all_data_in_folder(data_dir, csv_FILE):
     """ 
     Plots all tessreduce light curves saved in a given directory w/
     their discovery time
+
+    :param data_dir: string of directory
+    :param csv_FILE: csv containing info on targets
     """
     import os
     import etsfit.util.utilities as ut
@@ -398,7 +383,7 @@ def plot_all_in_folder(data_dir, file_TNS):
                   camera, ccd) = ut.tr_load_lc(holder)
                 fig, ax = plt.subplots(1, figsize=(4, 1.5))
                 ax.scatter(time, flux, s=2, color='black')
-                dd_ = ut.get_discovery_time(file_TNS, targetlabel)
+                dd_ = ut.get_discovery_time(csv_FILE, targetlabel)
                 ax.axvline(dd_, color='red')
                 ax.set_title(targetlabel)
                 plt.tight_layout()
